@@ -1,4 +1,8 @@
-import type { EditAction, EditApplyResult, PingResult } from "./generated";
+import type {
+  EditAction,
+  EditApplyResult,
+  PingResult,
+} from "./types.generated";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;

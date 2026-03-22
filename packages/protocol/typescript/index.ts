@@ -1,2 +1,2 @@
-export * from "./generated";
+export * from "./types.generated";
 export * from "./validators";

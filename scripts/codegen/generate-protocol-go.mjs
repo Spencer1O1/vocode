@@ -4,7 +4,7 @@ import path from "node:path";
 const root = process.cwd();
 const schemaDir = path.join(root, "packages", "protocol", "schema");
 const outDir = path.join(root, "packages", "protocol", "go");
-const outFile = path.join(outDir, "generated.go");
+const outFile = path.join(outDir, "types.generated.go");
 
 const entries = [
   { file: "common.schema.json", def: "Anchor", name: "Anchor" },

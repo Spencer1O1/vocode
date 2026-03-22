@@ -17,8 +17,7 @@
       "!**/tmp",
       "!**/.DS_Store",
       "!pnpm-lock.yaml",
-      "!packages/protocol/typescript/generated.ts",
-      "!packages/protocol/go/generated.go"
+      "!**/*.generated.ts"
     ]
   },
   "formatter": {

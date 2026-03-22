@@ -6,7 +6,7 @@ import { compile } from "json-schema-to-typescript";
 const root = process.cwd();
 const schemaDir = path.join(root, "packages", "protocol", "schema");
 const outDir = path.join(root, "packages", "protocol", "typescript");
-const outFile = path.join(outDir, "generated.ts");
+const outFile = path.join(outDir, "types.generated.ts");
 
 const entries = [
   {
