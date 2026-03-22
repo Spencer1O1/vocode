@@ -13,6 +13,9 @@ build/
 bin/
 coverage/
 
+# Generated files
+*.generated.*
+
 # VS Code extension package artifacts
 *.vsix
 
