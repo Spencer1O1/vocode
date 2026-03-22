@@ -33,15 +33,69 @@ const compilerOptions = {
 const typeMap = new Map(); // name → definition
 
 function extractTypes(ts) {
-  const regex = /export (interface|type) (\w+)[\s\S]*?\n}/g;
+  const lines = ts.split("\n");
   const results = [];
-  let match;
+  let i = 0;
 
-  while ((match = regex.exec(ts)) !== null) {
+  while (i < lines.length) {
+    const line = lines[i];
+
+    const interfaceMatch = line.match(/^export interface (\w+)\b/);
+    const typeMatch = line.match(/^export type (\w+)\b/);
+
+    if (!interfaceMatch && !typeMatch) {
+      i += 1;
+      continue;
+    }
+
+    const name = interfaceMatch?.[1] ?? typeMatch?.[1];
+    const block = [line];
+
+    // Single-line declaration like:
+    // export interface PingParams {}
+    // export type EditAction = ReplaceBetweenAnchorsAction;
+    if (line.includes("{}") || line.trim().endsWith(";")) {
+      results.push({
+        name,
+        code: block.join("\n"),
+      });
+      i += 1;
+      continue;
+    }
+
+    // Multi-line declaration
+    let braceDepth =
+      (line.match(/{/g) ?? []).length - (line.match(/}/g) ?? []).length;
+
+    i += 1;
+
+    while (i < lines.length) {
+      const nextLine = lines[i];
+      block.push(nextLine);
+
+      braceDepth +=
+        (nextLine.match(/{/g) ?? []).length -
+        (nextLine.match(/}/g) ?? []).length;
+
+      // If this is a type alias ending with semicolon, finish.
+      if (braceDepth <= 0 && nextLine.trim().endsWith(";")) {
+        break;
+      }
+
+      // If braces balanced back out, finish.
+      if (braceDepth <= 0) {
+        break;
+      }
+
+      i += 1;
+    }
+
     results.push({
-      name: match[2],
-      code: match[0],
+      name,
+      code: block.join("\n"),
     });
+
+    i += 1;
   }
 
   return results;
@@ -54,6 +108,10 @@ for (const entry of entries) {
   const ts = await compile(dereferenced, entry.name, compilerOptions);
 
   const types = extractTypes(ts);
+
+  console.log(
+    `[codegen-ts] ${entry.name}: extracted ${types.map((t) => t.name).join(", ")}`,
+  );
 
   for (const t of types) {
     if (!typeMap.has(t.name)) {

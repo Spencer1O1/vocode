@@ -4,7 +4,7 @@ import type {
   EditApplyResult,
   PingParams,
   PingResult,
-} from "@vocode/protocol/ts";
+} from "@vocode/protocol";
 
 import { RpcTransport } from "./rpc-transport";
 

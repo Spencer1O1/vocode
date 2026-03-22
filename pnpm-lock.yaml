@@ -31,6 +31,9 @@ importers:
       '@types/vscode':
         specifier: ^1.110.0
         version: 1.110.0
+      '@vocode/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       typescript:
         specifier: ^5.8.3
         version: 5.9.3

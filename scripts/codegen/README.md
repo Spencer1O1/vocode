@@ -1,0 +1,1 @@
+For now we've implemented the bare minimum parsing for our use cases (especially for go). Long term fix for typescript would be using the TypeScript compiler API and extract actual declarations from the AST
