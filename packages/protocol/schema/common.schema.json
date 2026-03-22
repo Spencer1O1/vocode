@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vocoding.net/schemas/common.schema.json",
+  "$defs": {
+    "Anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "before": { "type": "string" },
+        "after": { "type": "string" }
+      },
+      "required": ["before", "after"]
+    }
+  }
+}

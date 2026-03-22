@@ -12,10 +12,13 @@
     "format": "biome format .",
     "format:write": "biome format --write .",
     "test": "turbo run test",
-    "typecheck": "turbo run typecheck"
+    "typecheck": "turbo run typecheck",
+    "codegen": "node scripts/codegen/generate-protocol.mjs"
   },
   "devDependencies": {
+    "@apidevtools/json-schema-ref-parser": "^15.3.1",
     "@biomejs/biome": "^2.4.8",
+    "json-schema-to-typescript": "^15.0.4",
     "turbo": "^2.8.20"
   }
 }

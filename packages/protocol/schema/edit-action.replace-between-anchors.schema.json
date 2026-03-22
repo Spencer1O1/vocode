@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vocoding.net/schemas/edit-action.replace-between-anchors.schema.json",
+  "title": "ReplaceBetweenAnchorsAction",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "type": "string",
+      "const": "replace_between_anchors"
+    },
+    "path": {
+      "type": "string"
+    },
+    "anchor": {
+      "$ref": "./common.schema.json#/$defs/Anchor"
+    },
+    "newText": {
+      "type": "string"
+    }
+  },
+  "required": ["kind", "path", "anchor", "newText"]
+}
