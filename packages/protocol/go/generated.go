@@ -1,18 +1,20 @@
+// AUTO-GENERATED. DO NOT EDIT.
+
 package protocol
 
 type Anchor struct {
 	Before string `json:"before"`
-	After  string `json:"after"`
+	After string `json:"after"`
 }
 
-type ReplaceAnchoredBlockAction struct {
-	Kind    string `json:"kind"`
-	Path    string `json:"path"`
-	Anchor  Anchor `json:"anchor"`
+type ReplaceBetweenAnchorsAction struct {
+	Kind string `json:"kind"`
+	Path string `json:"path"`
+	Anchor Anchor `json:"anchor"`
 	NewText string `json:"newText"`
 }
 
-type EditAction = ReplaceAnchoredBlockAction
+type EditAction = ReplaceBetweenAnchorsAction
 
 type PingParams struct{}
 
@@ -40,3 +42,15 @@ type JSONRPCResponse[T any] struct {
 	ID      int64  `json:"id"`
 	Result  T      `json:"result"`
 }
+
+type JSONRPCErrorObject struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+type JSONRPCErrorResponse struct {
+	JSONRPC string            `json:"jsonrpc"`
+	ID      *int64            `json:"id"`
+	Error   JSONRPCErrorObject `json:"error"`
+}
+
