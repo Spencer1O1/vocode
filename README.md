@@ -61,13 +61,20 @@ config/
 
 1. Install dependencies
 
-```
+```bash
+corepack enable
 pnpm install
 ```
 
-2. Build the daemon
+2. Generate protocol types
 
+```bash
+pnpm codegen
 ```
+
+3. Build the daemon
+
+```bash
 pnpm --filter @vocode/daemon build
 ```
 
@@ -77,7 +84,7 @@ This creates:
 apps/daemon/bin/<platform-arch>/vocoded(.exe)
 ```
 
-3. Run the extension
+4. Run the extension
    Press:
 
 ```
@@ -238,11 +245,14 @@ Vocode: Run Command
 
 ### 🧑‍💻 Contributing
 
+See `CONTRIBUTING.md` for more information
+
 1. Install deps: `pnpm install`
-2. Build daemon: `pnpm --filter @vocode/daemon build`
-3. Press `F5` to run extension
-4. Make changes
-5. Run:
+2. Generate protocol types: `pnpm codegen`
+3. Build daemon: `pnpm --filter @vocode/daemon build`
+4. Press `F5` to run extension
+5. Make changes
+6. Run:
 
 ```
 pnpm lint:fix

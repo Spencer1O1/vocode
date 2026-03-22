@@ -5,6 +5,7 @@ import type {
   PingParams,
   PingResult,
 } from "@vocode/protocol";
+import { isEditApplyResult, isPingResult } from "@vocode/protocol";
 
 import { RpcTransport } from "./rpc-transport";
 
@@ -15,15 +16,27 @@ export class DaemonClient {
     this.transport = new RpcTransport(process);
   }
 
-  public ping(params: PingParams = {}): Promise<PingResult> {
-    return this.transport.request<PingParams, PingResult>("ping", params);
+  public async ping(params: PingParams = {}): Promise<PingResult> {
+    const res = (await this.transport.request("ping", params)) as PingResult;
+
+    if (!isPingResult(res)) {
+      throw new Error("Invalid ping response from daemon.");
+    }
+
+    return res;
   }
 
-  public applyEdit(params: EditApplyParams): Promise<EditApplyResult> {
-    return this.transport.request<EditApplyParams, EditApplyResult>(
+  public async applyEdit(params: EditApplyParams): Promise<EditApplyResult> {
+    const res = (await this.transport.request(
       "edit/apply",
       params,
-    );
+    )) as EditApplyResult;
+
+    if (!isEditApplyResult(res)) {
+      throw new Error("Invalid edit/apply response from daemon.");
+    }
+
+    return res;
   }
 
   public dispose(): void {

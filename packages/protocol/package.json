@@ -2,9 +2,13 @@
   "name": "@vocode/protocol",
   "private": true,
   "type": "commonjs",
-  "main": "./typescript/generated.ts",
-  "types": "./typescript/generated.ts",
-  "exports": {
-    "./typescript": "./typescript/generated.ts"
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
   }
 }

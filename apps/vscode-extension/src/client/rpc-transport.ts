@@ -1,17 +1,17 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
 
-interface JsonRpcRequest<TParams = unknown> {
+interface JsonRpcRequest {
   jsonrpc: "2.0";
   id: number;
   method: string;
-  params: TParams;
+  params: unknown;
 }
 
-interface JsonRpcSuccess<TResult = unknown> {
+interface JsonRpcSuccess {
   jsonrpc: "2.0";
   id: number;
-  result: TResult;
+  result: unknown;
 }
 
 interface JsonRpcError {
@@ -24,12 +24,10 @@ interface JsonRpcError {
   };
 }
 
-type JsonRpcResponse<TResult = unknown> =
-  | JsonRpcSuccess<TResult>
-  | JsonRpcError;
+type JsonRpcResponse = JsonRpcSuccess | JsonRpcError;
 
-interface PendingRequest<TResult = unknown> {
-  resolve: (value: TResult) => void;
+interface PendingRequest {
+  resolve: (value: unknown) => void;
   reject: (reason?: unknown) => void;
 }
 
@@ -75,27 +73,32 @@ export class RpcTransport {
     });
   }
 
-  public async request<TParams, TResult>(
-    method: string,
-    params: TParams,
-  ): Promise<TResult> {
+  public request(method: string, params: unknown): Promise<unknown> {
     if (this.disposed) {
-      throw new Error("RPC transport is disposed.");
+      return Promise.reject(new Error("RPC transport is disposed."));
     }
 
     const id = this.nextId++;
-    const payload: JsonRpcRequest<TParams> = {
+    const payload: JsonRpcRequest = {
       jsonrpc: "2.0",
       id,
       method,
       params,
     };
 
-    const promise = new Promise<TResult>((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+    const promise = new Promise<unknown>((resolve, reject) => {
+      this.pending.set(id, {
+        resolve,
+        reject,
+      });
     });
 
-    this.process.stdin.write(`${JSON.stringify(payload)}\n`);
+    try {
+      this.process.stdin.write(`${JSON.stringify(payload)}\n`);
+    } catch (error) {
+      this.pending.delete(id);
+      return Promise.reject(error);
+    }
 
     return promise;
   }

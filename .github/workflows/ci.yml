@@ -34,6 +34,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Run protocol codegen
+        run: pnpm codegen
+
+      - name: Verify generated files are committed
+        run: |
+          git diff --exit-code || (
+            echo "Generated files are out of date. Run 'pnpm codegen' and commit the changes."
+            exit 1
+          )
+
       - name: Lint TypeScript/JSON/CSS with Biome
         run: pnpm lint
 

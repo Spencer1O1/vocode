@@ -13,7 +13,9 @@
     "format:write": "biome format --write .",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "codegen": "node scripts/codegen/generate-protocol-ts.mjs && node scripts/codegen/generate-protocol-go.mjs"
+    "codegen:ts": "node scripts/codegen/generate-protocol-ts.mjs && pnpm --filter @vocode/protocol build",
+    "codegen:go": "node scripts/codegen/generate-protocol-go.mjs",
+    "codegen": "pnpm codegen:ts && pnpm codegen:go"
   },
   "devDependencies": {
     "@apidevtools/json-schema-ref-parser": "^15.3.1",

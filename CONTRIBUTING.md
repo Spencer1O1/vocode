@@ -106,21 +106,36 @@ docs/                # architecture + specs
 ## 🧑‍💻 Development Workflow
 
 - Run everything
-  ```bash
-  pnpm build
-  ```
+
+```bash
+pnpm build
+```
+
 - Lint
-  ```bash
-  pnpm lint
-  ```
+
+```bash
+pnpm lint
+```
+
 - Auto-fix
-  ```bash
-  pnpm lint:fix
-  ```
+
+```bash
+pnpm lint:fix
+```
+
 - Go tests
-  ```bash
-  go test ./...
-  ```
+
+```bash
+go test ./...
+```
+
+After modifying protocol schemas:
+
+```bash
+pnpm codegen
+```
+
+(This will regenerate TypeScript and Go types and rebuild the @vocode/protocol package. If you forget to run this TypeScript and Go builds will fail.)
 
 ## 🧪 Testing Changes
 
