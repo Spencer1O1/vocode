@@ -1,0 +1,33 @@
+# Node
+node_modules/
+.pnpm-store/
+
+# Turbo
+.turbo/
+apps/*/.turbo/
+
+# Build output
+dist/
+out/
+build/
+bin/
+coverage/
+
+# VS Code extension package artifacts
+*.vsix
+
+# Logs
+*.log
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+
+# Go
+*.test
+*.exe~

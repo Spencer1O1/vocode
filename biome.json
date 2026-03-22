@@ -1,0 +1,177 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.8/schema.json",
+  "files": {
+    "includes": [
+      "**",
+      "!**/.git",
+      "!**/.turbo",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/build",
+      "!**/out",
+      "!**/coverage",
+      "!**/.next",
+      "!**/.pnpm-store",
+      "!**/*.vsix",
+      "!**/bin",
+      "!**/tmp",
+      "!**/.DS_Store",
+      "!pnpm-lock.yaml"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "formatWithErrors": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineEnding": "lf",
+    "lineWidth": 80,
+    "attributePosition": "auto"
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": {
+          "level": "on",
+          "options": {
+            "groups": [
+              ":URL:",
+              ":PACKAGE_WITH_PROTOCOL:",
+              ":PACKAGE:",
+              ":BLANK_LINE:",
+              ":ALIAS:",
+              ":BLANK_LINE:",
+              ":PATH:"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "linter": {
+    "includes": ["**", "!**/*.min.js", "!**/*.bundle.js"],
+    "rules": {
+      "recommended": true,
+      "complexity": {
+        "noBannedTypes": "off",
+        "noCommaOperator": "off",
+        "noExcessiveCognitiveComplexity": {
+          "level": "error",
+          "options": {
+            "maxAllowedComplexity": 30
+          }
+        },
+        "noStaticOnlyClass": "off"
+      },
+      "correctness": {
+        "useExhaustiveDependencies": "warn",
+        "noUnusedImports": {
+          "level": "warn",
+          "fix": "safe"
+        },
+        "noNodejsModules": "off",
+        "noEmptyPattern": "off"
+      },
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noShadowRestrictedNames": "off",
+        "noEmptyInterface": "off",
+        "noRedeclare": "off",
+        "noAssignInExpressions": "off",
+        "useAwait": "error",
+        "noEmptyBlockStatements": "off",
+        "noDuplicateProperties": "warn",
+        "noUnknownAtRules": "off"
+      },
+      "a11y": {
+        "noSvgWithoutTitle": "off",
+        "useButtonType": "off",
+        "useSemanticElements": "off"
+      },
+      "style": {
+        "useNamingConvention": "off",
+        "useFilenamingConvention": "off",
+        "useBlockStatements": "off",
+        "noParameterProperties": "off",
+        "noParameterAssign": "error",
+        "useAsConstAssertion": "error",
+        "useDefaultParameterLast": "error",
+        "useEnumInitializers": "error",
+        "useSelfClosingElements": "error",
+        "useSingleVarDeclarator": "error",
+        "noUnusedTemplateLiteral": "error",
+        "useNumberNamespace": "error",
+        "noInferrableTypes": "error",
+        "noUselessElse": "error",
+        "noExportedImports": "off",
+        "useConsistentCurlyBraces": "off",
+        "noNestedTernary": "off",
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "framer-motion": "Please use motion or motion/react instead",
+              "zod": "Please use zod/v4 instead"
+            }
+          }
+        }
+      },
+      "performance": {
+        "noBarrelFile": "off",
+        "noReExportAll": "off",
+        "noNamespaceImport": "off"
+      },
+      "nursery": {
+        "useSortedClasses": "off",
+        "noShadow": "off"
+      },
+      "security": {
+        "noSecrets": "off"
+      }
+    }
+  },
+  "javascript": {
+    "globals": ["React"],
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all",
+      "arrowParentheses": "always",
+      "bracketSameLine": false,
+      "quoteProperties": "asNeeded"
+    },
+    "parser": {
+      "unsafeParameterDecoratorsEnabled": true
+    }
+  },
+  "json": {
+    "formatter": {
+      "enabled": true
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.d.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/vscode-extension/src/**/*.ts", "packages/**/*.ts"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedImports": {
+              "level": "error",
+              "fix": "safe"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

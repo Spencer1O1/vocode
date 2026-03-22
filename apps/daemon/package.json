@@ -1,0 +1,11 @@
+{
+  "name": "@vocode/daemon",
+  "private": true,
+  "scripts": {
+    "build": "node ../../scripts/dev/build-daemon.mjs",
+    "dev": "go run ./cmd/vocoded",
+    "test": "go test ./...",
+    "lint": "golangci-lint run",
+    "typecheck": "go test ./..."
+  }
+}
