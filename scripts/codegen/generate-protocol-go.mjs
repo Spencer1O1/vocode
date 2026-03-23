@@ -219,8 +219,13 @@ function mergeOneOfObjectSchema(schema, currentAbsPath) {
     variant.$ref ? resolveRef(currentAbsPath, variant.$ref).schema : variant,
   );
 
-  const objectVariants = variants.filter((variant) => variant.type === "object");
-  if (objectVariants.length !== variants.length || objectVariants.length === 0) {
+  const objectVariants = variants.filter(
+    (variant) => variant.type === "object",
+  );
+  if (
+    objectVariants.length !== variants.length ||
+    objectVariants.length === 0
+  ) {
     throw new Error("Unsupported oneOf union: expected object variants only");
   }
 
