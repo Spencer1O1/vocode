@@ -7,6 +7,12 @@
   "properties": {
     "instruction": {
       "type": "string"
+    },
+    "activeFile": {
+      "type": "string"
+    },
+    "fileText": {
+      "type": "string"
     }
   },
   "required": ["instruction"]
