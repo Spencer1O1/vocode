@@ -9,7 +9,7 @@ export const startVoiceCommand: CommandDefinition = {
     const text = await vscode.window.showInputBox({
       title: "Vocode Voice Transcript",
       prompt: "Enter transcript text to send to the daemon",
-      placeHolder: "Refactor this function to handle empty input safely",
+      placeHolder: "Summarize the discussion about migrating our backend to a new database",
       ignoreFocusOut: true,
       validateInput: (value) =>
         value.trim().length === 0 ? "Transcript text cannot be empty." : null,
