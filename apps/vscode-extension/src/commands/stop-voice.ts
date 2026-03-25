@@ -5,7 +5,9 @@ import type { CommandDefinition } from "./types";
 export const stopVoiceCommand: CommandDefinition = {
   id: "vocode.stopVoice",
   requiresDaemon: true,
-  run: () => {
-    void vscode.window.showInformationMessage("Vocode: Stop Voice");
+  run: (_client, services) => {
+    services.voiceSession.stop();
+    services.voiceStatus.setIdle();
+    void vscode.window.showInformationMessage("Vocode stopped listening.");
   },
 };
