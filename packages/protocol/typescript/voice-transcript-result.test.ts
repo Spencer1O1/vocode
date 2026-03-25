@@ -14,4 +14,3 @@ test("isVoiceTranscriptResult rejects accepted=false shape", () => {
 test("isVoiceTranscriptResult rejects extra keys", () => {
   assert.equal(isVoiceTranscriptResult({ accepted: true, extra: 123 }), false);
 });
-

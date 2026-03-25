@@ -1,19 +1,19 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import type {
+  CommandRunParams,
+  CommandRunResult,
   EditApplyParams,
   EditApplyResult,
   PingParams,
   PingResult,
   VoiceTranscriptParams,
   VoiceTranscriptResult,
-  CommandRunParams,
-  CommandRunResult,
 } from "@vocode/protocol";
 import {
+  isCommandRunResult,
   isEditApplyResult,
   isPingResult,
   isVoiceTranscriptResult,
-  isCommandRunResult,
 } from "@vocode/protocol";
 
 import { RpcTransport } from "./rpc-transport";
@@ -61,9 +61,7 @@ export class DaemonClient {
     );
   }
 
-  public commandRun(
-    params: CommandRunParams,
-  ): Promise<CommandRunResult> {
+  public commandRun(params: CommandRunParams): Promise<CommandRunResult> {
     return this.sendRequest<CommandRunResult>(
       "command.run",
       params,

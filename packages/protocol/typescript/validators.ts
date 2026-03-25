@@ -1,9 +1,9 @@
 import type {
+  CommandRunResult,
   EditAction,
   EditApplyResult,
   PingResult,
   VoiceTranscriptResult,
-  CommandRunResult,
 } from "./types.generated";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -97,9 +97,7 @@ export function isVoiceTranscriptResult(
   );
 }
 
-export function isCommandRunResult(
-  value: unknown,
-): value is CommandRunResult {
+export function isCommandRunResult(value: unknown): value is CommandRunResult {
   if (!isRecord(value) || typeof value.kind !== "string") {
     return false;
   }

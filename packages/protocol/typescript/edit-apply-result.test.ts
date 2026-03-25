@@ -62,4 +62,3 @@ test("isEditApplyResult rejects invalid failure code", () => {
 
   assert.equal(isEditApplyResult(value), false);
 });
-
