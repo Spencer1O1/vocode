@@ -20,11 +20,24 @@ func (s *editApplyServiceStub) Apply(_ protocol.EditApplyParams) (protocol.EditA
 	return s.result, s.err
 }
 
-func runSingleRequest(t *testing.T, service EditApplyService, requestLine string) map[string]any {
+type voiceTranscriptServiceStub struct{}
+
+func (s *voiceTranscriptServiceStub) AcceptTranscript(
+	params protocol.VoiceTranscriptParams,
+) (protocol.VoiceTranscriptResult, bool) {
+	if strings.TrimSpace(params.Text) == "" {
+		return protocol.VoiceTranscriptResult{}, false
+	}
+
+	return protocol.VoiceTranscriptResult{Accepted: true}, true
+}
+
+func runSingleRequest(t *testing.T, editService EditApplyService, requestLine string) map[string]any {
 	t.Helper()
 
 	router := NewRouter(log.New(io.Discard, "", 0))
-	for _, def := range BuildHandlers(service) {
+	voiceService := &voiceTranscriptServiceStub{}
+	for _, def := range BuildHandlers(editService, voiceService) {
 		router.Register(def.Method, def.Handler)
 	}
 
@@ -149,5 +162,37 @@ func TestServerEditApplyRejectsInvalidMixedResult(t *testing.T) {
 
 	if got := errorObject["code"]; got != float64(-32000) {
 		t.Fatalf("expected internal error code -32000, got %#v", got)
+	}
+}
+
+func TestServerVoiceTranscriptSuccess(t *testing.T) {
+	t.Parallel()
+
+	request := `{"jsonrpc":"2.0","id":1,"method":"voice.transcript","params":{"text":"hello world"}}`
+	response := runSingleRequest(t, &editApplyServiceStub{}, request)
+
+	result, ok := response["result"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected result object, got: %#v", response["result"])
+	}
+
+	if got := result["accepted"]; got != true {
+		t.Fatalf("expected accepted=true, got %#v", got)
+	}
+}
+
+func TestServerVoiceTranscriptRejectsEmptyText(t *testing.T) {
+	t.Parallel()
+
+	request := `{"jsonrpc":"2.0","id":1,"method":"voice.transcript","params":{"text":"   "}}`
+	response := runSingleRequest(t, &editApplyServiceStub{}, request)
+
+	errorObject, ok := response["error"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected error object, got: %#v", response)
+	}
+
+	if got := errorObject["code"]; got != float64(-32602) {
+		t.Fatalf("expected invalid params error code -32602, got %#v", got)
 	}
 }
