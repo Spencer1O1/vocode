@@ -2,12 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { ReplaceBetweenAnchorsAction } from "@vocode/protocol";
 
-import {
-  applyReplaceBetweenAnchors,
-  resolveReplaceBetweenAnchors,
-} from "./apply-edit-helpers";
+import { resolveReplaceBetweenAnchors } from "./apply-edit-helpers";
 
-test("applyReplaceBetweenAnchors replaces the range between unique anchors", () => {
+test("resolveReplaceBetweenAnchors replaces the range between unique anchors", () => {
   const action: ReplaceBetweenAnchorsAction = {
     kind: "replace_between_anchors",
     path: "/tmp/example.ts",
@@ -24,13 +21,13 @@ test("applyReplaceBetweenAnchors replaces the range between unique anchors", () 
     "}",
   ].join("\n");
 
-  const output = applyReplaceBetweenAnchors(input, action);
+  const output = resolveReplaceBetweenAnchors(input, action);
 
-  assert.match(output, /updated safely/);
-  assert.doesNotMatch(output, /hi from vocode/);
+  assert.match(output.nextText, /updated safely/);
+  assert.doesNotMatch(output.nextText, /hi from vocode/);
 });
 
-test("applyReplaceBetweenAnchors throws when after anchor is missing", () => {
+test("resolveReplaceBetweenAnchors throws when after anchor is missing", () => {
   const action: ReplaceBetweenAnchorsAction = {
     kind: "replace_between_anchors",
     path: "/tmp/example.ts",
@@ -45,12 +42,12 @@ test("applyReplaceBetweenAnchors throws when after anchor is missing", () => {
     "\n",
   );
 
-  assert.throws(() => applyReplaceBetweenAnchors(input, action), {
+  assert.throws(() => resolveReplaceBetweenAnchors(input, action), {
     message: /after anchor/,
   });
 });
 
-test("applyReplaceBetweenAnchors throws when before anchor is ambiguous", () => {
+test("resolveReplaceBetweenAnchors throws when before anchor is ambiguous", () => {
   const action: ReplaceBetweenAnchorsAction = {
     kind: "replace_between_anchors",
     path: "/tmp/example.ts",
@@ -63,12 +60,12 @@ test("applyReplaceBetweenAnchors throws when before anchor is ambiguous", () => 
 
   const input = ["TARGET_START", "x", "TARGET_END", "TARGET_START"].join("\n");
 
-  assert.throws(() => applyReplaceBetweenAnchors(input, action), {
+  assert.throws(() => resolveReplaceBetweenAnchors(input, action), {
     message: /matched multiple locations/,
   });
 });
 
-test("applyReplaceBetweenAnchors throws when after anchor is ambiguous", () => {
+test("resolveReplaceBetweenAnchors throws when after anchor is ambiguous", () => {
   const action: ReplaceBetweenAnchorsAction = {
     kind: "replace_between_anchors",
     path: "/tmp/example.ts",
@@ -81,7 +78,7 @@ test("applyReplaceBetweenAnchors throws when after anchor is ambiguous", () => {
 
   const input = ["TARGET_START", "x", "TARGET_END", "TARGET_END"].join("\n");
 
-  assert.throws(() => applyReplaceBetweenAnchors(input, action), {
+  assert.throws(() => resolveReplaceBetweenAnchors(input, action), {
     message: /matched multiple locations/,
   });
 });

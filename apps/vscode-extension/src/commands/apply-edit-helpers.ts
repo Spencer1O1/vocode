@@ -34,13 +34,6 @@ function findUniqueOccurrence(
   return relativeIndex;
 }
 
-export function applyReplaceBetweenAnchors(
-  documentText: string,
-  action: ReplaceBetweenAnchorsAction,
-): string {
-  return resolveReplaceBetweenAnchors(documentText, action).nextText;
-}
-
 export function resolveReplaceBetweenAnchors(
   documentText: string,
   action: ReplaceBetweenAnchorsAction,
