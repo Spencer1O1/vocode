@@ -65,14 +65,14 @@ You can run a single PowerShell script that installs the
 required MSYS2/MinGW packages and verifies `pkg-config` can find PortAudio:
 
 ```powershell
-pwsh -ExecutionPolicy Bypass -File scripts/dev/setup-portaudio.ps1
+pnpm setup-portaudio:win
 ```
 
-Optional: if your MSYS2 install is not at `C:\tools\msys64`, pass a different
-root:
+If your MSYS2 install is not at `C:\tools\msys64`, run the PowerShell script
+directly and pass a different root:
 
 ```powershell
-pwsh -ExecutionPolicy Bypass -File scripts/dev/setup-portaudio.ps1 -Msys2Root "D:\msys64"
+pnpm setup-portaudio:win "D:\msys64"
 ```
 
 When building from PowerShell, `@vocode/voice`’s build script will try to

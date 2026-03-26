@@ -83,12 +83,12 @@ The voice sidecar (`@vocode/voice`) uses `cgo` + PortAudio, so on Windows you mu
 
 From the repo root:
 ```powershell
-pwsh -ExecutionPolicy Bypass -File scripts/dev/setup-portaudio.ps1 -InstallMsys2
+pnpm setup-portaudio:win
 ```
 
 If your MSYS2 install is not at `C:\tools\msys64`, pass your MSYS2 root:
 ```powershell
-pwsh -ExecutionPolicy Bypass -File scripts/dev/setup-portaudio.ps1 -Msys2Root "D:\msys64"
+pnpm setup-portaudio:win "D:\msys64"
 ```
 
 ### Native voice dependencies (Linux only)
