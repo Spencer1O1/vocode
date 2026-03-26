@@ -34,7 +34,7 @@ palette), set:
 ## STT model + tuning
 
 Core model selection:
-- `STT_MODEL_ID` (default: `scribe_v2`)
+- `ELEVENLABS_STT_MODEL_ID` (default: `scribe_v2`)
 
 Streaming VAD/segmentation knobs:
 - `VOCODE_VOICE_VAD_THRESHOLD_MULTIPLIER` (default: `2.0`)
@@ -47,7 +47,7 @@ Streaming VAD/segmentation knobs:
 
 ## Rollout / tuning checklist
 
-1. Start with defaults and `STT_MODEL_ID=scribe_v2`.
+1. Start with defaults and `ELEVENLABS_STT_MODEL_ID=scribe_v2`.
 2. Validate transcript quality on real speech with pauses and interruptions.
 3. If too many premature commits, increase `VOCODE_VOICE_VAD_END_MS`.
 4. If speech starts are clipped, increase `VOCODE_VOICE_VAD_PREROLL_MS`.

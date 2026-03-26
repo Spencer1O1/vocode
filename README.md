@@ -110,7 +110,7 @@ pnpm codegen
 The voice sidecar uses ElevenLabs streaming STT with local VAD gating.
 
 Recommended baseline:
-- `STT_MODEL_ID=scribe_v2`
+- `ELEVENLABS_STT_MODEL_ID=scribe_v2`
 - leave VAD/chunk env vars at defaults from `.env.example`
 
 Tuning guide:

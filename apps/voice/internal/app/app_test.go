@@ -49,16 +49,18 @@ func TestSttMode_InvalidFallsBackToBatch(t *testing.T) {
 }
 
 func TestSttModelID_Default(t *testing.T) {
+	t.Setenv("ELEVENLABS_STT_MODEL_ID", "")
 	t.Setenv("STT_MODEL_ID", "")
 	if got := sttModelID(); got != "scribe_v2" {
 		t.Fatalf("expected default model scribe_v2, got %q", got)
 	}
 }
 
-func TestSttModelID_Override(t *testing.T) {
+func TestSttModelID_NewNamePreferred(t *testing.T) {
 	t.Setenv("STT_MODEL_ID", "scribe_v1")
-	if got := sttModelID(); got != "scribe_v1" {
-		t.Fatalf("expected overridden model, got %q", got)
+	t.Setenv("ELEVENLABS_STT_MODEL_ID", "scribe_v2")
+	if got := sttModelID(); got != "scribe_v2" {
+		t.Fatalf("expected ELEVENLABS_STT_MODEL_ID to win, got %q", got)
 	}
 }
 
