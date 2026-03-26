@@ -8,7 +8,7 @@ Voice-driven AI code editing system powered by a local daemon and VS Code extens
 
 ## 🧠 What is Vocode?
 
-Vocode is composed of two main parts:
+Vocode is composed of three main parts:
 
 1. VS Code Extension (TypeScript)
 
@@ -24,7 +24,15 @@ Vocode is composed of two main parts:
   - code edits (AST/diff-based)
   - indexing (grep → symbols → AST)
   - command execution
-  - speech processing (streaming STT)
+  - transcript planning/orchestration
+
+3. Voice Sidecar (Go)
+
+- Runs locally as a separate process
+- Handles:
+  - native microphone capture
+  - STT provider integration
+  - transcript event emission to the extension
 
 For now, these communicate over **stdio (JSON-RPC)**. Maybe WebSocket in the future
 
@@ -35,6 +43,7 @@ For now, these communicate over **stdio (JSON-RPC)**. Maybe WebSocket in the fut
 ```
 apps/
   daemon/ # Go daemon (core engine)
+  voice/ # Go voice sidecar (mic + STT)
   vscode-extension/ # VS Code extension (UI + client)
 
 packages/
@@ -158,8 +167,8 @@ go test ./...
 ```
 VS Code Extension
 ├── commands/
-├── client/ (RPC layer)
 ├── daemon/ (spawn + path resolution)
+├── voice-sidecar/ (spawn + sidecar transport)
 ├── ui/
 └── voice/
 
@@ -171,7 +180,12 @@ Go Daemon
 ├── edits/
 ├── indexing/
 ├── workspace/
-└── speech/
+└── transcript/
+
+Voice Sidecar
+├── app/ (stdio protocol loop)
+├── mic/ (native capture)
+└── stt/ (provider adapters)
 ```
 
 ### 🔑 Key Design Principles

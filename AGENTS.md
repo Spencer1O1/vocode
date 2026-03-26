@@ -1,9 +1,10 @@
 # Agent Guidance (Architecture Contract)
 
-This workspace is intentionally split into two execution hosts with strict ownership boundaries:
+This workspace is intentionally split into three execution hosts with strict ownership boundaries:
 
 1. **Daemon (`apps/daemon`)**: reasoning + semantic safety policy + converting model output into validated, protocol-shaped results.
 2. **VS Code extension (`apps/vscode-extension`)**: transport client calls + deterministic editor mechanical apply + executing allowed shell commands + user messaging.
+3. **Voice sidecar (`apps/voice`)**: native microphone capture + STT orchestration + transcript event emission.
 
 Agents must preserve these boundaries to keep behavior predictable and to avoid “side doors”.
 
@@ -56,6 +57,13 @@ One “turn” starts when the extension calls the daemon RPC:
 - Executing allowed commands and surfacing outputs
 - Runtime shape checks using `@vocode/protocol` validators
 
+### Voice sidecar owns
+
+- Native microphone capture on device APIs
+- Audio buffering/chunking before STT
+- STT provider integration and request shaping
+- Emitting transcript/error/state events over stdio
+
 ### Protocol owns
 
 - JSON schema source of truth
@@ -76,6 +84,7 @@ One rule should have one owner. Duplicating ownership is a regression risk.
 - Do not add new RPC endpoints like `edit.apply` or `command.run`. Keep the main entrypoint as `voice.transcript`.
 - Do not move semantic policy logic into the extension (keep it in daemon-owned layers).
 - Do not mix editor/transport policy decisions with planning/orchestration.
+- Do not move native microphone or STT transport logic into the extension host; keep it in `apps/voice`.
 
 ## Where to look (key files)
 
@@ -94,8 +103,15 @@ One rule should have one owner. Duplicating ownership is a regression risk.
 - Present/execute steps: `apps/vscode-extension/src/commands/send-transcript/present-result.ts`
 - Mechanical edit apply: `apps/vscode-extension/src/edits/apply-workspace-edits.ts`
 - Allowed command execution runner: `apps/vscode-extension/src/commandexec/execute-command.ts`
-- Daemon client: `apps/vscode-extension/src/client/daemon-client.ts`
-- Audio capture (raw audio ingestion): `apps/vscode-extension/src/voice/microphone.ts`
+- Daemon client: `apps/vscode-extension/src/daemon/client.ts`
+- Voice sidecar spawn/client: `apps/vscode-extension/src/voice-sidecar`
+
+### Voice sidecar
+
+- Entrypoint: `apps/voice/cmd/vocode-voiced/main.go`
+- Stdio app protocol loop: `apps/voice/internal/app/app.go`
+- Native mic capture: `apps/voice/internal/mic`
+- STT adapter(s): `apps/voice/internal/stt`
 
   Rule: downstream STT must eventually produce transcript text, which is sent to the daemon via `voice.transcript`.
 

@@ -2,8 +2,9 @@
 
 Vocode is a voice-driven code editing system with strict ownership boundaries:
 
-- **VS Code extension**: daemon process lifecycle, transport client calls, mechanical editor apply, user messaging.
+- **VS Code extension**: daemon/voice-sidecar process lifecycle, transport client calls, mechanical editor apply, user messaging.
 - **Go daemon**: intent understanding, semantic safety policy, action building, orchestration.
+- **Go voice sidecar**: native microphone capture, STT orchestration, transcript event emission.
 - **Protocol package**: schemas, generated types, runtime validators, and shared result contracts.
 
 Core principle: **magical UX, deterministic core**.
@@ -24,6 +25,7 @@ Expected daemon flow:
 Owns:
 
 - Spawning and managing daemon process lifecycle
+- Spawning and managing voice sidecar lifecycle
 - Sending RPC requests and receiving typed responses
 - Runtime shape checks (`@vocode/protocol` validators)
 - Mechanical editor application of daemon actions
@@ -34,6 +36,7 @@ Does not own:
 - Semantic edit safety policy
 - Instruction planning or ambiguity-resolution policy
 - Daemon business rules duplicated in UI
+- Native microphone APIs and STT provider integration
 
 ### Daemon (`apps/daemon`)
 
@@ -49,6 +52,21 @@ Does not own:
 - VS Code UX concerns
 - UI messaging policy
 - Extension/editor behavior details
+
+### Voice sidecar (`apps/voice`)
+
+Owns:
+
+- Native microphone device I/O
+- Audio chunking and buffering for STT
+- Calling STT provider(s) and extracting transcript text
+- Emitting transcript/state/error events to the extension over stdio
+
+Does not own:
+
+- Edit/command planning semantics
+- Extension UI behavior
+- Protocol schema ownership
 
 ### Protocol (`packages/protocol`)
 
