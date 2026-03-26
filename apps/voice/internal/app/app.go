@@ -192,6 +192,13 @@ func (a *App) transcribeLoop(ctx context.Context, apiKey string, rec *mic.Record
 		_ = rec.Stop()
 	}()
 
+	// If demo transcript is configured, bypass STT calls to ElevenLabs to save credits.
+	// We still emit at most one transcript event (the first time the loop runs).
+	if demo := strings.TrimSpace(os.Getenv("VOCODE_VOICE_DEMO_TRANSCRIPT")); demo != "" {
+		_ = a.write(Event{Type: "transcript", Text: demo})
+		return
+	}
+
 	bytesPerSecond := int64(16000 * 1 * 2) // 16kHz * mono * int16
 	targetBytes := bytesPerSecond * a.segmentSeconds
 	if targetBytes <= 0 {

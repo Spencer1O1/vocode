@@ -1,4 +1,5 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import * as fs from "node:fs";
 import * as path from "node:path";
 import type * as vscode from "vscode";
 
@@ -14,9 +15,20 @@ export function spawnVoiceSidecar(
 ): SpawnedVoiceSidecar {
   const binaryPath = resolveVoiceSidecarPath(context);
 
+  // PortAudio is dynamically linked. When using MSYS2/MinGW, the PortAudio
+  // runtime DLLs are typically in `<msys2Root>/mingw64/bin`, which needs to be
+  // on PATH for Windows loader resolution.
+  const msysRoot = process.env.MSYS2_ROOT ?? "C:\\tools\\msys64";
+  const mingw64Bin = path.join(msysRoot, "mingw64", "bin");
+  const env = { ...process.env };
+  if (process.platform === "win32" && fs.existsSync(mingw64Bin)) {
+    env.PATH = `${mingw64Bin};${env.PATH ?? ""}`;
+  }
+
   const proc = spawn(binaryPath, [], {
     cwd: path.dirname(binaryPath),
     stdio: "pipe",
+    env,
   });
 
   proc.stdout.on("data", (data: Buffer) => {

@@ -19,6 +19,8 @@ export class VoiceSidecarClient {
   private readonly process: ChildProcessWithoutNullStreams;
   private disposed = false;
   private transcriptHandler?: (evt: VoiceSidecarTranscriptEvent) => void;
+  private stateHandler?: (evt: { type: "state"; state: string }) => void;
+  private errorHandler?: (evt: { type: "error"; message: string }) => void;
 
   constructor(process: ChildProcessWithoutNullStreams) {
     this.process = process;
@@ -39,8 +41,14 @@ export class VoiceSidecarClient {
           console.log(`[vocode-voiced] ready version=${evt.version ?? "?"}`);
         } else if (evt.type === "state") {
           console.log(`[vocode-voiced] state=${evt.state ?? "?"}`);
+          if (typeof evt.state === "string" && evt.state) {
+            this.stateHandler?.({ type: "state", state: evt.state });
+          }
         } else if (evt.type === "error") {
           console.warn(`[vocode-voiced] error: ${evt.message ?? "unknown"}`);
+          const message =
+            typeof evt.message === "string" ? evt.message : "unknown";
+          this.errorHandler?.({ type: "error", message });
         } else if (evt.type === "transcript") {
           const text = typeof evt.text === "string" ? evt.text : "";
           if (!text) return;
@@ -73,6 +81,14 @@ export class VoiceSidecarClient {
 
   public onTranscript(handler: (evt: VoiceSidecarTranscriptEvent) => void) {
     this.transcriptHandler = handler;
+  }
+
+  public onState(handler: (evt: { type: "state"; state: string }) => void) {
+    this.stateHandler = handler;
+  }
+
+  public onError(handler: (evt: { type: "error"; message: string }) => void) {
+    this.errorHandler = handler;
   }
 
   private send(msg: { type: string }): void {

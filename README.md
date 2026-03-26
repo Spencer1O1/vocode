@@ -59,6 +59,9 @@ config/
 
 ## 🚀 Getting Started
 
+0. Set up env
+- Copy `.env.example` to `.env` and fill in the values
+
 1. Install dependencies
 
 ```bash

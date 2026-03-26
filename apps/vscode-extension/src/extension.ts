@@ -1,12 +1,12 @@
 import * as vscode from "vscode";
 
-import { DaemonClient } from "./daemon/client";
 import { registerAllCommands } from "./commands";
 import { presentTranscriptResult } from "./commands/send-transcript/present-result";
 import {
   type ExtensionServices,
   VoiceSessionController,
 } from "./commands/services";
+import { DaemonClient } from "./daemon/client";
 import { spawnDaemon } from "./daemon/spawn";
 import { VoiceStatusIndicator } from "./ui/status-bar";
 import { MicrophoneCapture } from "./voice/microphone";
@@ -43,6 +43,17 @@ function createServices(
     const voiceSidecar = new VoiceSidecarClient(voice.process);
 
     let handlingTranscript = false;
+
+    voiceSidecar.onError((evt) => {
+      // Ensure user sees sidecar failures even when no transcript ever arrives.
+      if (!voiceSession.isRunning()) return;
+      void vscode.window.showWarningMessage(
+        `Vocode voice sidecar error: ${evt.message}`,
+      );
+      voiceSession.stop();
+      voiceStatus.setIdle();
+    });
+
     voiceSidecar.onTranscript(async (evt) => {
       if (!voiceSession.isRunning()) {
         return;

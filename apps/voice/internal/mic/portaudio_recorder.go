@@ -20,6 +20,13 @@ type Recorder struct {
 	stopOnce sync.Once
 	stopErr  error
 
+	// Tracks whether a Read() call is currently blocked inside PortAudio.
+	// We use this to call portaudio.Terminate() only after Pa_ReadStream
+	// is no longer running (prevents access violations on shutdown).
+	mu       sync.Mutex
+	reading  bool
+	readCond *sync.Cond
+
 	pending []byte
 	tmpBuf  []byte
 }
@@ -67,6 +74,7 @@ func Start(ctx context.Context, params StartParams) (*Recorder, error) {
 		in:     in,
 		tmpBuf: make([]byte, len(in)*2), // PCM16LE bytes
 	}
+	rec.readCond = sync.NewCond(&rec.mu)
 
 	// On cancel, stop the PortAudio stream so Read unblocks quickly.
 	go func() {
@@ -87,10 +95,20 @@ func (r *Recorder) Stop() error {
 	}
 
 	r.stopOnce.Do(func() {
+		// Stop first to unblock Pa_ReadStream.
 		if err := r.stream.Stop(); err != nil {
 			r.stopErr = err
 		}
 		_ = r.stream.Close()
+
+		// Wait until any in-flight Read() call is done, then terminate.
+		// This avoids calling portaudio.Terminate() while Pa_ReadStream is active.
+		r.mu.Lock()
+		for r.reading {
+			r.readCond.Wait()
+		}
+		r.mu.Unlock()
+
 		_ = portaudio.Terminate()
 	})
 
@@ -108,6 +126,16 @@ func (r *pcm16leReader) Read(p []byte) (int, error) {
 	if r.rec == nil || r.rec.stream == nil {
 		return 0, io.EOF
 	}
+
+	r.rec.mu.Lock()
+	r.rec.reading = true
+	r.rec.mu.Unlock()
+	defer func() {
+		r.rec.mu.Lock()
+		r.rec.reading = false
+		r.rec.readCond.Broadcast()
+		r.rec.mu.Unlock()
+	}()
 
 	// If we have pending bytes from a previous larger frame, flush those first.
 	if len(r.rec.pending) > 0 {

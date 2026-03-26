@@ -18,9 +18,7 @@ function main() {
 
   const args = process.argv.slice(2);
   const forceCgo = args.includes("--force-cgo");
-  const goArgs = forceCgo
-    ? args.filter((a) => a !== "--force-cgo")
-    : args;
+  const goArgs = forceCgo ? args.filter((a) => a !== "--force-cgo") : args;
 
   if (!env.GOCACHE || env.GOCACHE.trim() === "") {
     ensureDir(defaultCacheDir);
@@ -39,7 +37,12 @@ function main() {
   if (forceCgo && process.platform === "win32") {
     const msysRoot = process.env.MSYS2_ROOT ?? "C:\\tools\\msys64";
     const mingwBin = path.join(msysRoot, "mingw64", "bin");
-    const mingwPkgConfigDir = path.join(msysRoot, "mingw64", "lib", "pkgconfig");
+    const mingwPkgConfigDir = path.join(
+      msysRoot,
+      "mingw64",
+      "lib",
+      "pkgconfig",
+    );
     const pkgConfigExe = path.join(mingwBin, "pkg-config.exe");
     const gccExe = path.join(mingwBin, "gcc.exe");
 
@@ -78,4 +81,3 @@ function main() {
 }
 
 main();
-

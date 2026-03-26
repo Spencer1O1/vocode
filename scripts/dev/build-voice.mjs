@@ -79,7 +79,9 @@ const result = spawnSync(
       ...process.env,
       GOCACHE: goCache,
       // PortAudio mic capture is cgo-only. On Windows we always force cgo.
-      ...(process.platform === "win32" ? { CGO_ENABLED: "1" } : { CGO_ENABLED: "0" }),
+      ...(process.platform === "win32"
+        ? { CGO_ENABLED: "1" }
+        : { CGO_ENABLED: "0" }),
       ...(portAudioEnv.ok ? portAudioEnv.env : {}),
     },
     stdio: "inherit",
