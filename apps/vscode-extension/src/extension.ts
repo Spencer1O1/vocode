@@ -9,6 +9,8 @@ import {
 import { spawnDaemon } from "./daemon/spawn";
 import { VoiceStatusIndicator } from "./ui/status-bar";
 import { MicrophoneCapture } from "./voice/microphone";
+import { VoiceSidecarClient } from "./voice-sidecar/client";
+import { spawnVoiceSidecar } from "./voice-sidecar/spawn";
 
 function createServices(
   context: vscode.ExtensionContext,
@@ -32,11 +34,15 @@ function createServices(
     const daemon = spawnDaemon(context);
     console.log(`Vocode daemon started from ${daemon.binaryPath}`);
 
+    const voice = spawnVoiceSidecar(context);
+    console.log(`Vocode voice sidecar started from ${voice.binaryPath}`);
+
     return {
       client: new DaemonClient(daemon.process),
       voiceStatus,
       voiceSession: new VoiceSessionController(),
       microphone,
+      voiceSidecar: new VoiceSidecarClient(voice.process),
     };
   } catch (error) {
     const message =
@@ -52,6 +58,7 @@ function createServices(
       voiceStatus,
       voiceSession: new VoiceSessionController(),
       microphone,
+      voiceSidecar: null,
     };
   }
 }
