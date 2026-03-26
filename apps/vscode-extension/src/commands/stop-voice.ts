@@ -6,8 +6,8 @@ export const stopVoiceCommand: CommandDefinition = {
   id: "vocode.stopVoice",
   requiresDaemon: true,
   run: (_client, services) => {
-    services.voiceSidecar?.stop();
     services.voiceSession.stop();
+    services.voiceSidecar?.stop();
     services.voiceStatus.setIdle();
     void vscode.window.showInformationMessage("Vocode stopped listening.");
   },

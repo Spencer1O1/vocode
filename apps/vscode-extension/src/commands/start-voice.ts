@@ -15,8 +15,8 @@ export const startVoiceCommand: CommandDefinition = {
       if (!services.voiceSidecar) {
         throw new Error("voice sidecar is not running");
       }
-      services.voiceSidecar.start();
       services.voiceSession.start();
+      services.voiceSidecar.start();
       services.voiceStatus.setListening();
       void vscode.window.showInformationMessage("Vocode started listening.");
     } catch (error) {

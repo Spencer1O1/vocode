@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 )
 
@@ -26,6 +27,7 @@ type Event struct {
 	State   string `json:"state,omitempty"`
 	Message string `json:"message,omitempty"`
 	Version string `json:"version,omitempty"`
+	Text    string `json:"text,omitempty"`
 }
 
 func (a *App) Run() error {
@@ -62,11 +64,24 @@ func (a *App) Run() error {
 			}); err != nil {
 				return err
 			}
-			if err := a.write(Event{
-				Type:    "error",
-				Message: "microphone capture is not implemented yet in apps/voice",
-			}); err != nil {
-				return err
+
+			// Demo mode: if VOCOIDE_VOICE_DEMO_TRANSCRIPT is set, emit a transcript
+			// event. This helps validate the extension<->sidecar wiring before
+			// microphone/STT is implemented.
+			if demo := strings.TrimSpace(os.Getenv("VOCODE_VOICE_DEMO_TRANSCRIPT")); demo != "" {
+				if err := a.write(Event{
+					Type: "transcript",
+					Text: demo,
+				}); err != nil {
+					return err
+				}
+			} else {
+				if err := a.write(Event{
+					Type:    "error",
+					Message: "microphone capture is not implemented yet in apps/voice",
+				}); err != nil {
+					return err
+				}
 			}
 		case "stop":
 			if err := a.write(Event{

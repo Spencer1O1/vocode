@@ -6,11 +6,19 @@ interface VoiceSidecarEvent {
   state?: string;
   message?: string;
   version?: string;
+  text?: string;
+}
+
+export interface VoiceSidecarTranscriptEvent {
+  type: "transcript";
+  text: string;
+  timestamp?: number;
 }
 
 export class VoiceSidecarClient {
   private readonly process: ChildProcessWithoutNullStreams;
   private disposed = false;
+  private transcriptHandler?: (evt: VoiceSidecarTranscriptEvent) => void;
 
   constructor(process: ChildProcessWithoutNullStreams) {
     this.process = process;
@@ -33,6 +41,10 @@ export class VoiceSidecarClient {
           console.log(`[vocode-voiced] state=${evt.state ?? "?"}`);
         } else if (evt.type === "error") {
           console.warn(`[vocode-voiced] error: ${evt.message ?? "unknown"}`);
+        } else if (evt.type === "transcript") {
+          const text = typeof evt.text === "string" ? evt.text : "";
+          if (!text) return;
+          this.transcriptHandler?.({ type: "transcript", text });
         }
       } catch (err) {
         console.error("[vocode-voiced] failed to parse stdout as JSON:", err);
@@ -57,6 +69,10 @@ export class VoiceSidecarClient {
     if (this.disposed) return;
     this.disposed = true;
     this.shutdown();
+  }
+
+  public onTranscript(handler: (evt: VoiceSidecarTranscriptEvent) => void) {
+    this.transcriptHandler = handler;
   }
 
   private send(msg: { type: string }): void {

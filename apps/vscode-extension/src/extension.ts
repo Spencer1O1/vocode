@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 
 import { DaemonClient } from "./client/daemon-client";
 import { registerAllCommands } from "./commands";
+import { presentTranscriptResult } from "./commands/send-transcript/present-result";
 import {
   type ExtensionServices,
   VoiceSessionController,
@@ -37,12 +38,56 @@ function createServices(
     const voice = spawnVoiceSidecar(context);
     console.log(`Vocode voice sidecar started from ${voice.binaryPath}`);
 
+    const voiceSession = new VoiceSessionController();
+    const client = new DaemonClient(daemon.process);
+    const voiceSidecar = new VoiceSidecarClient(voice.process);
+
+    let handlingTranscript = false;
+    voiceSidecar.onTranscript(async (evt) => {
+      if (!voiceSession.isRunning()) {
+        return;
+      }
+      if (handlingTranscript) {
+        return;
+      }
+      handlingTranscript = true;
+
+      try {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+          void vscode.window.showWarningMessage(
+            "Open a text editor so Vocode can run actions against the active file.",
+          );
+          return;
+        }
+
+        const activeFile = editor.document.uri.fsPath;
+        voiceStatus.setProcessing();
+        const result = await client.transcript({
+          text: evt.text,
+          activeFile,
+        });
+        await presentTranscriptResult(result, activeFile);
+      } catch (err) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "unknown voice->transcript error";
+        void vscode.window.showWarningMessage(`Vocode voice error: ${message}`);
+      } finally {
+        handlingTranscript = false;
+        if (voiceSession.isRunning()) {
+          voiceStatus.setListening();
+        }
+      }
+    });
+
     return {
-      client: new DaemonClient(daemon.process),
+      client,
       voiceStatus,
-      voiceSession: new VoiceSessionController(),
+      voiceSession,
       microphone,
-      voiceSidecar: new VoiceSidecarClient(voice.process),
+      voiceSidecar,
     };
   } catch (error) {
     const message =
