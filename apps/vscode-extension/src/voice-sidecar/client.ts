@@ -7,12 +7,14 @@ interface VoiceSidecarEvent {
   message?: string;
   version?: string;
   text?: string;
+  committed?: boolean;
 }
 
 export interface VoiceSidecarTranscriptEvent {
   type: "transcript";
   text: string;
   timestamp?: number;
+  committed?: boolean;
 }
 
 export class VoiceSidecarClient {
@@ -51,8 +53,13 @@ export class VoiceSidecarClient {
           this.errorHandler?.({ type: "error", message });
         } else if (evt.type === "transcript") {
           const text = typeof evt.text === "string" ? evt.text : "";
+          const committed = this.getCommitted(evt);
           if (!text) return;
-          this.transcriptHandler?.({ type: "transcript", text });
+          this.transcriptHandler?.({
+            type: "transcript",
+            text,
+            committed,
+          });
         }
       } catch (err) {
         console.error("[vocode-voiced] failed to parse stdout as JSON:", err);
@@ -98,5 +105,9 @@ export class VoiceSidecarClient {
     } catch (err) {
       console.error("[vocode-voiced] failed to write stdin:", err);
     }
+  }
+
+  private getCommitted(evt: VoiceSidecarEvent): boolean | undefined {
+    return typeof evt.committed === "boolean" ? evt.committed : undefined;
   }
 }

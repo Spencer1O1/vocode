@@ -58,6 +58,10 @@ function createServices(
       if (!voiceSession.isRunning()) {
         return;
       }
+      // Only final/committed transcript hypotheses should be forwarded to the core daemon.
+      if (evt.committed !== true) {
+        return;
+      }
       if (handlingTranscript) {
         return;
       }

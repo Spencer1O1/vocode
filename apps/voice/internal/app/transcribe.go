@@ -54,7 +54,8 @@ func (a *App) transcribeLoopBatch(ctx context.Context, apiKey string, modelID st
 				if terr != nil {
 					_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs stt failed: %v", terr)})
 				} else if strings.TrimSpace(text) != "" {
-					_ = a.write(Event{Type: "transcript", Text: text})
+					committed := true
+					_ = a.write(Event{Type: "transcript", Text: text, Committed: &committed})
 					contextWindow.AddUtterance(text)
 				}
 			}
@@ -129,7 +130,8 @@ func (a *App) transcribeLoopStream(ctx context.Context, apiKey string, modelID s
 				return
 			}
 			if strings.TrimSpace(evt.Text) != "" {
-				_ = a.write(Event{Type: "transcript", Text: evt.Text})
+				committed := evt.IsFinal
+				_ = a.write(Event{Type: "transcript", Text: evt.Text, Committed: &committed})
 				if evt.IsFinal {
 					contextWindow.AddUtterance(evt.Text)
 				}
