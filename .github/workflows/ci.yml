@@ -53,5 +53,8 @@ jobs:
       - name: Build daemon
         run: pnpm --filter @vocode/daemon build
 
+      - name: Build voice sidecar
+        run: pnpm --filter @vocode/voice build
+
       - name: Run Go tests
         run: go test ./...
