@@ -60,7 +60,9 @@ func NewService(
 
 	if queueSize > 0 {
 		s.queue = make(chan transcriptJob, queueSize)
-		s.startOnce.Do(s.runWorker)
+		s.startOnce.Do(func() {
+			go s.runWorker()
+		})
 	}
 
 	return s
