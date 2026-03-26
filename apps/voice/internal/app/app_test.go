@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 )
@@ -22,5 +23,46 @@ func TestRun_EmitsReadyAndShutdownState(t *testing.T) {
 	if !strings.Contains(got, `"state":"shutdown"`) {
 		t.Fatalf("expected shutdown state, got output: %s", got)
 	}
+}
+
+func TestSttMode_DefaultsToBatch(t *testing.T) {
+	t.Setenv("VOCODE_VOICE_STT_MODE", "")
+	if got := sttMode(); got != "batch" {
+		t.Fatalf("expected batch, got %q", got)
+	}
+}
+
+func TestSttMode_ParsesStreamAliases(t *testing.T) {
+	for _, v := range []string{"stream", "streaming", "websocket", "ws"} {
+		t.Setenv("VOCODE_VOICE_STT_MODE", v)
+		if got := sttMode(); got != "stream" {
+			t.Fatalf("mode %q: expected stream, got %q", v, got)
+		}
+	}
+}
+
+func TestSttMode_InvalidFallsBackToBatch(t *testing.T) {
+	t.Setenv("VOCODE_VOICE_STT_MODE", "unknown")
+	if got := sttMode(); got != "batch" {
+		t.Fatalf("expected batch fallback, got %q", got)
+	}
+}
+
+func TestAppendRollingContext(t *testing.T) {
+	got := appendRollingContext("", "hello world", 500)
+	if got != "hello world" {
+		t.Fatalf("unexpected initial context: %q", got)
+	}
+
+	got = appendRollingContext(got, "second phrase", 20)
+	if got != "world second phrase" {
+		t.Fatalf("expected tail-trimmed context, got %q", got)
+	}
+}
+
+func TestMain(m *testing.M) {
+	// Ensure env from prior tests doesn't leak into package tests.
+	_ = os.Unsetenv("VOCODE_VOICE_STT_MODE")
+	os.Exit(m.Run())
 }
 

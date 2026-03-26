@@ -72,6 +72,18 @@ func sttEnabled() bool {
 	}
 }
 
+func sttMode() string {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv("VOCODE_VOICE_STT_MODE")))
+	switch v {
+	case "", "batch":
+		return "batch"
+	case "stream", "streaming", "websocket", "ws":
+		return "stream"
+	default:
+		return "batch"
+	}
+}
+
 func (a *App) Run() error {
 	if err := a.write(Event{
 		Type:    "ready",
@@ -209,6 +221,15 @@ func (a *App) transcribeLoop(ctx context.Context, apiKey string, rec *mic.Record
 		_ = rec.Stop()
 	}()
 
+	if sttMode() == "stream" {
+		a.transcribeLoopStream(ctx, apiKey, rec)
+		return
+	}
+	a.transcribeLoopBatch(ctx, apiKey, rec)
+}
+
+func (a *App) transcribeLoopBatch(ctx context.Context, apiKey string, rec *mic.Recorder) {
+
 	bytesPerSecond := int64(16000 * 1 * 2) // 16kHz * mono * int16
 	targetBytes := bytesPerSecond * a.segmentSeconds
 	if targetBytes <= 0 {
@@ -252,6 +273,73 @@ func (a *App) transcribeLoop(ctx context.Context, apiKey string, rec *mic.Record
 				return
 			}
 			_ = a.write(Event{Type: "error", Message: fmt.Sprintf("microphone read failed: %v", err)})
+			return
+		}
+	}
+}
+
+func (a *App) transcribeLoopStream(ctx context.Context, apiKey string, rec *mic.Recorder) {
+	client, err := stt.NewElevenLabsStreamingClient(ctx, apiKey, 16000)
+	if err != nil {
+		_ = a.write(Event{Type: "error", Message: fmt.Sprintf("failed to start elevenlabs streaming stt: %v", err)})
+		return
+	}
+	defer func() {
+		_ = client.Close()
+	}()
+
+	bytesPerSecond := int64(16000 * 1 * 2) // 16kHz * mono * int16
+	chunkBytes := bytesPerSecond * 300 / 1000
+	if chunkBytes <= 0 {
+		chunkBytes = 9600
+	}
+
+	buf := make([]byte, 32*1024)
+	var chunk []byte
+	previousText := ""
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		n, readErr := rec.PCMReader().Read(buf)
+		if n > 0 {
+			chunk = append(chunk, buf[:n]...)
+		}
+
+		for int64(len(chunk)) >= chunkBytes {
+			toSend := chunk[:chunkBytes]
+			chunk = chunk[chunkBytes:]
+			if err := client.SendInputAudioChunk(toSend, true, previousText); err != nil {
+				_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs streaming send failed: %v", err)})
+				return
+			}
+		}
+
+		select {
+		case evt, ok := <-client.Events():
+			if !ok {
+				return
+			}
+			if evt.Error != nil {
+				_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs streaming stt failed: %v", evt.Error)})
+				return
+			}
+			if strings.TrimSpace(evt.Text) != "" {
+				_ = a.write(Event{Type: "transcript", Text: evt.Text})
+				previousText = appendRollingContext(previousText, evt.Text, 500)
+			}
+		default:
+		}
+
+		if readErr != nil {
+			if readErr == io.EOF {
+				return
+			}
+			_ = a.write(Event{Type: "error", Message: fmt.Sprintf("microphone read failed: %v", readErr)})
 			return
 		}
 	}
