@@ -105,6 +105,20 @@ sudo apt-get install -y pkg-config portaudio19-dev
 pnpm codegen
 ```
 
+### Voice STT rollout/tuning
+
+The voice sidecar uses ElevenLabs streaming STT with local VAD gating.
+
+Recommended baseline:
+- `STT_MODEL_ID=scribe_v2`
+- leave VAD/chunk env vars at defaults from `.env.example`
+
+Tuning guide:
+- higher `VOCODE_VOICE_VAD_END_MS` -> fewer premature utterance commits
+- higher `VOCODE_VOICE_VAD_PREROLL_MS` -> less start-of-speech clipping
+- lower `VOCODE_VOICE_STREAM_MIN_CHUNK_MS` -> lower latency while speaking
+- higher `VOCODE_VOICE_STREAM_MAX_CHUNK_MS` -> fewer websocket chunk sends
+
 3. Build the daemon
 
 ```bash

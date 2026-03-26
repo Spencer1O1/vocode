@@ -10,19 +10,19 @@ import (
 	"vocoding.net/vocode/v2/apps/voice/internal/stt"
 )
 
-func (a *App) transcribeLoop(ctx context.Context, apiKey string, rec *mic.Recorder) {
+func (a *App) transcribeLoop(ctx context.Context, apiKey string, modelID string, rec *mic.Recorder) {
 	defer func() {
 		_ = rec.Stop()
 	}()
 
 	if sttMode() == "stream" {
-		a.transcribeLoopStream(ctx, apiKey, rec)
+		a.transcribeLoopStream(ctx, apiKey, modelID, rec)
 		return
 	}
-	a.transcribeLoopBatch(ctx, apiKey, rec)
+	a.transcribeLoopBatch(ctx, apiKey, modelID, rec)
 }
 
-func (a *App) transcribeLoopBatch(ctx context.Context, apiKey string, rec *mic.Recorder) {
+func (a *App) transcribeLoopBatch(ctx context.Context, apiKey string, modelID string, rec *mic.Recorder) {
 	bytesPerSecond := int64(16000 * 1 * 2) // 16kHz * mono * int16
 	targetBytes := bytesPerSecond * a.segmentSeconds
 	if targetBytes <= 0 {
@@ -50,7 +50,7 @@ func (a *App) transcribeLoopBatch(ctx context.Context, apiKey string, rec *mic.R
 			if werr != nil {
 				_ = a.write(Event{Type: "error", Message: fmt.Sprintf("failed to encode wav: %v", werr)})
 			} else {
-				text, terr := stt.TranscribeElevenLabs(apiKey, "audio/wav", wav, contextWindow.PreviousText())
+				text, terr := stt.TranscribeElevenLabs(apiKey, modelID, "audio/wav", wav, contextWindow.PreviousText())
 				if terr != nil {
 					_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs stt failed: %v", terr)})
 				} else if strings.TrimSpace(text) != "" {
@@ -71,8 +71,8 @@ func (a *App) transcribeLoopBatch(ctx context.Context, apiKey string, rec *mic.R
 	}
 }
 
-func (a *App) transcribeLoopStream(ctx context.Context, apiKey string, rec *mic.Recorder) {
-	client, err := stt.NewElevenLabsStreamingClient(ctx, apiKey, 16000)
+func (a *App) transcribeLoopStream(ctx context.Context, apiKey string, modelID string, rec *mic.Recorder) {
+	client, err := stt.NewElevenLabsStreamingClient(ctx, apiKey, modelID, 16000)
 	if err != nil {
 		_ = a.write(Event{Type: "error", Message: fmt.Sprintf("failed to start elevenlabs streaming stt: %v", err)})
 		return

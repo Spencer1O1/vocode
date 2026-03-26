@@ -31,6 +31,29 @@ To disable ElevenLabs calls (and manually send transcripts via the VS Code comma
 palette), set:
 - `VOCODE_VOICE_STT_ENABLED=false`
 
+## STT model + tuning
+
+Core model selection:
+- `STT_MODEL_ID` (default: `scribe_v2`)
+
+Streaming VAD/segmentation knobs:
+- `VOCODE_VOICE_VAD_THRESHOLD_MULTIPLIER` (default: `2.0`)
+- `VOCODE_VOICE_VAD_START_MS` (default: `60`)
+- `VOCODE_VOICE_VAD_END_MS` (default: `500`)
+- `VOCODE_VOICE_VAD_PREROLL_MS` (default: `200`)
+- `VOCODE_VOICE_STREAM_MIN_CHUNK_MS` (default: `200`)
+- `VOCODE_VOICE_STREAM_MAX_CHUNK_MS` (default: `500`)
+- `VOCODE_VOICE_STREAM_MAX_UTTERANCE_MS` (default: `4000`)
+
+## Rollout / tuning checklist
+
+1. Start with defaults and `STT_MODEL_ID=scribe_v2`.
+2. Validate transcript quality on real speech with pauses and interruptions.
+3. If too many premature commits, increase `VOCODE_VOICE_VAD_END_MS`.
+4. If speech starts are clipped, increase `VOCODE_VOICE_VAD_PREROLL_MS`.
+5. If latency feels high during speech bursts, lower `VOCODE_VOICE_STREAM_MIN_CHUNK_MS`.
+6. If chunk churn is high, raise `VOCODE_VOICE_STREAM_MAX_CHUNK_MS`.
+
 ### Linux (Ubuntu/Debian)
 
 Install native deps:

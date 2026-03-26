@@ -29,9 +29,12 @@ type ElevenLabsStreamingClient struct {
 	sentAnyChunk bool
 }
 
-func NewElevenLabsStreamingClient(ctx context.Context, apiKey string, sampleRate int) (*ElevenLabsStreamingClient, error) {
+func NewElevenLabsStreamingClient(ctx context.Context, apiKey string, modelID string, sampleRate int) (*ElevenLabsStreamingClient, error) {
 	if strings.TrimSpace(apiKey) == "" {
 		return nil, fmt.Errorf("ELEVENLABS_API_KEY is empty")
+	}
+	if strings.TrimSpace(modelID) == "" {
+		modelID = "scribe_v2"
 	}
 	if sampleRate <= 0 {
 		sampleRate = 16000
@@ -41,6 +44,9 @@ func NewElevenLabsStreamingClient(ctx context.Context, apiKey string, sampleRate
 	if err != nil {
 		return nil, err
 	}
+	query := wsURL.Query()
+	query.Set("model_id", modelID)
+	wsURL.RawQuery = query.Encode()
 
 	header := http.Header{}
 	header.Set("xi-api-key", apiKey)

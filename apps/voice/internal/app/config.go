@@ -35,6 +35,14 @@ func sttMode() string {
 	}
 }
 
+func sttModelID() string {
+	v := strings.TrimSpace(os.Getenv("ELEVENLABS_STT_MODEL_ID"))
+	if v == "" {
+		return "scribe_v2"
+	}
+	return v
+}
+
 func vadThresholdMultiplier() float64 {
 	return envFloat("VOCODE_VOICE_VAD_THRESHOLD_MULTIPLIER", 2.0, 1.0, 10.0)
 }

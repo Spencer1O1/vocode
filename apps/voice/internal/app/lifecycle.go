@@ -41,7 +41,7 @@ func (a *App) handleStart() error {
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-		a.transcribeLoop(ctx, apiKey, rec)
+		a.transcribeLoop(ctx, apiKey, sttModelID(), rec)
 	}()
 
 	return a.write(Event{Type: "state", State: "listening"})
