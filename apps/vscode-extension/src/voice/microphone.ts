@@ -92,27 +92,38 @@ export class MicrophoneCapture implements vscode.Disposable {
       },
     });
 
-    const recorder = new MediaRecorderClass(mediaStream);
+    try {
+      const recorder = new MediaRecorderClass(mediaStream);
 
-    recorder.ondataavailable = (event) => {
-      void this.handleData(
-        event,
-        recorder.mimeType ?? "application/octet-stream",
-      );
-    };
+      recorder.ondataavailable = (event) => {
+        void this.handleData(
+          event,
+          recorder.mimeType ?? "application/octet-stream",
+        );
+      };
 
-    recorder.onerror = (event) => {
-      const details =
-        event.error instanceof Error ? event.error.message : "unknown error";
-      void vscode.window.showWarningMessage(
-        `Vocode microphone capture error: ${details}`,
-      );
-    };
+      recorder.onerror = (event) => {
+        const details =
+          event.error instanceof Error ? event.error.message : "unknown error";
+        void vscode.window.showWarningMessage(
+          `Vocode microphone capture error: ${details}`,
+        );
+      };
 
-    recorder.start(250);
+      recorder.start(250);
 
-    this.mediaStream = mediaStream;
-    this.recorder = recorder;
+      this.mediaStream = mediaStream;
+      this.recorder = recorder;
+    } catch (error) {
+      for (const track of mediaStream.getTracks()) {
+        try {
+          track.stop();
+        } catch {
+          // Ignore errors while stopping individual tracks; preserve original error.
+        }
+      }
+      throw error;
+    }
   }
 
   public stop(): void {
