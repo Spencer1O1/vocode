@@ -1,4 +1,4 @@
-import type { DaemonClient } from "../client/daemon-client";
+import type { DaemonClient } from "../daemon/client";
 import type { ExtensionServices } from "./services";
 
 export type CommandDefinition =

@@ -4,8 +4,8 @@
   "scripts": {
     "build": "node ../../scripts/dev/build-voice.mjs",
     "dev": "go run ./cmd/vocode-voiced",
-    "test": "go test ./...",
+    "test": "node ../../scripts/dev/go-test.mjs --force-cgo",
     "lint": "golangci-lint run",
-    "typecheck": "go test ./..."
+    "typecheck": "node ../../scripts/dev/go-test.mjs --force-cgo"
   }
 }

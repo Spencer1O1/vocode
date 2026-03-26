@@ -66,6 +66,19 @@ corepack enable
 pnpm install
 ```
 
+### Native voice dependencies (Windows only)
+The voice sidecar (`@vocode/voice`) uses `cgo` + PortAudio, so on Windows you must install native deps before builds.
+
+From the repo root:
+```powershell
+pwsh -ExecutionPolicy Bypass -File scripts/dev/setup-portaudio.ps1 -InstallMsys2
+```
+
+If your MSYS2 install is not at `C:\tools\msys64`, pass your MSYS2 root:
+```powershell
+pwsh -ExecutionPolicy Bypass -File scripts/dev/setup-portaudio.ps1 -Msys2Root "D:\msys64"
+```
+
 2. Generate protocol types
 
 ```bash

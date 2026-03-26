@@ -34,9 +34,7 @@ export class DaemonClient {
     return this.sendRequest<PingResult>("ping", params, isPingResult);
   }
 
-  public transcript(
-    params: VoiceTranscriptParams,
-  ): Promise<VoiceTranscriptResult> {
+  public transcript(params: VoiceTranscriptParams): Promise<VoiceTranscriptResult> {
     return this.sendRequest<VoiceTranscriptResult>(
       "voice.transcript",
       params,
@@ -48,3 +46,4 @@ export class DaemonClient {
     this.transport.dispose();
   }
 }
+

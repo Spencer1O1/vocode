@@ -1,15 +1,69 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 
 const target = `${process.platform}-${process.arch}`;
-const binary = process.platform === "win32" ? "vocode-voiced.exe" : "vocode-voiced";
+const binary =
+  process.platform === "win32" ? "vocode-voiced.exe" : "vocode-voiced";
 
 mkdirSync(path.join("bin", target), { recursive: true });
 
 // Keep builds self-contained and reliable across shells/platforms.
 const goCache = path.join(process.cwd(), ".gocache");
 mkdirSync(goCache, { recursive: true });
+
+function configurePortAudioCgoEnv() {
+  const msysRoot = process.env.MSYS2_ROOT ?? "C:\\tools\\msys64";
+  const mingwBin = path.join(msysRoot, "mingw64", "bin");
+  const mingwPkgConfigDir = path.join(msysRoot, "mingw64", "lib", "pkgconfig");
+  const pkgConfigExe = path.join(mingwBin, "pkg-config.exe");
+  const gccExe = path.join(mingwBin, "gcc.exe");
+
+  const ok =
+    existsSync(pkgConfigExe) &&
+    existsSync(mingwPkgConfigDir) &&
+    existsSync(gccExe);
+  if (!ok) {
+    return {
+      ok: false,
+      env: {},
+      msysRoot,
+      mingwBin,
+      mingwPkgConfigDir,
+    };
+  }
+
+  const pathSep = ";";
+  const pathPrefix = mingwBin + pathSep;
+  const existingPath = process.env.PATH ?? "";
+
+  const env = {
+    CGO_ENABLED: "1",
+    PATH: pathPrefix + existingPath,
+    PKG_CONFIG_PATH:
+      mingwPkgConfigDir +
+      (process.env.PKG_CONFIG_PATH
+        ? pathSep + process.env.PKG_CONFIG_PATH
+        : ""),
+    PKG_CONFIG: pkgConfigExe,
+    CC: gccExe,
+  };
+
+  return { ok: true, env };
+}
+
+const portAudioEnv =
+  process.platform === "win32"
+    ? configurePortAudioCgoEnv()
+    : { ok: true, env: {} };
+
+if (process.platform === "win32" && "ok" in portAudioEnv && !portAudioEnv.ok) {
+  // Fail with a clear error from cgo if we can't configure the toolchain.
+  console.warn(
+    `[@vocode/voice] PortAudio cgo toolchain not detected. Expected MSYS2 root at ${portAudioEnv.msysRoot}. ` +
+      "Ensure portaudio-2.0.pc is findable via pkg-config and a C compiler (gcc) is available on PATH.",
+  );
+}
 
 const result = spawnSync(
   "go",
@@ -24,6 +78,9 @@ const result = spawnSync(
     env: {
       ...process.env,
       GOCACHE: goCache,
+      // PortAudio mic capture is cgo-only. On Windows we always force cgo.
+      ...(process.platform === "win32" ? { CGO_ENABLED: "1" } : { CGO_ENABLED: "0" }),
+      ...(portAudioEnv.ok ? portAudioEnv.env : {}),
     },
     stdio: "inherit",
   },

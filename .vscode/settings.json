@@ -122,7 +122,11 @@
 
   "go.useLanguageServer": true,
   "gopls": {
-    "formatting.gofumpt": true
+    "formatting.gofumpt": true,
+    "buildFlags": ["-tags=cgo"],
+    "env": {
+      "CGO_ENABLED": "1"
+    }
   },
 
   "files.eol": "\n"

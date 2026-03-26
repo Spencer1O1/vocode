@@ -4,8 +4,8 @@
   "scripts": {
     "build": "node ../../scripts/dev/build-daemon.mjs",
     "dev": "go run ./cmd/vocoded",
-    "test": "go test ./...",
+    "test": "node ../../scripts/dev/go-test.mjs",
     "lint": "golangci-lint run",
-    "typecheck": "go test ./..."
+    "typecheck": "node ../../scripts/dev/go-test.mjs"
   }
 }

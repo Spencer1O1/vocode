@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 
-import { DaemonClient } from "./client/daemon-client";
+import { DaemonClient } from "./daemon/client";
 import { registerAllCommands } from "./commands";
 import { presentTranscriptResult } from "./commands/send-transcript/present-result";
 import {

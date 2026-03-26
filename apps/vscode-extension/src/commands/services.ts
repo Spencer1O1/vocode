@@ -1,4 +1,4 @@
-import type { DaemonClient } from "../client/daemon-client";
+import type { DaemonClient } from "../daemon/client";
 import type { VoiceStatusIndicator } from "../ui/status-bar";
 import type { MicrophoneCapture } from "../voice/microphone";
 import type { VoiceSidecarClient } from "../voice-sidecar/client";

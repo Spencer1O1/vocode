@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 
-import type { DaemonClient } from "../../client/daemon-client";
+import type { DaemonClient } from "../../daemon/client";
 import type { ExtensionServices } from "../services";
 import { presentTranscriptResult } from "./present-result";
 
