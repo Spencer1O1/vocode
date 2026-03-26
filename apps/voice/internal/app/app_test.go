@@ -63,18 +63,6 @@ func TestStreamChunkConfig_Defaults(t *testing.T) {
 	}
 }
 
-func TestAppendRollingContext(t *testing.T) {
-	got := appendRollingContext("", "hello world", 500)
-	if got != "hello world" {
-		t.Fatalf("unexpected initial context: %q", got)
-	}
-
-	got = appendRollingContext(got, "second phrase", 20)
-	if got != "world second phrase" {
-		t.Fatalf("expected tail-trimmed context, got %q", got)
-	}
-}
-
 func TestMain(m *testing.M) {
 	// Ensure env from prior tests doesn't leak into package tests.
 	_ = os.Unsetenv("VOCODE_VOICE_STT_MODE")

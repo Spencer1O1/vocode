@@ -31,7 +31,7 @@ func (a *App) transcribeLoopBatch(ctx context.Context, apiKey string, rec *mic.R
 
 	buf := make([]byte, 32*1024)
 	var segment []byte
-	previousText := ""
+	contextWindow := newUtteranceWindow(4, 1200)
 
 	for {
 		select {
@@ -50,12 +50,12 @@ func (a *App) transcribeLoopBatch(ctx context.Context, apiKey string, rec *mic.R
 			if werr != nil {
 				_ = a.write(Event{Type: "error", Message: fmt.Sprintf("failed to encode wav: %v", werr)})
 			} else {
-				text, terr := stt.TranscribeElevenLabs(apiKey, "audio/wav", wav, previousText)
+				text, terr := stt.TranscribeElevenLabs(apiKey, "audio/wav", wav, contextWindow.PreviousText())
 				if terr != nil {
 					_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs stt failed: %v", terr)})
 				} else if strings.TrimSpace(text) != "" {
 					_ = a.write(Event{Type: "transcript", Text: text})
-					previousText = appendRollingContext(previousText, text, 500)
+					contextWindow.AddUtterance(text)
 				}
 			}
 			segment = nil
@@ -93,7 +93,7 @@ func (a *App) transcribeLoopStream(ctx context.Context, apiKey string, rec *mic.
 
 	buf := make([]byte, 32*1024)
 	var chunk []byte
-	previousText := ""
+	contextWindow := newUtteranceWindow(4, 1200)
 	vad := newLocalVAD(16000, int(minChunkBytes), int(maxChunkBytes), streamMaxUtteranceMS())
 
 	for {
@@ -112,7 +112,7 @@ func (a *App) transcribeLoopStream(ctx context.Context, apiKey string, rec *mic.
 			frame := chunk[:vad.frameBytes]
 			chunk = chunk[vad.frameBytes:]
 			for _, c := range vad.process(frame) {
-				if err := client.SendInputAudioChunk(c.pcm, c.commit, previousText); err != nil {
+				if err := client.SendInputAudioChunk(c.pcm, c.commit, contextWindow.PreviousText()); err != nil {
 					_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs streaming send failed: %v", err)})
 					return
 				}
@@ -130,7 +130,9 @@ func (a *App) transcribeLoopStream(ctx context.Context, apiKey string, rec *mic.
 			}
 			if strings.TrimSpace(evt.Text) != "" {
 				_ = a.write(Event{Type: "transcript", Text: evt.Text})
-				previousText = appendRollingContext(previousText, evt.Text, 500)
+				if evt.IsFinal {
+					contextWindow.AddUtterance(evt.Text)
+				}
 			}
 		default:
 		}
@@ -138,7 +140,7 @@ func (a *App) transcribeLoopStream(ctx context.Context, apiKey string, rec *mic.
 		if readErr != nil {
 			if readErr == io.EOF {
 				for _, c := range vad.flush() {
-					if err := client.SendInputAudioChunk(c.pcm, c.commit, previousText); err != nil {
+					if err := client.SendInputAudioChunk(c.pcm, c.commit, contextWindow.PreviousText()); err != nil {
 						_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs streaming send failed: %v", err)})
 						return
 					}
@@ -149,23 +151,4 @@ func (a *App) transcribeLoopStream(ctx context.Context, apiKey string, rec *mic.
 			return
 		}
 	}
-}
-
-func appendRollingContext(existing string, next string, maxChars int) string {
-	next = strings.TrimSpace(next)
-	if next == "" {
-		return existing
-	}
-	if maxChars <= 0 {
-		maxChars = 500
-	}
-
-	combined := next
-	if existing != "" {
-		combined = existing + " " + next
-	}
-	if len(combined) <= maxChars {
-		return combined
-	}
-	return strings.TrimSpace(combined[len(combined)-maxChars:])
 }

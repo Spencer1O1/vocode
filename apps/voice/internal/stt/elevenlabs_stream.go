@@ -3,7 +3,6 @@ package stt
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -16,15 +15,18 @@ import (
 const elevenLabsSpeechToTextStreamURL = "wss://api.elevenlabs.io/v1/speech-to-text/stream"
 
 type StreamingEvent struct {
-	Text  string
-	Error error
+	Text    string
+	IsFinal bool
+	Error   error
 }
 
 type ElevenLabsStreamingClient struct {
-	conn   *websocket.Conn
-	events chan StreamingEvent
-	done   chan struct{}
-	mu     sync.Mutex
+	conn         *websocket.Conn
+	events       chan StreamingEvent
+	done         chan struct{}
+	mu           sync.Mutex
+	sampleRate   int
+	sentAnyChunk bool
 }
 
 func NewElevenLabsStreamingClient(ctx context.Context, apiKey string, sampleRate int) (*ElevenLabsStreamingClient, error) {
@@ -49,9 +51,10 @@ func NewElevenLabsStreamingClient(ctx context.Context, apiKey string, sampleRate
 	}
 
 	c := &ElevenLabsStreamingClient{
-		conn:   conn,
-		events: make(chan StreamingEvent, 16),
-		done:   make(chan struct{}),
+		conn:       conn,
+		events:     make(chan StreamingEvent, 16),
+		done:       make(chan struct{}),
+		sampleRate: sampleRate,
 	}
 
 	go c.readLoop()
@@ -82,19 +85,23 @@ func (c *ElevenLabsStreamingClient) SendInputAudioChunk(pcm []byte, commit bool,
 		return nil
 	}
 
-	msg := map[string]any{
-		"message_type": "input_audio_chunk",
-		"audio_base_64": base64.StdEncoding.EncodeToString(pcm),
-		"sample_rate":  16000,
-		"commit":       commit,
+	payload := inputAudioChunkMessage{
+		MessageType: messageTypeInputAudioChunk,
+		AudioBase64: base64.StdEncoding.EncodeToString(pcm),
+		Commit:      commit,
+		SampleRate:  c.sampleRate,
 	}
-	if strings.TrimSpace(previousText) != "" {
-		msg["previous_text"] = previousText
+	if !c.sentAnyChunk && strings.TrimSpace(previousText) != "" {
+		payload.PreviousText = previousText
 	}
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.conn.WriteJSON(msg)
+	if err := c.conn.WriteJSON(payload); err != nil {
+		return err
+	}
+	c.sentAnyChunk = true
+	return nil
 }
 
 func (c *ElevenLabsStreamingClient) readLoop() {
@@ -116,28 +123,20 @@ func (c *ElevenLabsStreamingClient) readLoop() {
 			return
 		}
 
-		text := extractStreamingText(data)
-		if strings.TrimSpace(text) == "" {
+		evt := parseStreamingEventPayload(data)
+		if evt.Error != nil {
+			select {
+			case c.events <- evt:
+			default:
+			}
+			continue
+		}
+		if strings.TrimSpace(evt.Text) == "" {
 			continue
 		}
 		select {
-		case c.events <- StreamingEvent{Text: text}:
+		case c.events <- evt:
 		default:
 		}
 	}
-}
-
-func extractStreamingText(data []byte) string {
-	var generic map[string]any
-	if err := json.Unmarshal(data, &generic); err != nil {
-		return ""
-	}
-
-	if v, ok := generic["text"].(string); ok && strings.TrimSpace(v) != "" {
-		return v
-	}
-	if tr, ok := generic["transcript"].(string); ok && strings.TrimSpace(tr) != "" {
-		return tr
-	}
-	return ""
 }
