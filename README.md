@@ -119,6 +119,11 @@ Tuning guide:
 - lower `VOCODE_VOICE_STREAM_MIN_CHUNK_MS` -> lower latency while speaking
 - higher `VOCODE_VOICE_STREAM_MAX_CHUNK_MS` -> fewer websocket chunk sends
 
+Daemon transcript queueing:
+- the VS Code extension forwards committed transcripts to the daemon
+- the daemon processes transcripts in FIFO order and can coalesce multiple committed transcripts that arrive within `VOCODE_DAEMON_VOICE_TRANSCRIPT_COALESCE_MS`
+- queue + merge bounds are configurable via `VOCODE_DAEMON_VOICE_TRANSCRIPT_QUEUE_SIZE`, `VOCODE_DAEMON_VOICE_TRANSCRIPT_MAX_MERGE_JOBS`, and `VOCODE_DAEMON_VOICE_TRANSCRIPT_MAX_MERGE_CHARS`
+
 3. Build the daemon
 
 ```bash

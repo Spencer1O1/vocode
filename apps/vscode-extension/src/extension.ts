@@ -42,7 +42,7 @@ function createServices(
     const client = new DaemonClient(daemon.process);
     const voiceSidecar = new VoiceSidecarClient(voice.process);
 
-    let handlingTranscript = false;
+    let inFlightTranscripts = 0;
 
     voiceSidecar.onError((evt) => {
       // Ensure user sees sidecar failures even when no transcript ever arrives.
@@ -54,47 +54,51 @@ function createServices(
       voiceStatus.setIdle();
     });
 
-    voiceSidecar.onTranscript(async (evt) => {
+    voiceSidecar.onTranscript((evt) => {
       if (!voiceSession.isRunning()) {
         return;
       }
       // Only final/committed transcript hypotheses should be forwarded to the core daemon.
-      if (evt.committed !== true) {
+      if (evt.committed !== true) return;
+
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) {
+        void vscode.window.showWarningMessage(
+          "Open a text editor so Vocode can run actions against the active file.",
+        );
         return;
       }
-      if (handlingTranscript) {
-        return;
-      }
-      handlingTranscript = true;
 
-      try {
-        const editor = vscode.window.activeTextEditor;
-        if (!editor) {
-          void vscode.window.showWarningMessage(
-            "Open a text editor so Vocode can run actions against the active file.",
-          );
-          return;
-        }
+      const activeFile = editor.document.uri.fsPath;
+      const text = evt.text;
 
-        const activeFile = editor.document.uri.fsPath;
+      if (inFlightTranscripts === 0) {
         voiceStatus.setProcessing();
-        const result = await client.transcript({
-          text: evt.text,
-          activeFile,
-        });
-        await presentTranscriptResult(result, activeFile);
-      } catch (err) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : "unknown voice->transcript error";
-        void vscode.window.showWarningMessage(`Vocode voice error: ${message}`);
-      } finally {
-        handlingTranscript = false;
-        if (voiceSession.isRunning()) {
-          voiceStatus.setListening();
-        }
       }
+      inFlightTranscripts++;
+
+      void (async () => {
+        try {
+          const result = await client.transcript({
+            text,
+            activeFile,
+          });
+          await presentTranscriptResult(result, activeFile);
+        } catch (err) {
+          const message =
+            err instanceof Error
+              ? err.message
+              : "unknown voice->transcript error";
+          void vscode.window.showWarningMessage(
+            `Vocode voice error: ${message}`,
+          );
+        } finally {
+          inFlightTranscripts = Math.max(0, inFlightTranscripts - 1);
+          if (voiceSession.isRunning() && inFlightTranscripts === 0) {
+            voiceStatus.setListening();
+          }
+        }
+      })();
     });
 
     return {
