@@ -22,6 +22,7 @@ export const startVoiceCommand: CommandDefinition = {
       void vscode.window.showWarningMessage(
         `Unable to start microphone capture: ${message}`,
       );
+      await services.microphone.stop();
       services.voiceSession.stop();
       services.voiceStatus.setIdle();
     }
