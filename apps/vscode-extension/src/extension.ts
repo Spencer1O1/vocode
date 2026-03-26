@@ -15,14 +15,21 @@ function createServices(
   voiceStatus: VoiceStatusIndicator,
 ): ExtensionServices {
   const microphone = new MicrophoneCapture();
-  context.subscriptions.push(microphone);
-
-  microphone.onAudioChunk(({ data }) => {
-    console.debug(
-      `Vocode microphone chunk captured (${data.byteLength} bytes)`,
+  const debugAudioLogging =
+    vscode.workspace.getConfiguration("vocode").get<boolean>(
+      "debugAudioLogging",
+      false,
     );
+
+  const audioChunkSubscription = microphone.onAudioChunk(({ data }) => {
+    if (debugAudioLogging) {
+      console.debug(
+        `Vocode microphone chunk captured (${data.byteLength} bytes)`,
+      );
+    }
   });
 
+  context.subscriptions.push(microphone, audioChunkSubscription);
   try {
     const daemon = spawnDaemon(context);
     console.log(`Vocode daemon started from ${daemon.binaryPath}`);
