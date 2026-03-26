@@ -25,6 +25,12 @@ To enable real mic capture:
 - Ensure `CGO_ENABLED=1`
 - Install PortAudio *and* `pkg-config` support for `portaudio-2.0`
 
+## STT toggle
+
+To disable ElevenLabs calls (and manually send transcripts via the VS Code command
+palette), set:
+- `VOCODE_VOICE_STT_ENABLED=false`
+
 ### Linux (Ubuntu/Debian)
 
 Install native deps:

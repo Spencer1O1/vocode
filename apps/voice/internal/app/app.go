@@ -55,6 +55,23 @@ type Event struct {
 	Text    string `json:"text,omitempty"`
 }
 
+func sttEnabled() bool {
+	// Default enabled to preserve existing behavior.
+	v := strings.TrimSpace(os.Getenv("VOCODE_VOICE_STT_ENABLED"))
+	if v == "" {
+		return true
+	}
+	switch strings.ToLower(v) {
+	case "1", "true", "yes", "y", "on", "enabled":
+		return true
+	case "0", "false", "no", "n", "off", "disabled":
+		return false
+	default:
+		// Fail open to avoid confusing "no transcripts" because of a typo.
+		return true
+	}
+}
+
 func (a *App) Run() error {
 	if err := a.write(Event{
 		Type:    "ready",
@@ -91,17 +108,17 @@ func (a *App) Run() error {
 				return err
 			}
 
-			// Demo mode: if VOCODE_VOICE_DEMO_TRANSCRIPT is set, emit a transcript
-			// event immediately (no audio required).
-			if demo := strings.TrimSpace(os.Getenv("VOCODE_VOICE_DEMO_TRANSCRIPT")); demo != "" {
-				if err := a.write(Event{Type: "transcript", Text: demo}); err != nil {
-					return err
-				}
+			if a.running {
+				// Already running; treat as idempotent.
 				continue
 			}
 
-			if a.running {
-				// Already running; treat as idempotent.
+			if !sttEnabled() {
+				// STT disabled: allow devs to manually send transcripts from the extension.
+				// We still report a listening state so the UX is consistent.
+				if err := a.write(Event{Type: "state", State: "listening"}); err != nil {
+					return err
+				}
 				continue
 			}
 
@@ -191,13 +208,6 @@ func (a *App) transcribeLoop(ctx context.Context, apiKey string, rec *mic.Record
 	defer func() {
 		_ = rec.Stop()
 	}()
-
-	// If demo transcript is configured, bypass STT calls to ElevenLabs to save credits.
-	// We still emit at most one transcript event (the first time the loop runs).
-	if demo := strings.TrimSpace(os.Getenv("VOCODE_VOICE_DEMO_TRANSCRIPT")); demo != "" {
-		_ = a.write(Event{Type: "transcript", Text: demo})
-		return
-	}
 
 	bytesPerSecond := int64(16000 * 1 * 2) // 16kHz * mono * int16
 	targetBytes := bytesPerSecond * a.segmentSeconds
