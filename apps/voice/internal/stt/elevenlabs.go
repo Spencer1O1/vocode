@@ -16,7 +16,7 @@ const elevenLabsSpeechToTextURL = "https://api.elevenlabs.io/v1/speech-to-text"
 // The input bytes may be any format supported by ElevenLabs (e.g. webm/opus if
 // coming from browser MediaRecorder). We pass the provided mimeType as the
 // multipart file content type.
-func TranscribeElevenLabs(apiKey string, mimeType string, audio []byte) (string, error) {
+func TranscribeElevenLabs(apiKey string, mimeType string, audio []byte, previousText string) (string, error) {
 	if apiKey == "" {
 		return "", fmt.Errorf("ELEVENLABS_API_KEY is empty")
 	}
@@ -32,6 +32,9 @@ func TranscribeElevenLabs(apiKey string, mimeType string, audio []byte) (string,
 	_ = writer.WriteField("language_code", "eng")
 	_ = writer.WriteField("tag_audio_events", "true")
 	_ = writer.WriteField("diarize", "true")
+	if previousText != "" {
+		_ = writer.WriteField("previous_text", previousText)
+	}
 
 	contentType := mimeType
 	if contentType == "" {

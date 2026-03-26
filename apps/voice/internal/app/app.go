@@ -217,6 +217,7 @@ func (a *App) transcribeLoop(ctx context.Context, apiKey string, rec *mic.Record
 
 	buf := make([]byte, 32*1024)
 	var segment []byte
+	previousText := ""
 
 	for {
 		select {
@@ -235,11 +236,12 @@ func (a *App) transcribeLoop(ctx context.Context, apiKey string, rec *mic.Record
 			if werr != nil {
 				_ = a.write(Event{Type: "error", Message: fmt.Sprintf("failed to encode wav: %v", werr)})
 			} else {
-				text, terr := stt.TranscribeElevenLabs(apiKey, "audio/wav", wav)
+				text, terr := stt.TranscribeElevenLabs(apiKey, "audio/wav", wav, previousText)
 				if terr != nil {
 					_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs stt failed: %v", terr)})
 				} else if strings.TrimSpace(text) != "" {
 					_ = a.write(Event{Type: "transcript", Text: text})
+					previousText = appendRollingContext(previousText, text, 500)
 				}
 			}
 			segment = nil
@@ -253,4 +255,23 @@ func (a *App) transcribeLoop(ctx context.Context, apiKey string, rec *mic.Record
 			return
 		}
 	}
+}
+
+func appendRollingContext(existing string, next string, maxChars int) string {
+	next = strings.TrimSpace(next)
+	if next == "" {
+		return existing
+	}
+	if maxChars <= 0 {
+		maxChars = 500
+	}
+
+	combined := next
+	if existing != "" {
+		combined = existing + " " + next
+	}
+	if len(combined) <= maxChars {
+		return combined
+	}
+	return strings.TrimSpace(combined[len(combined)-maxChars:])
 }

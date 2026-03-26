@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..", "..");
-const defaultCacheDir = path.join(repoRoot, ".cache", "go-build");
+const defaultCacheDir = path.join(repoRoot, ".gocache");
 
 function ensureDir(p) {
   fs.mkdirSync(p, { recursive: true });
