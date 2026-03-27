@@ -70,6 +70,7 @@ One “turn” starts when the extension calls the daemon RPC:
 - JSON schema source of truth
 - Generated TypeScript and Go types
 - Runtime validators used at integration boundaries
+- **Policy-free constructors and validators**: `packages/protocol` must only express wire shape and schema invariants. No daemon/extension policy (allowlists, safety semantics, env defaults, retries) in validators or `go/*_constructors.go` helpers — see `packages/protocol/README.md`.
 
 ## Quick Ownership Guide
 
