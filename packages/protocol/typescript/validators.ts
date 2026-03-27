@@ -62,9 +62,7 @@ export function isEditAction(value: unknown): value is EditAction {
   );
 }
 
-export function isEditDirective(
-  value: unknown,
-): value is EditDirective {
+export function isEditDirective(value: unknown): value is EditDirective {
   if (!isRecord(value) || typeof value.kind !== "string") {
     return false;
   }
@@ -191,8 +189,7 @@ function isNavigationDirective(value: unknown): boolean {
   }
   if (value.kind === "success") {
     return (
-      hasOnlyKeys(value, ["kind", "action"]) &&
-      isNavigationAction(value.action)
+      hasOnlyKeys(value, ["kind", "action"]) && isNavigationAction(value.action)
     );
   }
   if (value.kind === "noop") {
