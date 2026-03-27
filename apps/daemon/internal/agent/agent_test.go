@@ -21,7 +21,7 @@ func TestNextIntentStubFlow(t *testing.T) {
 			t.Fatalf("unexpected err: %v", err)
 		}
 		if err := intent.ValidateNextIntent(next); err != nil {
-			t.Fatalf("invalid next action: %v", err)
+			t.Fatalf("invalid next intent: %v", err)
 		}
 		if next.Kind == intent.NextIntentKindDone {
 			t.Fatal("unexpected done before 4th step")

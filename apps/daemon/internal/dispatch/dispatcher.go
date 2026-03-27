@@ -35,11 +35,11 @@ func (d *Dispatcher) ExecuteNextIntent(next intent.NextIntent, editCtx edits.Edi
 			return StepResult{}, fmt.Errorf("next intent edit: %w", err)
 		}
 		return StepResult{EditResult: &res}, nil
-	case intent.NextIntentKindRunCommand:
-		params := next.RunCommand.CommandParams()
+	case intent.NextIntentKindCommand:
+		params := next.Command.CommandParams()
 		if d.commands != nil {
 			if err := d.commands.Validate(params); err != nil {
-				return StepResult{}, fmt.Errorf("next intent run_command: %w", err)
+				return StepResult{}, fmt.Errorf("next intent command: %w", err)
 			}
 		}
 		return StepResult{CommandParams: &params}, nil

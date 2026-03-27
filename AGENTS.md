@@ -17,18 +17,19 @@ One “turn” starts when the extension calls the daemon RPC:
 ### What the daemon guarantees
 
 1. The daemon runs an iterative `NextIntent` loop (validated each turn).
-2. The daemon executes each intent step-by-step using `dispatch.Dispatcher`.
-3. The daemon returns a `VoiceTranscriptResult` where `steps` is an ordered list.
-4. Each step is exactly one of:
+2. The daemon executes each intent in order using `dispatch.Dispatcher`.
+3. The daemon returns a `VoiceTranscriptResult` where `results` is an ordered list of execution results.
+4. Each execution result is exactly one of:
    - `kind: "edit"` with an `editResult` (a single explicit variant of `EditApplyResult`)
-   - `kind: "run_command"` with `commandParams` (daemon-validated command shape; extension executes)
+   - `kind: "command"` with `commandParams` (daemon-validated command shape; extension executes)
+   - `kind: "navigate"` with `navigationIntent` (extension applies deterministic UI navigation)
 
 ### What the extension guarantees
 
-1. The extension iterates `VoiceTranscriptResult.steps` sequentially.
-2. For `edit` steps, it applies daemon-provided edit actions mechanically using `workspace.applyEdit`.
-3. For `run_command` steps, it runs the command parameters using an allowlisted runner (no additional semantic policy).
-4. If any step fails, the extension stops processing subsequent steps.
+1. The extension iterates `VoiceTranscriptResult.results` sequentially.
+2. For `edit` results, it applies daemon-provided edit actions mechanically using `workspace.applyEdit`.
+3. For `command` results, it runs the command parameters using an allowlisted runner (no additional semantic policy).
+4. If any result fails, the extension stops processing remaining results.
 
 ### Invariant: no mixed-state payloads
 
@@ -92,7 +93,7 @@ One rule should have one owner. Duplicating ownership is a regression risk.
 
 - Agent/runtime: `apps/daemon/internal/agent`
 - Intent types + validation: `apps/daemon/internal/intent`
-- Step-by-step dispatcher: `apps/daemon/internal/dispatch`
+- Ordered intent dispatcher: `apps/daemon/internal/dispatch`
 - Edit intent → protocol edit actions: `apps/daemon/internal/edits`
 - Command safety validation: `apps/daemon/internal/commandexec`
 - RPC adapter: `apps/daemon/internal/transcript/service.go`
@@ -100,7 +101,7 @@ One rule should have one owner. Duplicating ownership is a regression risk.
 ### Extension
 
 - Send transcript: `apps/vscode-extension/src/commands/send-transcript/run.ts`
-- Present/execute steps: `apps/vscode-extension/src/commands/send-transcript/present-result.ts`
+- Present/execute returned results: `apps/vscode-extension/src/commands/send-transcript/present-result.ts`
 - Mechanical edit apply: `apps/vscode-extension/src/edits/apply-workspace-edits.ts`
 - Allowed command execution runner: `apps/vscode-extension/src/commandexec/execute-command.ts`
 - Daemon client: `apps/vscode-extension/src/daemon/client.ts`
@@ -134,12 +135,12 @@ One rule should have one owner. Duplicating ownership is a regression risk.
 3. Update extension allowlist in `apps/vscode-extension/src/commandexec/execute-command.ts`.
 4. Keep execution semantics in the extension; keep command-shape validation in the daemon.
 
-### Change how step ordering/failure semantics works
+### Change intent/result ordering semantics
 
-- Step ordering is contractually sequential: the dispatcher iterates in order and the extension processes returned steps in order.
+- Ordering is contractually sequential: the dispatcher iterates intents in order and the extension processes returned results in order.
 - If failure semantics change, update both:
-  - daemon: when it stops producing later step results
-  - extension: when it stops processing returned steps
+  - daemon: when it stops producing later results
+  - extension: when it stops processing returned results
 
 ## Developer Playbooks (Short Summary)
 

@@ -7,7 +7,7 @@
   "properties": {
     "kind": {
       "type": "string",
-      "enum": ["edit", "run_command", "navigate"]
+      "enum": ["edit", "command", "navigate"]
     },
     "editResult": {
       "$ref": "./edit-apply.result.schema.json"

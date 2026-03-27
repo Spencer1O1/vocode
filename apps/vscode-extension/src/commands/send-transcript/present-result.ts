@@ -24,7 +24,7 @@ export async function presentTranscriptResult(
     return;
   }
 
-  for (const step of result.steps ?? []) {
+  for (const step of result.results ?? []) {
     switch (step.kind) {
       case "edit": {
         if (
@@ -39,7 +39,7 @@ export async function presentTranscriptResult(
         break;
       }
 
-      case "run_command": {
+      case "command": {
         if (!(await handleCommandStep(step.commandParams))) {
           return;
         }

@@ -7,7 +7,7 @@ import (
 	"vocoding.net/vocode/v2/apps/daemon/internal/symbols"
 )
 
-// ModelInput is everything the model needs to propose the next action.
+// ModelInput is everything the model needs to propose the next intent.
 // Fields may grow (active file, selection, workspace roots, etc.).
 type ModelInput struct {
 	Transcript       string

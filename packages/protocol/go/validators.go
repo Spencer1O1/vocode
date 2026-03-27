@@ -46,12 +46,12 @@ func (s VoiceTranscriptStepResult) Validate() error {
 			return errors.New("voice transcript step: kind edit requires editResult and no commandParams/navigationIntent")
 		}
 		return s.EditResult.Validate()
-	case "run_command":
+	case "command":
 		if s.CommandParams == nil || s.EditResult != nil || s.NavigationIntent != nil {
-			return errors.New("voice transcript step: kind run_command requires commandParams and no editResult/navigationIntent")
+			return errors.New("voice transcript step: kind command requires commandParams and no editResult/navigationIntent")
 		}
 		if strings.TrimSpace(s.CommandParams.Command) == "" {
-			return errors.New("voice transcript step: run_command requires non-empty commandParams.command")
+			return errors.New("voice transcript step: command requires non-empty commandParams.command")
 		}
 		// CommandRunParams has no additional protocol-level validation yet; host-side
 		// policy executes the safety checks.
@@ -131,12 +131,12 @@ func (r VoiceTranscriptResult) Validate() error {
 	if !r.Accepted {
 		return errors.New("voice transcript result must have accepted=true")
 	}
-	if r.PlanError != "" && len(r.Steps) > 0 {
-		return errors.New("voice transcript result must not include both planError and steps")
+	if r.PlanError != "" && len(r.Results) > 0 {
+		return errors.New("voice transcript result must not include both planError and results")
 	}
-	for i := range r.Steps {
-		if err := r.Steps[i].Validate(); err != nil {
-			return fmt.Errorf("voice transcript result steps[%d]: %w", i, err)
+	for i := range r.Results {
+		if err := r.Results[i].Validate(); err != nil {
+			return fmt.Errorf("voice transcript result results[%d]: %w", i, err)
 		}
 	}
 	return nil

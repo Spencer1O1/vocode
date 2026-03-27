@@ -68,8 +68,8 @@ func (*Client) NextIntent(ctx context.Context, in agent.ModelInput) (intent.Next
 		}, nil
 	case 3:
 		return intent.NextIntent{
-			Kind:       intent.NextIntentKindRunCommand,
-			RunCommand: stubEchoRunCommand(),
+			Kind:    intent.NextIntentKindCommand,
+			Command: stubEchoRunCommand(),
 		}, nil
 	default:
 		return intent.NextIntent{Kind: intent.NextIntentKindDone}, nil

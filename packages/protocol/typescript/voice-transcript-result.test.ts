@@ -15,11 +15,11 @@ test("isVoiceTranscriptResult rejects extra keys", () => {
   assert.equal(isVoiceTranscriptResult({ accepted: true, extra: 123 }), false);
 });
 
-test("isVoiceTranscriptResult accepts steps with edit success", () => {
+test("isVoiceTranscriptResult accepts results with edit success", () => {
   assert.equal(
     isVoiceTranscriptResult({
       accepted: true,
-      steps: [
+      results: [
         {
           kind: "edit",
           editResult: {
@@ -40,14 +40,14 @@ test("isVoiceTranscriptResult accepts steps with edit success", () => {
   );
 });
 
-test("isVoiceTranscriptResult rejects planError together with steps", () => {
+test("isVoiceTranscriptResult rejects planError together with results", () => {
   assert.equal(
     isVoiceTranscriptResult({
       accepted: true,
       planError: "bad",
-      steps: [
+      results: [
         {
-          kind: "run_command",
+          kind: "command",
           commandParams: { command: "echo", args: ["stub"] },
         },
       ],

@@ -9,7 +9,7 @@ type NextIntentKind string
 
 const (
 	NextIntentKindEdit           NextIntentKind = "edit"
-	NextIntentKindRunCommand     NextIntentKind = "run_command"
+	NextIntentKindCommand        NextIntentKind = "command"
 	NextIntentKindNavigate       NextIntentKind = "navigate"
 	NextIntentKindRequestContext NextIntentKind = "request_context"
 	NextIntentKindDone           NextIntentKind = "done"
@@ -18,7 +18,7 @@ const (
 type NextIntent struct {
 	Kind NextIntentKind `json:"kind"`
 	Edit           *EditIntent           `json:"edit,omitempty"`
-	RunCommand     *CommandIntent        `json:"runCommand,omitempty"`
+	Command        *CommandIntent        `json:"command,omitempty"`
 	Navigate       *NavigationIntent     `json:"navigate,omitempty"`
 	RequestContext *RequestContextIntent `json:"requestContext,omitempty"`
 }
@@ -28,9 +28,9 @@ func ValidateNextIntent(a NextIntent) error {
 	case NextIntentKindEdit:
 		if a.Edit == nil { return fmt.Errorf("next intent: kind %q requires edit", a.Kind) }
 		return ValidateEditIntent(*a.Edit)
-	case NextIntentKindRunCommand:
-		if a.RunCommand == nil { return fmt.Errorf("next intent: kind %q requires runCommand", a.Kind) }
-		if strings.TrimSpace(a.RunCommand.Command) == "" { return fmt.Errorf("next intent: runCommand.command is empty") }
+	case NextIntentKindCommand:
+		if a.Command == nil { return fmt.Errorf("next intent: kind %q requires command", a.Kind) }
+		if strings.TrimSpace(a.Command.Command) == "" { return fmt.Errorf("next intent: command.command is empty") }
 		return nil
 	case NextIntentKindNavigate:
 		if a.Navigate == nil { return fmt.Errorf("next intent: kind %q requires navigate", a.Kind) }

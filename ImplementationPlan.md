@@ -28,7 +28,7 @@ Tracks migration from batch action plans + fuzzy symbol lookup to iterative, det
 - [x] Add single-step response contract (`NextIntent`) with kinds:
   - `edit`
   - `navigate`
-  - `run_command`
+  - `command`
   - `request_context`
   - `done`
 - [x] Hard cut to iterative model contract (`NextIntent` only, no `Plan(...)` fallback).
@@ -42,7 +42,7 @@ Tracks migration from batch action plans + fuzzy symbol lookup to iterative, det
   - `request_usages`
 - [x] Implement bounded context provider service in daemon (initial implementation in transcript service).
 - [x] Add transcript/planning orchestrator loop:
-  1. ask model for next action
+  1. ask model for next intent
   2. execute or fulfill context request
   3. feed results back
   4. repeat until `done`/limits

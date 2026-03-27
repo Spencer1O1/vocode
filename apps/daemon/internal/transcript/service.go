@@ -222,7 +222,7 @@ func (s *TranscriptService) acceptTranscriptDirect(
 	contextRounds := 0
 	consecutiveContextReq := 0
 	editCounter := 0
-	stepResults := make([]protocol.VoiceTranscriptStepResult, 0, maxTurns)
+	resultItems := make([]protocol.VoiceTranscriptStepResult, 0, maxTurns)
 	stopPlanning := false
 
 	for i := 0; i < maxTurns; i++ {
@@ -303,7 +303,7 @@ func (s *TranscriptService) acceptTranscriptDirect(
 					}
 				}
 			}
-			stepResults = append(stepResults, protocol.VoiceTranscriptStepResult{
+			resultItems = append(resultItems, protocol.VoiceTranscriptStepResult{
 				Kind:       "edit",
 				EditResult: st.EditResult,
 			})
@@ -312,13 +312,13 @@ func (s *TranscriptService) acceptTranscriptDirect(
 				stopPlanning = true
 			}
 		case st.CommandParams != nil:
-			stepResults = append(stepResults, protocol.VoiceTranscriptStepResult{
-				Kind:          "run_command",
+			resultItems = append(resultItems, protocol.VoiceTranscriptStepResult{
+				Kind:          "command",
 				CommandParams: st.CommandParams,
 			})
 			completed = append(completed, next)
 		case st.Navigation != nil:
-			stepResults = append(stepResults, protocol.VoiceTranscriptStepResult{
+			resultItems = append(resultItems, protocol.VoiceTranscriptStepResult{
 				Kind:             "navigate",
 				NavigationIntent: toProtocolNavigationIntent(*st.Navigation),
 			})
@@ -337,7 +337,7 @@ func (s *TranscriptService) acceptTranscriptDirect(
 
 	result := protocol.VoiceTranscriptResult{
 		Accepted: true,
-		Steps:    stepResults,
+		Results:  resultItems,
 	}
 	if err := result.Validate(); err != nil {
 		return protocol.VoiceTranscriptResult{
@@ -472,10 +472,10 @@ func buildEditExecutionContext(params protocol.VoiceTranscriptParams, next inten
 	active := strings.TrimSpace(params.ActiveFile)
 	workspaceRoot := strings.TrimSpace(params.WorkspaceRoot)
 	if next.Kind == intent.NextIntentKindEdit && active == "" {
-		return edits.EditExecutionContext{}, "activeFile is required when the next action is an edit"
+		return edits.EditExecutionContext{}, "activeFile is required when the next intent is an edit"
 	}
 	if next.Kind == intent.NextIntentKindEdit && workspaceRoot == "" {
-		return edits.EditExecutionContext{}, "workspaceRoot is required when the next action is an edit"
+		return edits.EditExecutionContext{}, "workspaceRoot is required when the next intent is an edit"
 	}
 	fileText := ""
 	if active != "" {

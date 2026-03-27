@@ -256,7 +256,7 @@ export function isVoiceTranscriptStepResult(
       isEditApplyResult(value.editResult)
     );
   }
-  if (value.kind === "run_command") {
+  if (value.kind === "command") {
     return (
       hasOnlyKeys(value, ["kind", "commandParams"]) &&
       isCommandRunParams(value.commandParams)
@@ -277,18 +277,18 @@ export function isVoiceTranscriptResult(
   if (!isRecord(value) || value.accepted !== true) {
     return false;
   }
-  const allowedKeys = new Set(["accepted", "planError", "steps"]);
+  const allowedKeys = new Set(["accepted", "planError", "results"]);
   if (!Object.keys(value).every((k) => allowedKeys.has(k))) {
     return false;
   }
   if (value.planError !== undefined && typeof value.planError !== "string") {
     return false;
   }
-  if (value.steps !== undefined) {
-    if (!Array.isArray(value.steps)) {
+  if (value.results !== undefined) {
+    if (!Array.isArray(value.results)) {
       return false;
     }
-    if (!value.steps.every(isVoiceTranscriptStepResult)) {
+    if (!value.results.every(isVoiceTranscriptStepResult)) {
       return false;
     }
   }
@@ -296,8 +296,8 @@ export function isVoiceTranscriptResult(
   if (
     typeof planErr === "string" &&
     planErr !== "" &&
-    Array.isArray(value.steps) &&
-    value.steps.length > 0
+    Array.isArray(value.results) &&
+    value.results.length > 0
   ) {
     return false;
   }
