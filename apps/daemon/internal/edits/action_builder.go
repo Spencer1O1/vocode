@@ -6,15 +6,20 @@ import (
 	"strings"
 
 	"vocoding.net/vocode/v2/apps/daemon/internal/actionplan"
+	"vocoding.net/vocode/v2/apps/daemon/internal/symbols"
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
 type ActionBuilder struct {
-	validator *Validator
+	validator      *Validator
+	symbolResolver symbols.Resolver
 }
 
 func NewActionBuilder() *ActionBuilder {
-	return &ActionBuilder{validator: NewValidator()}
+	return &ActionBuilder{
+		validator:      NewValidator(),
+		symbolResolver: symbols.NewRipgrepResolver(),
+	}
 }
 
 func (b *ActionBuilder) BuildActions(ctx EditExecutionContext, intent actionplan.EditIntent) ([]protocol.EditAction, *protocol.EditFailure) {
@@ -110,7 +115,7 @@ func (b *ActionBuilder) BuildActions(ctx EditExecutionContext, intent actionplan
 
 func (b *ActionBuilder) buildInsertStatementAction(ctx EditExecutionContext, intent actionplan.EditIntent) (protocol.ReplaceBetweenAnchorsAction, *protocol.EditFailure) {
 	target := intent.Insert.Target
-	path, fileText, failure := resolveEditSource(ctx, targetPathFromTarget(target))
+	path, fileText, failure := b.resolveFunctionSource(ctx, target)
 	if failure != nil {
 		return protocol.ReplaceBetweenAnchorsAction{}, failure
 	}
@@ -158,7 +163,7 @@ func (b *ActionBuilder) buildInsertStatementAction(ctx EditExecutionContext, int
 
 func (b *ActionBuilder) buildReplaceCurrentFunctionBodyAction(ctx EditExecutionContext, intent actionplan.EditIntent) (protocol.ReplaceBetweenAnchorsAction, *protocol.EditFailure) {
 	target := intent.Replace.Target
-	path, fileText, failure := resolveEditSource(ctx, targetPathFromTarget(target))
+	path, fileText, failure := b.resolveFunctionSource(ctx, target)
 	if failure != nil {
 		return protocol.ReplaceBetweenAnchorsAction{}, failure
 	}
@@ -388,4 +393,43 @@ func (b *ActionBuilder) resolveFunctionBlock(fileText string, target actionplan.
 		return findSingleFunctionBlock(fileText)
 	}
 	return findNamedFunctionBlock(fileText, name)
+}
+
+func (b *ActionBuilder) resolveFunctionSource(
+	ctx EditExecutionContext,
+	target actionplan.EditTarget,
+) (string, string, *protocol.EditFailure) {
+	targetPath := targetPathFromTarget(target)
+	// Explicit path from target: resolve directly.
+	if strings.TrimSpace(targetPath) != "" {
+		return resolveEditSource(ctx, targetPath)
+	}
+
+	if target.Kind != actionplan.EditTargetKindSymbol || target.Symbol == nil {
+		return resolveEditSource(ctx, "")
+	}
+	name := strings.TrimSpace(target.Symbol.SymbolName)
+	if name == "" || name == "current_function" {
+		return resolveEditSource(ctx, "")
+	}
+
+	// Attempt workspace-wide symbol resolution when no path is provided.
+	if b.symbolResolver != nil {
+		kind := ""
+		if target.Symbol != nil {
+			kind = target.Symbol.SymbolKind
+		}
+		matches, err := b.symbolResolver.ResolveSymbol(ctx.WorkspaceRoot, name, kind, "")
+		if err == nil {
+			switch len(matches) {
+			case 0:
+				// fall back below
+			case 1:
+				return resolveEditSource(ctx, matches[0].Path)
+			default:
+				return "", "", editFailure("ambiguous_target", fmt.Sprintf("Function symbol %q matched multiple files; provide target path.", name))
+			}
+		}
+	}
+	return resolveEditSource(ctx, "")
 }

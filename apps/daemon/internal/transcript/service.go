@@ -281,9 +281,10 @@ func buildEditApplyParams(params protocol.VoiceTranscriptParams, plan *actionpla
 		fileText = string(b)
 	}
 	return edits.EditExecutionContext{
-		Instruction: params.Text,
-		ActiveFile:  params.ActiveFile,
-		FileText:    fileText,
+		Instruction:   params.Text,
+		ActiveFile:    params.ActiveFile,
+		FileText:      fileText,
+		WorkspaceRoot: mustGetwd(),
 	}, ""
 }
 
@@ -309,4 +310,12 @@ func toProtocolNavigationIntent(n actionplan.NavigationIntent) *protocol.Navigat
 		return &out
 	}
 	return &out
+}
+
+func mustGetwd() string {
+	wd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	return wd
 }
