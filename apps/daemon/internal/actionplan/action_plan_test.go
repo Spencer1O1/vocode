@@ -48,6 +48,29 @@ func TestValidateActionPlanReplaceCurrentFunctionBody(t *testing.T) {
 	}
 }
 
+func TestValidateActionPlanReplaceBySymbolID(t *testing.T) {
+	err := ValidateActionPlan(ActionPlan{
+		Steps: []Step{
+			{
+				Kind: StepKindEdit,
+				Edit: &EditIntent{
+					Kind: EditIntentKindReplace,
+					Replace: &ReplaceEditIntent{
+						Target: EditTarget{
+							Kind:     EditTargetKindSymbolID,
+							SymbolID: &SymbolIDTarget{ID: "v1|Zm9v|1|ZnVuY3Rpb24|YmFy"},
+						},
+						NewText: `console.log("x");`,
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected valid: %v", err)
+	}
+}
+
 func TestValidateActionPlanEditThenCommand(t *testing.T) {
 	err := ValidateActionPlan(ActionPlan{
 		Steps: []Step{

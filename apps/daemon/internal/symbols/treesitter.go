@@ -64,11 +64,14 @@ func (r *TreeSitterResolver) ResolveSymbol(workspaceRoot, symbolName, symbolKind
 				continue
 			}
 			seen[key] = true
-			out = append(out, SymbolRef{
+			match := SymbolRef{
+				Name: ref.Name,
 				Path: ref.Path,
 				Line: ref.Line,
 				Kind: normalizeKind(ref.Kind),
-			})
+			}
+			match.ID = BuildSymbolID(match)
+			out = append(out, match)
 		}
 	}
 	return out, nil

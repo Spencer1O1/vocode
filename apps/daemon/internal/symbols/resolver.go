@@ -1,6 +1,8 @@
 package symbols
 
 type SymbolRef struct {
+	ID   string
+	Name string
 	Path string
 	Line int
 	Kind string

@@ -36,6 +36,7 @@ const (
 	EditTargetKindCurrentCursor    EditTargetKind = "current_cursor"
 	EditTargetKindCurrentSelection EditTargetKind = "current_selection"
 	EditTargetKindSymbol           EditTargetKind = "symbol"
+	EditTargetKindSymbolID         EditTargetKind = "symbol_id"
 	EditTargetKindAnchor           EditTargetKind = "anchor"
 	EditTargetKindRange            EditTargetKind = "range"
 )
@@ -47,6 +48,7 @@ type EditTarget struct {
 	CurrentCursor    *CurrentCursorTarget    `json:"currentCursor,omitempty"`
 	CurrentSelection *CurrentSelectionTarget `json:"currentSelection,omitempty"`
 	Symbol           *SymbolTarget           `json:"symbol,omitempty"`
+	SymbolID         *SymbolIDTarget         `json:"symbolId,omitempty"`
 	Anchor           *AnchorTarget           `json:"anchor,omitempty"`
 	Range            *RangeTarget            `json:"range,omitempty"`
 }
@@ -71,6 +73,10 @@ type SymbolTarget struct {
 	Path       string `json:"path,omitempty"`
 	SymbolName string `json:"symbolName"`
 	SymbolKind string `json:"symbolKind,omitempty"`
+}
+
+type SymbolIDTarget struct {
+	ID string `json:"id"`
 }
 
 type AnchorTarget struct {
@@ -217,6 +223,13 @@ func validateTarget(t EditTarget) error {
 		}
 		if strings.TrimSpace(t.Symbol.SymbolName) == "" {
 			return fmt.Errorf("edit target: symbol requires symbolName")
+		}
+	case EditTargetKindSymbolID:
+		if t.SymbolID == nil {
+			return fmt.Errorf("edit target: symbol_id requires symbolId")
+		}
+		if strings.TrimSpace(t.SymbolID.ID) == "" {
+			return fmt.Errorf("edit target: symbol_id requires id")
 		}
 	case EditTargetKindAnchor:
 		if t.Anchor == nil {

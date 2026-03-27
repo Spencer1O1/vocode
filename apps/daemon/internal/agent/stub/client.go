@@ -7,6 +7,7 @@ import (
 
 	"vocoding.net/vocode/v2/apps/daemon/internal/actionplan"
 	"vocoding.net/vocode/v2/apps/daemon/internal/agent"
+	"vocoding.net/vocode/v2/apps/daemon/internal/symbols"
 )
 
 // Client ignores input and always returns the same hardcoded [actionplan.ActionPlan].
@@ -49,11 +50,14 @@ func (*Client) Plan(ctx context.Context, in agent.ModelInput) (actionplan.Action
 					Kind: actionplan.EditIntentKindReplace,
 					Replace: &actionplan.ReplaceEditIntent{
 						Target: actionplan.EditTarget{
-							Kind: actionplan.EditTargetKindSymbol,
-							Symbol: &actionplan.SymbolTarget{
-								Path:       "test.js",
-								SymbolName: "test",
-								SymbolKind: "function",
+							Kind: actionplan.EditTargetKindSymbolID,
+							SymbolID: &actionplan.SymbolIDTarget{
+								ID: symbols.BuildSymbolID(symbols.SymbolRef{
+									Name: "test",
+									Path: "test.js",
+									Line: 1,
+									Kind: "function",
+								}),
 							},
 						},
 						NewText: "\n  console.log(\"updated from stub\");\n",

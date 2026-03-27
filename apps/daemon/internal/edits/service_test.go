@@ -198,6 +198,52 @@ func TestApplyReplaceNamedSymbolFunction(t *testing.T) {
 	}
 }
 
+func TestApplyReplaceSymbolIDFunction(t *testing.T) {
+	t.Parallel()
+
+	service := NewServiceWithResolver(symbolResolverFunc(func(workspaceRoot, symbolName, symbolKind, hintPath string) ([]symbols.SymbolRef, error) {
+		_ = workspaceRoot
+		_ = symbolName
+		_ = symbolKind
+		_ = hintPath
+		return nil, nil
+	}))
+	fileText := readFixture(t, "multi-function.ts")
+	params := EditExecutionContext{
+		ActiveFile: "/tmp/multi-function.ts",
+		FileText:   fileText,
+	}
+	ref := symbols.SymbolRef{
+		Name: "secondBraceAnchors",
+		Path: "/tmp/multi-function.ts",
+		Line: 5,
+		Kind: "function",
+	}
+	intent := actionplan.EditIntent{
+		Kind: actionplan.EditIntentKindReplace,
+		Replace: &actionplan.ReplaceEditIntent{
+			Target: actionplan.EditTarget{
+				Kind: actionplan.EditTargetKindSymbolID,
+				SymbolID: &actionplan.SymbolIDTarget{
+					ID: symbols.BuildSymbolID(ref),
+				},
+			},
+			NewText: "\n  return 1337;\n",
+		},
+	}
+
+	result, failure := service.BuildActions(params, intent)
+	if failure != nil {
+		t.Fatalf("unexpected failure: %+v", *failure)
+	}
+	if len(result) != 1 {
+		t.Fatalf("expected 1 action, got %d", len(result))
+	}
+	if !strings.Contains(result[0].Anchor.Before, "secondBraceAnchors") {
+		t.Fatalf("expected secondBraceAnchors target, got %+v", result[0].Anchor)
+	}
+}
+
 type symbolResolverFunc func(workspaceRoot, symbolName, symbolKind, hintPath string) ([]symbols.SymbolRef, error)
 
 func (f symbolResolverFunc) ResolveSymbol(workspaceRoot, symbolName, symbolKind, hintPath string) ([]symbols.SymbolRef, error) {

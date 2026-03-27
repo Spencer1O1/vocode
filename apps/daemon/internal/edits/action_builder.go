@@ -364,6 +364,12 @@ func samePath(a, b string) bool {
 }
 
 func targetPathFromTarget(target actionplan.EditTarget) string {
+	if target.SymbolID != nil {
+		ref, err := symbols.ParseSymbolID(target.SymbolID.ID)
+		if err == nil {
+			return strings.TrimSpace(ref.Path)
+		}
+	}
 	if target.Symbol != nil {
 		return strings.TrimSpace(target.Symbol.Path)
 	}
@@ -389,6 +395,17 @@ func resolveEditSource(ctx EditExecutionContext, targetPath string) (string, str
 }
 
 func (b *ActionBuilder) resolveFunctionBlock(fileText string, target actionplan.EditTarget) (*lineBlock, *protocol.EditFailure) {
+	if target.Kind == actionplan.EditTargetKindSymbolID && target.SymbolID != nil {
+		ref, err := symbols.ParseSymbolID(target.SymbolID.ID)
+		if err != nil {
+			return nil, editFailure("unsupported_instruction", fmt.Sprintf("Invalid symbol id: %v", err))
+		}
+		name := strings.TrimSpace(ref.Name)
+		if name == "" || name == "current_function" {
+			return findSingleFunctionBlock(fileText)
+		}
+		return findNamedFunctionBlock(fileText, name)
+	}
 	if target.Kind != actionplan.EditTargetKindSymbol || target.Symbol == nil {
 		return findSingleFunctionBlock(fileText)
 	}
@@ -409,6 +426,16 @@ func (b *ActionBuilder) resolveFunctionSource(
 		return resolveEditSource(ctx, targetPath)
 	}
 
+	if target.Kind == actionplan.EditTargetKindSymbolID && target.SymbolID != nil {
+		ref, err := symbols.ParseSymbolID(target.SymbolID.ID)
+		if err != nil {
+			return "", "", editFailure("unsupported_instruction", fmt.Sprintf("Invalid symbol id: %v", err))
+		}
+		if strings.TrimSpace(ref.Path) == "" {
+			return "", "", editFailure("unsupported_instruction", "Invalid symbol id: missing symbol path.")
+		}
+		return resolveEditSource(ctx, ref.Path)
+	}
 	if target.Kind != actionplan.EditTargetKindSymbol || target.Symbol == nil {
 		return resolveEditSource(ctx, "")
 	}
