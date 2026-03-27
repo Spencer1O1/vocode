@@ -7,76 +7,33 @@ import (
 	"vocoding.net/vocode/v2/apps/daemon/internal/actionplan"
 	"vocoding.net/vocode/v2/apps/daemon/internal/agent"
 	"vocoding.net/vocode/v2/apps/daemon/internal/agent/stub"
-	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
-func TestHandleTranscriptRejectsEmpty(t *testing.T) {
+func TestNextActionStubFlow(t *testing.T) {
 	t.Parallel()
+
 	a := agent.New(stub.New())
-	r := a.HandleTranscript(context.Background(), protocol.VoiceTranscriptParams{Text: "   "})
-	if r.Valid {
-		t.Fatal("expected empty transcript to be invalid")
-	}
-}
+	in := agent.ModelInput{Transcript: "hello"}
 
-func TestHandleTranscriptStubReturnsPlan(t *testing.T) {
-	t.Parallel()
-	a := agent.New(stub.New())
-	r := a.HandleTranscript(context.Background(), protocol.VoiceTranscriptParams{Text: "hello"})
-	if !r.Valid {
-		t.Fatal("expected non-empty transcript to be valid")
+	for i := 0; i < 4; i++ {
+		next, err := a.NextAction(context.Background(), in)
+		if err != nil {
+			t.Fatalf("unexpected err: %v", err)
+		}
+		if err := actionplan.ValidateNextAction(next); err != nil {
+			t.Fatalf("invalid next action: %v", err)
+		}
+		if next.Kind == actionplan.NextActionKindDone {
+			t.Fatal("unexpected done before 4th step")
+		}
+		in.CompletedActions = append(in.CompletedActions, next)
 	}
-	if r.Err != nil {
-		t.Fatalf("unexpected err: %v", r.Err)
-	}
-	if r.Plan == nil {
-		t.Fatal("expected stub plan")
-	}
-	if len(r.Plan.Steps) != 4 {
-		t.Fatalf("expected 4 steps, got %d", len(r.Plan.Steps))
-	}
-	if r.Plan.Steps[0].Kind != actionplan.StepKindNavigate {
-		t.Fatalf("expected stub navigate step first, got %q", r.Plan.Steps[0].Kind)
-	}
-	if r.Plan.Steps[1].Kind != actionplan.StepKindNavigate {
-		t.Fatalf("expected stub navigate step second, got %q", r.Plan.Steps[1].Kind)
-	}
-	if r.Plan.Steps[2].Kind != actionplan.StepKindEdit {
-		t.Fatalf("expected stub edit step third, got %q", r.Plan.Steps[2].Kind)
-	}
-	if r.Plan.Steps[2].Edit == nil || r.Plan.Steps[2].Edit.Kind != actionplan.EditIntentKindReplace {
-		t.Fatalf("expected replace edit, got %+v", r.Plan.Steps[2].Edit)
-	}
-	if r.Plan.Steps[3].Kind != actionplan.StepKindRunCommand {
-		t.Fatalf("expected stub run_command step fourth, got %q", r.Plan.Steps[3].Kind)
-	}
-}
 
-func TestHandleTranscriptModelError(t *testing.T) {
-	t.Parallel()
-	a := agent.New(nextActionClientFunc(func(ctx context.Context, in agent.ModelInput) (actionplan.NextAction, error) {
-		return actionplan.NextAction{}, errTestModel
-	}))
-	r := a.HandleTranscript(context.Background(), protocol.VoiceTranscriptParams{Text: "x"})
-	if !r.Valid {
-		t.Fatal("expected transcript accepted before model error")
+	final, err := a.NextAction(context.Background(), in)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
 	}
-	if r.Err == nil {
-		t.Fatal("expected model error")
+	if final.Kind != actionplan.NextActionKindDone {
+		t.Fatalf("expected done, got %q", final.Kind)
 	}
-	if r.Plan != nil {
-		t.Fatal("expected no plan on error")
-	}
-}
-
-var errTestModel = &testModelError{}
-
-type testModelError struct{}
-
-func (*testModelError) Error() string { return "test model error" }
-
-type nextActionClientFunc func(context.Context, agent.ModelInput) (actionplan.NextAction, error)
-
-func (f nextActionClientFunc) NextAction(ctx context.Context, in agent.ModelInput) (actionplan.NextAction, error) {
-	return f(ctx, in)
 }

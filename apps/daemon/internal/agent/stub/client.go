@@ -11,7 +11,7 @@ import (
 	"vocoding.net/vocode/v2/apps/daemon/internal/symbols"
 )
 
-// Client ignores input and always returns the same hardcoded [actionplan.ActionPlan].
+// Client ignores input and returns a fixed iterative action sequence.
 type Client struct{}
 
 // New returns a [Client] that satisfies [agent.ModelClient].
@@ -22,7 +22,7 @@ func New() *Client {
 // NextAction emits a deterministic 4-step sequence, then done.
 func (*Client) NextAction(ctx context.Context, in agent.ModelInput) (actionplan.NextAction, error) {
 	_ = ctx
-	switch len(in.CompletedSteps) {
+	switch len(in.CompletedActions) {
 	case 0:
 		return actionplan.NextAction{
 			Kind: actionplan.NextActionKindNavigate,

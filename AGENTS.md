@@ -16,7 +16,7 @@ One “turn” starts when the extension calls the daemon RPC:
 
 ### What the daemon guarantees
 
-1. The daemon turns the transcript into an `ActionPlan` (validated).
+1. The daemon runs an iterative `NextAction` loop (validated each turn).
 2. The daemon executes the plan *step-by-step* using `actionplan/dispatch.Dispatcher`.
 3. The daemon returns a `VoiceTranscriptResult` where `steps` is an ordered list.
 4. Each step is exactly one of:
@@ -91,7 +91,7 @@ One rule should have one owner. Duplicating ownership is a regression risk.
 ### Daemon
 
 - Agent/runtime: `apps/daemon/internal/agent`
-- ActionPlan types + validation: `apps/daemon/internal/actionplan`
+- Action planning types + validation: `apps/daemon/internal/actionplan`
 - Step-by-step dispatcher: `apps/daemon/internal/actionplan/dispatch`
 - Edit intent → protocol edit actions: `apps/daemon/internal/edits`
 - Command safety validation: `apps/daemon/internal/commandexec`

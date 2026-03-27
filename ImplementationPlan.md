@@ -36,17 +36,17 @@ Tracks migration from batch action plans + fuzzy symbol lookup to iterative, det
 
 ## Phase 3: Context Request / Fulfillment Loop
 
-- [ ] Add `request_context` payloads (initial):
+- [x] Add `request_context` payloads (initial):
   - `request_symbols`
   - `request_file_excerpt`
   - `request_usages`
-- [ ] Implement bounded context provider service in daemon.
-- [ ] Add transcript/planning orchestrator loop:
+- [x] Implement bounded context provider service in daemon (initial implementation in transcript service).
+- [x] Add transcript/planning orchestrator loop:
   1. ask model for next action
   2. execute or fulfill context request
   3. feed results back
   4. repeat until `done`/limits
-- [ ] Add caps/guardrails:
+- [x] Add caps/guardrails:
   - max turns
   - max context rounds
   - byte/token budget
@@ -60,6 +60,6 @@ Tracks migration from batch action plans + fuzzy symbol lookup to iterative, det
 
 ## Phase 5: Cleanup
 
-- [x] Remove compatibility path for old `steps[]` plan.
+- [x] Remove legacy `ActionPlan` type and old `steps[]` planner compatibility path.
 - [ ] Delete dead code/tests related to fuzzy symbol targeting.
 - [ ] Document final planner protocol and troubleshooting flow in `README.md`.

@@ -9,7 +9,7 @@ func TestValidateNextActionDone(t *testing.T) {
 	}
 }
 
-func TestNextActionToStepEdit(t *testing.T) {
+func TestValidateNextActionEdit(t *testing.T) {
 	t.Parallel()
 	a := NextAction{
 		Kind: NextActionKindEdit,
@@ -24,14 +24,7 @@ func TestNextActionToStepEdit(t *testing.T) {
 			},
 		},
 	}
-	step, done, err := NextActionToStep(a)
-	if err != nil {
+	if err := ValidateNextAction(a); err != nil {
 		t.Fatalf("expected no err: %v", err)
-	}
-	if done {
-		t.Fatal("expected done=false")
-	}
-	if step.Kind != StepKindEdit || step.Edit == nil {
-		t.Fatalf("unexpected step: %+v", step)
 	}
 }
