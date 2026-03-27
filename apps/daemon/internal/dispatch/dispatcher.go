@@ -23,7 +23,7 @@ func NewDispatcher(editsService *edits.Service, commandService *commandexec.Serv
 type DispatchResult struct {
 	EditDirective    *protocol.EditDirective
 	CommandDirective *protocol.CommandDirective
-	Navigation    *intent.NavigationIntent
+	Navigation       *intent.NavigationIntent
 }
 
 // DispatchExecutableIntent handles only executable intents (edit/command/navigate).
@@ -42,12 +42,10 @@ func (d *Dispatcher) DispatchExecutableIntent(next intent.NextIntent, editCtx ed
 	case intent.NextIntentKindCommand:
 		var (
 			directive protocol.CommandDirective
-			err    error
+			err       error
 		)
 		if d.commands != nil {
 			directive, err = d.commands.DispatchIntent(*next.Command)
-		} else {
-			directive = next.Command.CommandDirective()
 		}
 		if err != nil {
 			return DispatchResult{}, fmt.Errorf("next intent command: %w", err)
