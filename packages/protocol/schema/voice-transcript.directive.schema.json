@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vocoding.net/schemas/voice-transcript.directive.schema.json",
+  "title": "VoiceTranscriptDirective",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": ["edit", "command", "navigate"]
+    },
+    "editDirective": {
+      "$ref": "./edit-directive.schema.json"
+    },
+    "commandDirective": {
+      "$ref": "./command-directive.schema.json"
+    },
+    "navigationDirective": {
+      "$ref": "./navigation-directive.schema.json"
+    }
+  },
+  "required": ["kind"]
+}

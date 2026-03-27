@@ -2,10 +2,10 @@ package protocol
 
 import "testing"
 
-func TestEditApplyResultValidate(t *testing.T) {
+func TestEditDirectiveValidate(t *testing.T) {
 	t.Parallel()
 
-	success := NewEditApplySuccess([]EditAction{{
+	success := NewEditDirectiveSuccess([]EditAction{{
 		Kind: "replace_between_anchors",
 		Path: "/tmp/file.ts",
 		Anchor: &Anchor{
@@ -18,34 +18,21 @@ func TestEditApplyResultValidate(t *testing.T) {
 		t.Fatalf("expected success to validate, got %v", err)
 	}
 
-	failure := NewEditApplyFailure(EditFailure{
-		Code:    "validation_failed",
-		Message: "bad edit",
-	})
-	if err := failure.Validate(); err != nil {
-		t.Fatalf("expected failure to validate, got %v", err)
-	}
-
-	noop := NewEditApplyNoop("No change needed.")
+	noop := NewEditDirectiveNoop("No change needed.")
 	if err := noop.Validate(); err != nil {
 		t.Fatalf("expected noop to validate, got %v", err)
 	}
 }
 
-func TestEditApplyResultValidateRejectsInvalidCombinations(t *testing.T) {
+func TestEditDirectiveValidateRejectsInvalidCombinations(t *testing.T) {
 	t.Parallel()
 
-	invalid := []EditApplyResult{
+	invalid := []EditDirective{
 		{Kind: "success"},
 		{
 			Kind:    "success",
 			Actions: []EditAction{},
-			Failure: &EditFailure{Code: "validation_failed", Message: "bad"},
-		},
-		{
-			Kind:    "failure",
-			Failure: &EditFailure{Code: "validation_failed", Message: "bad"},
-			Actions: []EditAction{{Kind: "replace_between_anchors"}},
+			Reason:  "bad edit",
 		},
 		{Kind: "noop"},
 		{Kind: "unknown"},

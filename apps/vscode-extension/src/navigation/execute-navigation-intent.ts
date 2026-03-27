@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { VoiceTranscriptStepResult } from "@vocode/protocol";
+import type { VoiceTranscriptDirective } from "@vocode/protocol";
 import * as vscode from "vscode";
 
 export interface EditLocationMap {
@@ -26,13 +26,20 @@ function resolvePath(targetPath: string, activeDocumentPath: string): string {
 }
 
 export async function executeNavigationStep(
-  step: VoiceTranscriptStepResult,
+  step: VoiceTranscriptDirective,
   activeDocumentPath: string,
   editLocations?: EditLocationMap,
 ): Promise<void> {
-  const nav = step.navigationIntent;
+  const directive = step.navigationDirective;
+  if (!directive) {
+    throw new Error("missing navigationDirective");
+  }
+  if (directive.kind === "noop") {
+    return;
+  }
+  const nav = directive.action;
   if (!nav) {
-    throw new Error("missing navigationIntent");
+    throw new Error("missing navigationDirective.action");
   }
 
   switch (nav.kind) {

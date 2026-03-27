@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vocoding.net/schemas/navigation-directive.schema.json",
+  "title": "NavigationDirective",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "success" },
+        "action": { "$ref": "./navigation-action.schema.json" }
+      },
+      "required": ["kind", "action"]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "noop" },
+        "reason": { "type": "string" }
+      },
+      "required": ["kind", "reason"]
+    }
+  ]
+}

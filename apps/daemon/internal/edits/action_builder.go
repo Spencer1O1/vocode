@@ -26,7 +26,7 @@ func NewActionBuilderWithResolver(resolver symbols.Resolver) *ActionBuilder {
 	}
 }
 
-func (b *ActionBuilder) BuildActions(ctx EditExecutionContext, editIntent intent.EditIntent) ([]protocol.EditAction, *protocol.EditFailure) {
+func (b *ActionBuilder) BuildActions(ctx EditExecutionContext, editIntent intent.EditIntent) ([]protocol.EditAction, *EditBuildFailure) {
 	switch editIntent.Kind {
 	case intent.EditIntentKindInsert:
 		action, failure := b.buildInsertStatementAction(ctx, editIntent)
@@ -74,7 +74,7 @@ func (b *ActionBuilder) BuildActions(ctx EditExecutionContext, editIntent intent
 	case intent.EditIntentKindDelete:
 		target := editIntent.Delete.Target
 		if target.Kind != intent.EditTargetKindAnchor || target.Anchor == nil {
-			return nil, editFailure("unsupported_instruction", "Delete currently supports only anchor targets.")
+			return nil, &EditBuildFailure{Code: "unsupported_instruction", Message: "Delete currently supports only anchor targets."}
 		}
 		path := ctx.ActiveFile
 		if p := strings.TrimSpace(target.Anchor.Path); p != "" {
@@ -113,11 +113,11 @@ func (b *ActionBuilder) BuildActions(ctx EditExecutionContext, editIntent intent
 			Text: editIntent.AppendToFile.Text,
 		}}, nil
 	default:
-		return nil, editFailure("unsupported_instruction", fmt.Sprintf("Unsupported intent kind %q.", editIntent.Kind))
+		return nil, &EditBuildFailure{Code: "unsupported_instruction", Message: fmt.Sprintf("Unsupported intent kind %q.", editIntent.Kind)}
 	}
 }
 
-func (b *ActionBuilder) buildInsertStatementAction(ctx EditExecutionContext, editIntent intent.EditIntent) (protocol.ReplaceBetweenAnchorsAction, *protocol.EditFailure) {
+func (b *ActionBuilder) buildInsertStatementAction(ctx EditExecutionContext, editIntent intent.EditIntent) (protocol.ReplaceBetweenAnchorsAction, *EditBuildFailure) {
 	target := editIntent.Insert.Target
 	path, fileText, failure := b.resolveFunctionSource(ctx, target)
 	if failure != nil {
@@ -131,7 +131,7 @@ func (b *ActionBuilder) buildInsertStatementAction(ctx EditExecutionContext, edi
 
 	statement := strings.TrimSpace(editIntent.Insert.Text)
 	if statement == "" {
-		return protocol.ReplaceBetweenAnchorsAction{}, editFailure("unsupported_instruction", "Insert statement instruction did not include a statement.")
+		return protocol.ReplaceBetweenAnchorsAction{}, &EditBuildFailure{Code: "unsupported_instruction", Message: "Insert statement instruction did not include a statement."}
 	}
 	statement = strings.TrimRight(statement, "\n")
 	if !strings.HasSuffix(statement, ";") {
@@ -165,7 +165,7 @@ func (b *ActionBuilder) buildInsertStatementAction(ctx EditExecutionContext, edi
 	return action, nil
 }
 
-func (b *ActionBuilder) buildReplaceCurrentFunctionBodyAction(ctx EditExecutionContext, editIntent intent.EditIntent) (protocol.ReplaceBetweenAnchorsAction, *protocol.EditFailure) {
+func (b *ActionBuilder) buildReplaceCurrentFunctionBodyAction(ctx EditExecutionContext, editIntent intent.EditIntent) (protocol.ReplaceBetweenAnchorsAction, *EditBuildFailure) {
 	target := editIntent.Replace.Target
 	path, fileText, failure := b.resolveFunctionSource(ctx, target)
 	if failure != nil {
@@ -213,7 +213,7 @@ func formatReplacementFunctionBody(indent, body string) string {
 	return out.String()
 }
 
-func (b *ActionBuilder) buildAppendImportAction(ctx EditExecutionContext, editIntent intent.EditIntent) (*protocol.ReplaceBetweenAnchorsAction, *protocol.EditFailure) {
+func (b *ActionBuilder) buildAppendImportAction(ctx EditExecutionContext, editIntent intent.EditIntent) (*protocol.ReplaceBetweenAnchorsAction, *EditBuildFailure) {
 	importStmt := editIntent.InsertImport.Import
 	path := ctx.ActiveFile
 	if p := strings.TrimSpace(editIntent.InsertImport.Path); p != "" {
@@ -222,10 +222,10 @@ func (b *ActionBuilder) buildAppendImportAction(ctx EditExecutionContext, editIn
 
 	fileText, err := ctx.GetFileText(path)
 	if err != nil {
-		return nil, editFailure("missing_anchor", fmt.Sprintf("read target file %q: %v", path, err))
+		return nil, &EditBuildFailure{Code: "missing_anchor", Message: fmt.Sprintf("read target file %q: %v", path, err)}
 	}
 	if strings.Contains(fileText, importStmt) {
-		return nil, editFailure("no_change_needed", fmt.Sprintf("Import %q is already present.", importStmt))
+		return nil, &EditBuildFailure{Code: "no_change_needed", Message: fmt.Sprintf("Import %q is already present.", importStmt)}
 	}
 
 	ext := strings.ToLower(filepath.Ext(path))
@@ -235,11 +235,11 @@ func (b *ActionBuilder) buildAppendImportAction(ctx EditExecutionContext, editIn
 	case ".ts", ".tsx", ".js", ".jsx":
 		return b.buildJSImportAction(path, fileText, importStmt)
 	default:
-		return nil, editFailure("unsupported_instruction", fmt.Sprintf("Append import is not supported for %q files yet.", ext))
+		return nil, &EditBuildFailure{Code: "unsupported_instruction", Message: fmt.Sprintf("Append import is not supported for %q files yet.", ext)}
 	}
 }
 
-func (b *ActionBuilder) buildGoImportAction(path, fileText, importStmt string) (*protocol.ReplaceBetweenAnchorsAction, *protocol.EditFailure) {
+func (b *ActionBuilder) buildGoImportAction(path, fileText, importStmt string) (*protocol.ReplaceBetweenAnchorsAction, *EditBuildFailure) {
 	lines := strings.Split(fileText, "\n")
 	packageIndex := -1
 	for i, line := range lines {
@@ -249,7 +249,7 @@ func (b *ActionBuilder) buildGoImportAction(path, fileText, importStmt string) (
 		}
 	}
 	if packageIndex == -1 {
-		return nil, editFailure("missing_anchor", "Could not find a package declaration for Go import insertion.")
+		return nil, &EditBuildFailure{Code: "missing_anchor", Message: "Could not find a package declaration for Go import insertion."}
 	}
 
 	for i, line := range lines {
@@ -264,7 +264,7 @@ func (b *ActionBuilder) buildGoImportAction(path, fileText, importStmt string) (
 			}
 		}
 		if closeIndex == -1 {
-			return nil, editFailure("missing_anchor", "Could not find the end of the Go import block.")
+			return nil, &EditBuildFailure{Code: "missing_anchor", Message: "Could not find the end of the Go import block."}
 		}
 
 		between := "\n"
@@ -288,7 +288,7 @@ func (b *ActionBuilder) buildGoImportAction(path, fileText, importStmt string) (
 	before := lines[packageIndex]
 	after := strings.Join(lines[packageIndex+1:], "\n")
 	if after == "" {
-		return nil, editFailure("missing_anchor", "Could not find a safe insertion point after the package declaration.")
+		return nil, &EditBuildFailure{Code: "missing_anchor", Message: "Could not find a safe insertion point after the package declaration."}
 	}
 
 	action := protocol.ReplaceBetweenAnchorsAction{
@@ -303,7 +303,7 @@ func (b *ActionBuilder) buildGoImportAction(path, fileText, importStmt string) (
 	return &action, nil
 }
 
-func (b *ActionBuilder) buildJSImportAction(path, fileText, importStmt string) (*protocol.ReplaceBetweenAnchorsAction, *protocol.EditFailure) {
+func (b *ActionBuilder) buildJSImportAction(path, fileText, importStmt string) (*protocol.ReplaceBetweenAnchorsAction, *EditBuildFailure) {
 	lines := strings.Split(fileText, "\n")
 	lastImportIndex := -1
 	for i, line := range lines {
@@ -320,7 +320,7 @@ func (b *ActionBuilder) buildJSImportAction(path, fileText, importStmt string) (
 		before := lines[lastImportIndex]
 		after := strings.Join(lines[lastImportIndex+1:], "\n")
 		if after == "" {
-			return nil, editFailure("missing_anchor", "Could not find a safe insertion point after the final import.")
+			return nil, &EditBuildFailure{Code: "missing_anchor", Message: "Could not find a safe insertion point after the final import."}
 		}
 		action := protocol.ReplaceBetweenAnchorsAction{
 			Kind:    "replace_between_anchors",
@@ -335,7 +335,7 @@ func (b *ActionBuilder) buildJSImportAction(path, fileText, importStmt string) (
 	}
 
 	if len(lines) < 2 {
-		return nil, editFailure("missing_anchor", "Could not find a safe insertion point at the top of the file.")
+		return nil, &EditBuildFailure{Code: "missing_anchor", Message: "Could not find a safe insertion point at the top of the file."}
 	}
 
 	action := protocol.ReplaceBetweenAnchorsAction{
@@ -379,23 +379,23 @@ func targetPathFromTarget(target intent.EditTarget) string {
 	return ""
 }
 
-func resolveEditSource(ctx EditExecutionContext, targetPath string) (string, string, *protocol.EditFailure) {
+func resolveEditSource(ctx EditExecutionContext, targetPath string) (string, string, *EditBuildFailure) {
 	path := ctx.ResolvePath(targetPath)
 	if path == "." || path == "" {
-		return "", "", editFailure("unsupported_instruction", "No file path available for edit target.")
+		return "", "", &EditBuildFailure{Code: "unsupported_instruction", Message: "No file path available for edit target."}
 	}
 	fileText, err := ctx.GetFileText(path)
 	if err != nil {
-		return "", "", editFailure("missing_anchor", fmt.Sprintf("read target file %q: %v", path, err))
+		return "", "", &EditBuildFailure{Code: "missing_anchor", Message: fmt.Sprintf("read target file %q: %v", path, err)}
 	}
 	return path, fileText, nil
 }
 
-func (b *ActionBuilder) resolveFunctionBlock(fileText string, target intent.EditTarget) (*lineBlock, *protocol.EditFailure) {
+func (b *ActionBuilder) resolveFunctionBlock(fileText string, target intent.EditTarget) (*lineBlock, *EditBuildFailure) {
 	if target.Kind == intent.EditTargetKindSymbolID && target.SymbolID != nil {
 		ref, err := symbols.ParseSymbolID(target.SymbolID.ID)
 		if err != nil {
-			return nil, editFailure("unsupported_instruction", fmt.Sprintf("Invalid symbol id: %v", err))
+			return nil, &EditBuildFailure{Code: "unsupported_instruction", Message: fmt.Sprintf("Invalid symbol id: %v", err)}
 		}
 		name := strings.TrimSpace(ref.Name)
 		if name == "" || name == "current_function" {
@@ -409,7 +409,7 @@ func (b *ActionBuilder) resolveFunctionBlock(fileText string, target intent.Edit
 func (b *ActionBuilder) resolveFunctionSource(
 	ctx EditExecutionContext,
 	target intent.EditTarget,
-) (string, string, *protocol.EditFailure) {
+) (string, string, *EditBuildFailure) {
 	targetPath := targetPathFromTarget(target)
 	// Explicit path from target: resolve directly.
 	if strings.TrimSpace(targetPath) != "" {
@@ -419,10 +419,10 @@ func (b *ActionBuilder) resolveFunctionSource(
 	if target.Kind == intent.EditTargetKindSymbolID && target.SymbolID != nil {
 		ref, err := symbols.ParseSymbolID(target.SymbolID.ID)
 		if err != nil {
-			return "", "", editFailure("unsupported_instruction", fmt.Sprintf("Invalid symbol id: %v", err))
+			return "", "", &EditBuildFailure{Code: "unsupported_instruction", Message: fmt.Sprintf("Invalid symbol id: %v", err)}
 		}
 		if strings.TrimSpace(ref.Path) == "" {
-			return "", "", editFailure("unsupported_instruction", "Invalid symbol id: missing symbol path.")
+			return "", "", &EditBuildFailure{Code: "unsupported_instruction", Message: "Invalid symbol id: missing symbol path."}
 		}
 		return resolveEditSource(ctx, ref.Path)
 	}

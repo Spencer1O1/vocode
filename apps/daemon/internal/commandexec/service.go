@@ -3,6 +3,7 @@ package commandexec
 import (
 	"fmt"
 
+	"vocoding.net/vocode/v2/apps/daemon/internal/intent"
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
@@ -17,10 +18,17 @@ func NewService() *Service {
 	return &Service{policy: NewPolicy()}
 }
 
-func (s *Service) Validate(params protocol.CommandRunParams) error {
-	failure, ok := s.policy.Validate(params)
-	if ok {
-		return nil
+func (s *Service) Validate(params protocol.CommandDirective) error {
+	if err := s.policy.Validate(params); err != nil {
+		return fmt.Errorf("%s", err.Error())
 	}
-	return fmt.Errorf("%s", failure.Message)
+	return nil
+}
+
+func (s *Service) DispatchIntent(cmd intent.CommandIntent) (protocol.CommandDirective, error) {
+	params := cmd.CommandDirective()
+	if err := s.Validate(params); err != nil {
+		return protocol.CommandDirective{}, err
+	}
+	return params, nil
 }

@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-
-	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
 type lineBlock struct {
@@ -35,7 +33,7 @@ func functionNamePatterns(name string) []*regexp.Regexp {
 	}
 }
 
-func findUniqueAnchoredRange(fileText string, before string, after string) (int, int, *protocol.EditFailure) {
+func findUniqueAnchoredRange(fileText string, before string, after string) (int, int, *EditBuildFailure) {
 	_, beforeEnd, beforeFailure := findUniqueOccurrence(fileText, before, 0, "before")
 	if beforeFailure != nil {
 		return 0, 0, beforeFailure
@@ -47,32 +45,32 @@ func findUniqueAnchoredRange(fileText string, before string, after string) (int,
 	}
 
 	if afterStart < beforeEnd {
-		return 0, 0, editFailure("validation_failed", "Anchor order was invalid.")
+		return 0, 0, &EditBuildFailure{Code: "validation_failed", Message: "Anchor order was invalid."}
 	}
 
 	return beforeEnd, afterStart, nil
 }
 
-func findUniqueOccurrence(fileText string, needle string, start int, label string) (int, int, *protocol.EditFailure) {
+func findUniqueOccurrence(fileText string, needle string, start int, label string) (int, int, *EditBuildFailure) {
 	if needle == "" {
-		return 0, 0, editFailure("missing_anchor", fmt.Sprintf("The %s anchor was empty.", label))
+		return 0, 0, &EditBuildFailure{Code: "missing_anchor", Message: fmt.Sprintf("The %s anchor was empty.", label)}
 	}
 
 	index := strings.Index(fileText[start:], needle)
 	if index == -1 {
-		return 0, 0, editFailure("missing_anchor", fmt.Sprintf("Could not find %s anchor %q.", label, needle))
+		return 0, 0, &EditBuildFailure{Code: "missing_anchor", Message: fmt.Sprintf("Could not find %s anchor %q.", label, needle)}
 	}
 
 	absoluteStart := start + index
 	nextIndex := strings.Index(fileText[absoluteStart+1:], needle)
 	if nextIndex != -1 {
-		return 0, 0, editFailure("ambiguous_target", fmt.Sprintf("The %s anchor %q matched multiple locations.", label, needle))
+		return 0, 0, &EditBuildFailure{Code: "ambiguous_target", Message: fmt.Sprintf("The %s anchor %q matched multiple locations.", label, needle)}
 	}
 
 	return absoluteStart, absoluteStart + len(needle), nil
 }
 
-func findSingleFunctionBlock(fileText string) (*lineBlock, *protocol.EditFailure) {
+func findSingleFunctionBlock(fileText string) (*lineBlock, *EditBuildFailure) {
 	lines := strings.Split(fileText, "\n")
 	candidates := make([]lineBlock, 0, 1)
 
@@ -91,18 +89,18 @@ func findSingleFunctionBlock(fileText string) (*lineBlock, *protocol.EditFailure
 
 	switch len(candidates) {
 	case 0:
-		return nil, editFailure("missing_anchor", "Could not find a supported current function in the active file.")
+		return nil, &EditBuildFailure{Code: "missing_anchor", Message: "Could not find a supported current function in the active file."}
 	case 1:
 		return &candidates[0], nil
 	default:
-		return nil, editFailure("ambiguous_target", "The active file contains multiple candidate functions; current function was ambiguous.")
+		return nil, &EditBuildFailure{Code: "ambiguous_target", Message: "The active file contains multiple candidate functions; current function was ambiguous."}
 	}
 }
 
-func findNamedFunctionBlock(fileText, functionName string) (*lineBlock, *protocol.EditFailure) {
+func findNamedFunctionBlock(fileText, functionName string) (*lineBlock, *EditBuildFailure) {
 	patterns := functionNamePatterns(functionName)
 	if len(patterns) == 0 {
-		return nil, editFailure("unsupported_instruction", "Function name was empty.")
+		return nil, &EditBuildFailure{Code: "unsupported_instruction", Message: "Function name was empty."}
 	}
 
 	lines := strings.Split(fileText, "\n")
@@ -131,11 +129,11 @@ func findNamedFunctionBlock(fileText, functionName string) (*lineBlock, *protoco
 
 	switch len(candidates) {
 	case 0:
-		return nil, editFailure("missing_anchor", fmt.Sprintf("Could not find function %q.", functionName))
+		return nil, &EditBuildFailure{Code: "missing_anchor", Message: fmt.Sprintf("Could not find function %q.", functionName)}
 	case 1:
 		return &candidates[0], nil
 	default:
-		return nil, editFailure("ambiguous_target", fmt.Sprintf("Function %q was ambiguous.", functionName))
+		return nil, &EditBuildFailure{Code: "ambiguous_target", Message: fmt.Sprintf("Function %q was ambiguous.", functionName)}
 	}
 }
 

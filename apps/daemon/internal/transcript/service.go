@@ -1,14 +1,7 @@
 package transcript
 
 import (
-	"bufio"
-	"bytes"
-	"context"
-	"fmt"
 	"os"
-	"os/exec"
-	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,8 +9,8 @@ import (
 
 	"vocoding.net/vocode/v2/apps/daemon/internal/agent"
 	"vocoding.net/vocode/v2/apps/daemon/internal/dispatch"
-	"vocoding.net/vocode/v2/apps/daemon/internal/edits"
-	"vocoding.net/vocode/v2/apps/daemon/internal/intent"
+	"vocoding.net/vocode/v2/apps/daemon/internal/indexing"
+	"vocoding.net/vocode/v2/apps/daemon/internal/intentloop"
 	"vocoding.net/vocode/v2/apps/daemon/internal/symbols"
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
@@ -26,20 +19,13 @@ import (
 // action-plan execution (edits via structured results for the extension;
 // commands on the daemon).
 type TranscriptService struct {
-	agent    *agent.Agent
-	dispatch *dispatch.Dispatcher
-	symbols  symbols.Resolver
+	loop *intentloop.Runner
 
 	queue chan transcriptJob
 
 	coalesceWindow time.Duration
 	maxMergeJobs   int
 	maxMergeChars  int
-	maxPlannerTurns int
-	maxContextRounds int
-	maxContextBytes int
-	maxConsecutiveContextReq int
-
 	startOnce sync.Once
 }
 
@@ -66,17 +52,20 @@ func NewService(
 	maxContextBytes := envInt("VOCODE_DAEMON_VOICE_MAX_CONTEXT_BYTES", 12000)
 	maxConsecutiveContextReq := envInt("VOCODE_DAEMON_VOICE_MAX_CONSECUTIVE_CONTEXT_REQUESTS", 3)
 
+	symbolResolver := symbols.NewTreeSitterResolver()
+	cp := indexing.NewContextProvider(symbolResolver)
+	loop := intentloop.NewRunner(agentRuntime, dispatch, cp, intentloop.Options{
+		MaxPlannerTurns:          maxPlannerTurns,
+		MaxContextRounds:         maxContextRounds,
+		MaxContextBytes:          maxContextBytes,
+		MaxConsecutiveContextReq: maxConsecutiveContextReq,
+	})
+
 	s := &TranscriptService{
-		agent:          agentRuntime,
-		dispatch:       dispatch,
-		symbols:        symbols.NewTreeSitterResolver(),
+		loop:          loop,
 		coalesceWindow: time.Duration(coalesceMs) * time.Millisecond,
 		maxMergeJobs:   maxMergeJobs,
 		maxMergeChars:  maxMergeChars,
-		maxPlannerTurns: maxPlannerTurns,
-		maxContextRounds: maxContextRounds,
-		maxContextBytes: maxContextBytes,
-		maxConsecutiveContextReq: maxConsecutiveContextReq,
 	}
 
 	if queueSize > 0 {
@@ -99,7 +88,7 @@ func (s *TranscriptService) AcceptTranscript(
 
 	// If the queue is disabled, execute immediately.
 	if s.queue == nil {
-		return s.acceptTranscriptDirect(params)
+		return s.loop.Execute(params)
 	}
 
 	respCh := make(chan transcriptAcceptResp, 1)
@@ -108,15 +97,13 @@ func (s *TranscriptService) AcceptTranscript(
 		resp:   respCh,
 	}
 
-	// Keep RPC calls responsive: if the queue is full, succeed with a planError
-	// so the extension can ignore it without crashing the session.
+	// Keep RPC calls responsive: if the queue is full, reject quickly.
 	select {
 	case s.queue <- job:
 	default:
 		job.resp <- transcriptAcceptResp{
 			result: protocol.VoiceTranscriptResult{
-				Accepted:  true,
-				PlanError: "transcript queue full",
+				Accepted: false,
 			},
 			ok: true,
 		}
@@ -185,7 +172,7 @@ func (s *TranscriptService) runWorker() {
 		mergedParams := primary.params
 		mergedParams.Text = strings.Join(mergedTextParts, " ")
 
-		mergedResult, ok := s.acceptTranscriptDirect(mergedParams)
+		mergedResult, ok := s.loop.Execute(mergedParams)
 
 		// Respond: only the primary job returns the actual execution.
 		// Coalesced jobs succeed with an empty result to avoid duplicate UI edits.
@@ -205,345 +192,6 @@ func (s *TranscriptService) runWorker() {
 	}
 }
 
-func (s *TranscriptService) acceptTranscriptDirect(
-	params protocol.VoiceTranscriptParams,
-) (protocol.VoiceTranscriptResult, bool) {
-	text := strings.TrimSpace(params.Text)
-	if text == "" {
-		return protocol.VoiceTranscriptResult{}, false
-	}
-
-	maxTurns := s.maxPlannerTurns
-	if maxTurns <= 0 {
-		maxTurns = 8
-	}
-	turnCtx := agent.PlanningContext{}
-	completed := make([]intent.NextIntent, 0, maxTurns)
-	contextRounds := 0
-	consecutiveContextReq := 0
-	editCounter := 0
-	resultItems := make([]protocol.VoiceTranscriptStepResult, 0, maxTurns)
-	trace := make([]string, 0, maxTurns*2)
-	stopPlanning := false
-
-	for i := 0; i < maxTurns; i++ {
-		turn := i + 1
-		next, err := s.agent.NextIntent(context.Background(), agent.ModelInput{
-			Transcript:       text,
-			CompletedActions: append([]intent.NextIntent(nil), completed...),
-			Context:          turnCtx,
-		})
-		if err != nil {
-			trace = appendTurnTrace(trace, turn, "model_error")
-			return protocol.VoiceTranscriptResult{
-				Accepted:  true,
-				PlanError: formatPlanError("execution_error", err.Error(), trace),
-			}, true
-		}
-		if err := intent.ValidateNextIntent(next); err != nil {
-			trace = appendTurnTrace(trace, turn, "invalid_next_intent")
-			return protocol.VoiceTranscriptResult{
-				Accepted:  true,
-				PlanError: formatPlanError("needs_disambiguation", err.Error(), trace),
-			}, true
-		}
-		trace = appendTurnTrace(trace, turn, "intent:"+string(next.Kind))
-		if next.Kind == intent.NextIntentKindDone {
-			break
-		}
-		if next.Kind == intent.NextIntentKindRequestContext {
-			contextRounds++
-			consecutiveContextReq++
-			if s.maxContextRounds > 0 && contextRounds > s.maxContextRounds {
-				trace = appendTurnTrace(trace, turn, "context:cap:max_rounds")
-				return protocol.VoiceTranscriptResult{
-					Accepted:  true,
-					PlanError: formatPlanError("needs_more_context", "max context rounds reached", trace),
-				}, true
-			}
-			if s.maxConsecutiveContextReq > 0 && consecutiveContextReq > s.maxConsecutiveContextReq {
-				trace = appendTurnTrace(trace, turn, "context:cap:consecutive_requests")
-				return protocol.VoiceTranscriptResult{
-					Accepted:  true,
-					PlanError: formatPlanError("needs_more_context", "too many consecutive context requests", trace),
-				}, true
-			}
-			updated, err := s.fulfillContextRequest(params, turnCtx, next.RequestContext)
-			if err != nil {
-				trace = appendTurnTrace(trace, turn, "context:fulfill_error")
-				return protocol.VoiceTranscriptResult{
-					Accepted:  true,
-					PlanError: formatPlanError("needs_more_context", err.Error(), trace),
-				}, true
-			}
-			if s.maxContextBytes > 0 && estimatePlanningContextBytes(updated) > s.maxContextBytes {
-				trace = appendTurnTrace(trace, turn, "context:cap:byte_budget")
-				return protocol.VoiceTranscriptResult{
-					Accepted:  true,
-					PlanError: formatPlanError("needs_more_context", "context budget exceeded", trace),
-				}, true
-			}
-			trace = appendTurnTrace(trace, turn, "context:fulfilled")
-			turnCtx = updated
-			completed = append(completed, next)
-			continue
-		}
-		consecutiveContextReq = 0
-		editCtx, planErr := buildEditExecutionContext(params, next)
-		if planErr != "" {
-			trace = appendTurnTrace(trace, turn, "pre_execute_error")
-			return protocol.VoiceTranscriptResult{
-				Accepted:  true,
-				PlanError: formatPlanError("needs_disambiguation", planErr, trace),
-			}, true
-		}
-		st, err := s.dispatch.ExecuteNextIntent(next, editCtx)
-		if err != nil {
-			trace = appendTurnTrace(trace, turn, "execute_error")
-			return protocol.VoiceTranscriptResult{
-				Accepted:  true,
-				PlanError: formatPlanError("execution_error", err.Error(), trace),
-			}, true
-		}
-		switch {
-		case st.EditResult != nil:
-			if st.EditResult.Kind == "success" {
-				for i := range st.EditResult.Actions {
-					if st.EditResult.Actions[i].EditId == "" {
-						st.EditResult.Actions[i].EditId = fmt.Sprintf("edit-%d", editCounter)
-						editCounter++
-					}
-				}
-			}
-			resultItems = append(resultItems, protocol.VoiceTranscriptStepResult{
-				Kind:       "edit",
-				EditResult: st.EditResult,
-			})
-			trace = appendTurnTrace(trace, turn, "result:edit:"+st.EditResult.Kind)
-			completed = append(completed, next)
-			if st.EditResult.Kind == "failure" {
-				stopPlanning = true
-			}
-		case st.CommandParams != nil:
-			resultItems = append(resultItems, protocol.VoiceTranscriptStepResult{
-				Kind:          "command",
-				CommandParams: st.CommandParams,
-			})
-			trace = appendTurnTrace(trace, turn, "result:command")
-			completed = append(completed, next)
-		case st.Navigation != nil:
-			resultItems = append(resultItems, protocol.VoiceTranscriptStepResult{
-				Kind:             "navigate",
-				NavigationIntent: toProtocolNavigationIntent(*st.Navigation),
-			})
-			trace = appendTurnTrace(trace, turn, "result:navigate")
-			completed = append(completed, next)
-		}
-		if stopPlanning {
-			break
-		}
-	}
-	if len(completed) >= maxTurns {
-		trace = appendTrace(trace, "cap:max_turns")
-		return protocol.VoiceTranscriptResult{
-			Accepted:  true,
-			PlanError: formatPlanError("needs_disambiguation", "max planner turns reached", trace),
-		}, true
-	}
-
-	result := protocol.VoiceTranscriptResult{
-		Accepted: true,
-		Results:  resultItems,
-	}
-	if err := result.Validate(); err != nil {
-		return protocol.VoiceTranscriptResult{
-			Accepted:  true,
-			PlanError: formatPlanError("execution_error", err.Error(), trace),
-		}, true
-	}
-	return result, true
-}
-
-func appendTurnTrace(trace []string, turn int, msg string) []string {
-	return appendTrace(trace, fmt.Sprintf("t%d:%s", turn, msg))
-}
-
-func appendTrace(trace []string, msg string) []string {
-	const maxTraceEntries = 16
-	msg = strings.TrimSpace(msg)
-	if msg == "" {
-		return trace
-	}
-	trace = append(trace, msg)
-	if len(trace) > maxTraceEntries {
-		trace = trace[len(trace)-maxTraceEntries:]
-	}
-	return trace
-}
-
-func formatPlanError(kind string, reason string, trace []string) string {
-	kind = strings.TrimSpace(kind)
-	reason = strings.TrimSpace(reason)
-	if kind == "" {
-		kind = "execution_error"
-	}
-	base := kind + ": " + reason
-	if len(trace) == 0 {
-		return base
-	}
-	const maxTraceChars = 260
-	t := strings.Join(trace, " > ")
-	if len(t) > maxTraceChars {
-		t = t[len(t)-maxTraceChars:]
-	}
-	return base + " | trace: " + t
-}
-
-func (s *TranscriptService) fulfillContextRequest(
-	params protocol.VoiceTranscriptParams,
-	in agent.PlanningContext,
-	req *intent.RequestContextIntent,
-) (agent.PlanningContext, error) {
-	if req == nil {
-		return in, fmt.Errorf("request_context missing payload")
-	}
-	out := in
-	switch req.Kind {
-	case intent.RequestContextKindSymbols:
-		query := strings.TrimSpace(req.Query)
-		if query == "" {
-			return out, fmt.Errorf("request_symbols requires query")
-		}
-		if s.symbols == nil {
-			return out, fmt.Errorf("symbol resolver unavailable")
-		}
-		matches, err := s.symbols.ResolveSymbol(strings.TrimSpace(params.WorkspaceRoot), query, "", strings.TrimSpace(params.ActiveFile))
-		if err != nil {
-			return out, err
-		}
-		limit := clampContextMax(req.MaxResult, 10)
-		if out.Symbols == nil {
-			out.Symbols = make([]symbols.SymbolRef, 0, limit)
-		}
-		seen := map[string]bool{}
-		for _, sref := range out.Symbols {
-			seen[sref.ID] = true
-		}
-		for _, m := range matches {
-			if m.ID == "" || seen[m.ID] {
-				continue
-			}
-			seen[m.ID] = true
-			out.Symbols = append(out.Symbols, m)
-			if len(out.Symbols) >= limit {
-				break
-			}
-		}
-		return out, nil
-	case intent.RequestContextKindFileExcerpt:
-		target := strings.TrimSpace(req.Path)
-		ec := edits.EditExecutionContext{
-			ActiveFile:    params.ActiveFile,
-			WorkspaceRoot: params.WorkspaceRoot,
-		}
-		path := ec.ResolvePath(target)
-		if path == "" {
-			return out, fmt.Errorf("request_file_excerpt requires resolvable path")
-		}
-		b, err := os.ReadFile(path)
-		if err != nil {
-			return out, err
-		}
-		content := string(b)
-		const maxChars = 4000
-		if len(content) > maxChars {
-			content = content[:maxChars]
-		}
-		out.Excerpts = append(out.Excerpts, agent.FileExcerpt{Path: filepath.Clean(path), Content: content})
-		return out, nil
-	case intent.RequestContextKindUsages:
-		ref, err := symbols.ParseSymbolID(strings.TrimSpace(req.SymbolID))
-		if err != nil {
-			return out, fmt.Errorf("request_usages requires valid symbolId: %w", err)
-		}
-		limit := clampContextMax(req.MaxResult, 10)
-		pattern := `\b` + regexp.QuoteMeta(strings.TrimSpace(ref.Name)) + `\b`
-		cmd := exec.Command("rg", "-n", pattern, strings.TrimSpace(params.WorkspaceRoot))
-		var stdout bytes.Buffer
-		cmd.Stdout = &stdout
-		if err := cmd.Run(); err != nil && stdout.Len() == 0 {
-			return out, nil
-		}
-		sc := bufio.NewScanner(bytes.NewReader(stdout.Bytes()))
-		count := 0
-		for sc.Scan() {
-			line := strings.TrimSpace(sc.Text())
-			if line == "" {
-				continue
-			}
-			out.Notes = append(out.Notes, "usage: "+line)
-			count++
-			if count >= limit {
-				break
-			}
-		}
-		return out, nil
-	default:
-		return out, fmt.Errorf("unsupported request_context kind %q", req.Kind)
-	}
-}
-
-func clampContextMax(v int, def int) int {
-	if v <= 0 {
-		return def
-	}
-	if v > 50 {
-		return 50
-	}
-	return v
-}
-
-func estimatePlanningContextBytes(c agent.PlanningContext) int {
-	total := 0
-	for _, sref := range c.Symbols {
-		total += len(sref.ID) + len(sref.Name) + len(sref.Path) + len(sref.Kind) + 16
-	}
-	for _, ex := range c.Excerpts {
-		total += len(ex.Path) + len(ex.Content)
-	}
-	for _, note := range c.Notes {
-		total += len(note)
-	}
-	return total
-}
-
-// buildEditApplyParams loads file text on the daemon when activeFile is set.
-// Unsaved editor buffers are not visible until workspace indexing supplies them.
-func buildEditExecutionContext(params protocol.VoiceTranscriptParams, next intent.NextIntent) (edits.EditExecutionContext, string) {
-	active := strings.TrimSpace(params.ActiveFile)
-	workspaceRoot := strings.TrimSpace(params.WorkspaceRoot)
-	if next.Kind == intent.NextIntentKindEdit && active == "" {
-		return edits.EditExecutionContext{}, "activeFile is required when the next intent is an edit"
-	}
-	if next.Kind == intent.NextIntentKindEdit && workspaceRoot == "" {
-		return edits.EditExecutionContext{}, "workspaceRoot is required when the next intent is an edit"
-	}
-	fileText := ""
-	if active != "" {
-		b, err := os.ReadFile(active)
-		if err != nil {
-			return edits.EditExecutionContext{}, fmt.Sprintf("read active file: %v", err)
-		}
-		fileText = string(b)
-	}
-	return edits.EditExecutionContext{
-		Instruction:   params.Text,
-		ActiveFile:    params.ActiveFile,
-		FileText:      fileText,
-		WorkspaceRoot: workspaceRoot,
-	}, ""
-}
-
 func envInt(key string, def int) int {
 	v := strings.TrimSpace(os.Getenv(key))
 	if v == "" {
@@ -556,58 +204,3 @@ func envInt(key string, def int) int {
 	return i
 }
 
-func toProtocolNavigationIntent(n intent.NavigationIntent) *protocol.NavigationIntent {
-	out := &protocol.NavigationIntent{
-		Kind: string(n.Kind),
-	}
-	if n.OpenFile != nil {
-		out.OpenFile = &struct {
-			Path string `json:"path"`
-		}{Path: n.OpenFile.Path}
-	}
-	if n.RevealSymbol != nil {
-		out.RevealSymbol = &struct {
-			Path       string `json:"path,omitempty"`
-			SymbolName string `json:"symbolName"`
-			SymbolKind string `json:"symbolKind,omitempty"`
-		}{
-			Path:       n.RevealSymbol.Path,
-			SymbolName: n.RevealSymbol.SymbolName,
-			SymbolKind: n.RevealSymbol.SymbolKind,
-		}
-	}
-	if n.MoveCursor != nil {
-		out.MoveCursor = &struct {
-			Target struct {
-				Path string `json:"path,omitempty"`
-				Line int64  `json:"line"`
-				Char int64  `json:"char"`
-			} `json:"target"`
-		}{}
-		out.MoveCursor.Target.Path = n.MoveCursor.Target.Path
-		out.MoveCursor.Target.Line = int64(n.MoveCursor.Target.Line)
-		out.MoveCursor.Target.Char = int64(n.MoveCursor.Target.Char)
-	}
-	if n.SelectRange != nil {
-		out.SelectRange = &struct {
-			Target struct {
-				Path      string `json:"path,omitempty"`
-				StartLine int64  `json:"startLine"`
-				StartChar int64  `json:"startChar"`
-				EndLine   int64  `json:"endLine"`
-				EndChar   int64  `json:"endChar"`
-			} `json:"target"`
-		}{}
-		out.SelectRange.Target.Path = n.SelectRange.Target.Path
-		out.SelectRange.Target.StartLine = int64(n.SelectRange.Target.StartLine)
-		out.SelectRange.Target.StartChar = int64(n.SelectRange.Target.StartChar)
-		out.SelectRange.Target.EndLine = int64(n.SelectRange.Target.EndLine)
-		out.SelectRange.Target.EndChar = int64(n.SelectRange.Target.EndChar)
-	}
-	if n.RevealEdit != nil {
-		out.RevealEdit = &struct {
-			EditId string `json:"editId"`
-		}{EditId: n.RevealEdit.EditID}
-	}
-	return out
-}

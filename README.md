@@ -147,19 +147,12 @@ Current `NextIntent` kinds:
 
 `voice.transcript` returns `VoiceTranscriptResult`:
 - `accepted: true`
-- `results[]` (ordered execution results with `edit`, `command`, or `navigate`)
-- optional `planError` when planning/validation/execution fails before or during a turn
+- `directives[]` (ordered execution directives with `edit`, `command`, or `navigate`)
+- `accepted: false` when the daemon rejects/aborts the transcript before emitting directives
 
 ### Planner troubleshooting
 
-If planner execution fails, check `planError` first. Errors are categorized:
-- `needs_more_context: ...` (context cap reached, context budget exceeded, repeated context requests, or context fulfillment issue)
-- `needs_disambiguation: ...` (invalid/ambiguous target, missing active file/workspace root for edits, invalid next intent)
-- `execution_error: ...` (model call error, dispatch/runtime error, or result validation failure)
-
-`planError` now includes a bounded per-turn trace suffix:
-- format: `... | trace: t1:intent:... > t1:result:... > t2:intent:...`
-- use it to see where the loop stopped (intent emission, context fulfillment, or execution).
+When `accepted` is `false`, no directives are emitted and the extension should ignore the transcript (or show a generic error to the user).
 
 Useful knobs while debugging planner flow:
 - `VOCODE_DAEMON_VOICE_MAX_PLANNER_TURNS`

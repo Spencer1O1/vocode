@@ -1,6 +1,7 @@
 package commandexec
 
 import (
+	"fmt"
 	"strings"
 
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
@@ -28,42 +29,30 @@ func NewPolicy() *Policy {
 	}
 }
 
-func (p *Policy) Validate(params protocol.CommandRunParams) (protocol.CommandFailure, bool) {
+func (p *Policy) Validate(params protocol.CommandDirective) error {
 	cmd := strings.TrimSpace(params.Command)
 	if cmd == "" {
-		return protocol.CommandFailure{
-			Code:    "command_rejected",
-			Message: "command cannot be empty",
-		}, false
+		return fmt.Errorf("command cannot be empty")
 	}
 
 	// This API is structured as (command + args), so reject anything that
 	// looks like it already contains spacing. (Shell parsing belongs in the
 	// target shell, not in the daemon policy layer.)
 	if strings.ContainsAny(cmd, " \t\r\n") {
-		return protocol.CommandFailure{
-			Code:    "command_rejected",
-			Message: "command must be a single executable name",
-		}, false
+		return fmt.Errorf("command must be a single executable name")
 	}
 
 	normalized := strings.ToLower(cmd)
 	if _, ok := p.allowed[normalized]; !ok {
-		return protocol.CommandFailure{
-			Code:    "command_rejected",
-			Message: "command is not allowed",
-		}, false
+		return fmt.Errorf("command is not allowed")
 	}
 
 	for _, arg := range params.Args {
 		// Null bytes can corrupt exec boundaries.
 		if strings.ContainsRune(arg, '\x00') {
-			return protocol.CommandFailure{
-				Code:    "command_rejected",
-				Message: "command args contain invalid characters",
-			}, false
+			return fmt.Errorf("command args contain invalid characters")
 		}
 	}
 
-	return protocol.CommandFailure{}, true
+	return nil
 }

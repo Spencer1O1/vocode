@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vocoding.net/schemas/navigation-action.open-file.schema.json",
+  "title": "NavigationActionOpenFile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "openFile"],
+  "properties": {
+    "kind": { "const": "open_file" },
+    "openFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

@@ -9,6 +9,7 @@ import (
 	"vocoding.net/vocode/v2/apps/daemon/internal/commandexec"
 	"vocoding.net/vocode/v2/apps/daemon/internal/dispatch"
 	"vocoding.net/vocode/v2/apps/daemon/internal/edits"
+	"vocoding.net/vocode/v2/apps/daemon/internal/navigation"
 	"vocoding.net/vocode/v2/apps/daemon/internal/rpc"
 	"vocoding.net/vocode/v2/apps/daemon/internal/transcript"
 )
@@ -29,7 +30,8 @@ func New(opts Options) (*App, error) {
 	agentRuntime := agent.New(stub.New())
 	editService := edits.NewService()
 	commandService := commandexec.NewService()
-	dispatcher := dispatch.NewDispatcher(editService, commandService)
+	navigationService := navigation.NewService()
+	dispatcher := dispatch.NewDispatcher(editService, commandService, navigationService)
 
 	voiceService := transcript.NewService(agentRuntime, dispatcher)
 

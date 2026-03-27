@@ -1,8 +1,8 @@
 import path from "node:path";
-import type { EditApplyResult } from "@vocode/protocol";
+import type { EditDirective } from "@vocode/protocol";
 import * as vscode from "vscode";
 
-import { resolveReplaceBetweenAnchors } from "./apply-edit-helpers";
+import { resolveReplaceBetweenAnchors } from "./dispatch-edit-helpers";
 export interface AppliedEditLocation {
   editId?: string;
   path: string;
@@ -34,17 +34,17 @@ function toAbsolutePath(
  * submitting workspace edits. Also returns per-action edit locations for
  * follow-up navigation (e.g. reveal_edit).
  */
-export async function applyEditResultWorkspaceEdits(
-  editResult: EditApplyResult,
+export async function dispatchEditResultWorkspaceEdits(
+  editDirective: EditDirective,
   activeDocumentPath: string,
 ): Promise<ApplyEditResultWorkspaceOutcome> {
-  if (editResult.kind !== "success" || editResult.actions.length === 0) {
+  if (editDirective.kind !== "success" || editDirective.actions.length === 0) {
     return { ok: true, appliedEdits: [] };
   }
 
   const appliedEdits: AppliedEditLocation[] = [];
 
-  for (const action of editResult.actions) {
+  for (const action of editDirective.actions) {
     const actionPath = toAbsolutePath(action.path, activeDocumentPath);
     const wsEdit = new vscode.WorkspaceEdit();
 

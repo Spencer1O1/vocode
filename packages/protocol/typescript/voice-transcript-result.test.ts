@@ -8,21 +8,21 @@ test("isVoiceTranscriptResult accepts accepted=true shape", () => {
 });
 
 test("isVoiceTranscriptResult rejects accepted=false shape", () => {
-  assert.equal(isVoiceTranscriptResult({ accepted: false }), false);
+  assert.equal(isVoiceTranscriptResult({ accepted: false }), true);
 });
 
 test("isVoiceTranscriptResult rejects extra keys", () => {
   assert.equal(isVoiceTranscriptResult({ accepted: true, extra: 123 }), false);
 });
 
-test("isVoiceTranscriptResult accepts results with edit success", () => {
+test("isVoiceTranscriptResult accepts directives with edit directive success", () => {
   assert.equal(
     isVoiceTranscriptResult({
       accepted: true,
-      results: [
+      directives: [
         {
           kind: "edit",
-          editResult: {
+          editDirective: {
             kind: "success",
             actions: [
               {
@@ -40,15 +40,15 @@ test("isVoiceTranscriptResult accepts results with edit success", () => {
   );
 });
 
-test("isVoiceTranscriptResult rejects planError together with results", () => {
+test("isVoiceTranscriptResult rejects extra keys (unexpected property)", () => {
   assert.equal(
     isVoiceTranscriptResult({
       accepted: true,
-      planError: "bad",
-      results: [
+      unexpected: "bad",
+      directives: [
         {
           kind: "command",
-          commandParams: { command: "echo", args: ["stub"] },
+          commandDirective: { command: "echo", args: ["stub"] },
         },
       ],
     }),

@@ -1,11 +1,10 @@
 import type {
-  CommandRunParams,
-  CommandRunResult,
+  CommandDirective,
   EditAction,
-  EditApplyResult,
+  EditDirective,
   PingResult,
+  VoiceTranscriptDirective,
   VoiceTranscriptResult,
-  VoiceTranscriptStepResult,
 } from "./types.generated";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -26,25 +25,6 @@ function isAnchor(value: unknown): value is { before: string; after: string } {
     hasOnlyKeys(value, ["before", "after"]) &&
     typeof value.before === "string" &&
     typeof value.after === "string"
-  );
-}
-
-function isEditFailure(
-  value: unknown,
-): value is { code: string; message: string } {
-  const validCodes = new Set([
-    "unsupported_instruction",
-    "ambiguous_target",
-    "missing_anchor",
-    "validation_failed",
-    "no_change_needed",
-  ]);
-  return (
-    isRecord(value) &&
-    hasOnlyKeys(value, ["code", "message"]) &&
-    typeof value.code === "string" &&
-    validCodes.has(value.code) &&
-    typeof value.message === "string"
   );
 }
 
@@ -82,7 +62,9 @@ export function isEditAction(value: unknown): value is EditAction {
   );
 }
 
-export function isEditApplyResult(value: unknown): value is EditApplyResult {
+export function isEditDirective(
+  value: unknown,
+): value is EditDirective {
   if (!isRecord(value) || typeof value.kind !== "string") {
     return false;
   }
@@ -94,10 +76,6 @@ export function isEditApplyResult(value: unknown): value is EditApplyResult {
         Array.isArray(value.actions) &&
         value.actions.every(isEditAction)
       );
-    case "failure":
-      return (
-        hasOnlyKeys(value, ["kind", "failure"]) && isEditFailure(value.failure)
-      );
     case "noop":
       return (
         hasOnlyKeys(value, ["kind", "reason"]) &&
@@ -108,44 +86,7 @@ export function isEditApplyResult(value: unknown): value is EditApplyResult {
   }
 }
 
-export function isCommandRunResult(value: unknown): value is CommandRunResult {
-  if (!isRecord(value) || typeof value.kind !== "string") {
-    return false;
-  }
-
-  switch (value.kind) {
-    case "success":
-      return (
-        hasOnlyKeys(value, ["kind", "exitCode", "stdout", "stderr"]) &&
-        typeof value.exitCode === "number" &&
-        typeof value.stdout === "string" &&
-        typeof value.stderr === "string"
-      );
-    case "failure": {
-      const failure = value.failure;
-      const validCodes = new Set([
-        "command_rejected",
-        "execution_failed",
-        "timeout",
-      ]);
-
-      return (
-        hasOnlyKeys(value, ["kind", "failure", "stdout", "stderr"]) &&
-        typeof value.stdout === "string" &&
-        typeof value.stderr === "string" &&
-        isRecord(failure) &&
-        hasOnlyKeys(failure, ["code", "message"]) &&
-        typeof failure.code === "string" &&
-        validCodes.has(failure.code) &&
-        typeof failure.message === "string"
-      );
-    }
-    default:
-      return false;
-  }
-}
-
-function isCommandRunParams(value: unknown): value is CommandRunParams {
+function isCommandDirective(value: unknown): value is CommandDirective {
   if (!isRecord(value)) {
     return false;
   }
@@ -179,7 +120,7 @@ function isCommandRunParams(value: unknown): value is CommandRunParams {
   return true;
 }
 
-function isNavigationIntent(value: unknown): boolean {
+function isNavigationAction(value: unknown): boolean {
   if (!isRecord(value) || typeof value.kind !== "string") return false;
   switch (value.kind) {
     case "open_file":
@@ -244,28 +185,46 @@ function isNavigationIntent(value: unknown): boolean {
   }
 }
 
-export function isVoiceTranscriptStepResult(
+function isNavigationDirective(value: unknown): boolean {
+  if (!isRecord(value) || typeof value.kind !== "string") {
+    return false;
+  }
+  if (value.kind === "success") {
+    return (
+      hasOnlyKeys(value, ["kind", "action"]) &&
+      isNavigationAction(value.action)
+    );
+  }
+  if (value.kind === "noop") {
+    return (
+      hasOnlyKeys(value, ["kind", "reason"]) && typeof value.reason === "string"
+    );
+  }
+  return false;
+}
+
+export function isVoiceTranscriptDirective(
   value: unknown,
-): value is VoiceTranscriptStepResult {
+): value is VoiceTranscriptDirective {
   if (!isRecord(value) || typeof value.kind !== "string") {
     return false;
   }
   if (value.kind === "edit") {
     return (
-      hasOnlyKeys(value, ["kind", "editResult"]) &&
-      isEditApplyResult(value.editResult)
+      hasOnlyKeys(value, ["kind", "editDirective"]) &&
+      isEditDirective(value.editDirective)
     );
   }
   if (value.kind === "command") {
     return (
-      hasOnlyKeys(value, ["kind", "commandParams"]) &&
-      isCommandRunParams(value.commandParams)
+      hasOnlyKeys(value, ["kind", "commandDirective"]) &&
+      isCommandDirective(value.commandDirective)
     );
   }
   if (value.kind === "navigate") {
     return (
-      hasOnlyKeys(value, ["kind", "navigationIntent"]) &&
-      isNavigationIntent(value.navigationIntent)
+      hasOnlyKeys(value, ["kind", "navigationDirective"]) &&
+      isNavigationDirective(value.navigationDirective)
     );
   }
   return false;
@@ -274,31 +233,22 @@ export function isVoiceTranscriptStepResult(
 export function isVoiceTranscriptResult(
   value: unknown,
 ): value is VoiceTranscriptResult {
-  if (!isRecord(value) || value.accepted !== true) {
+  if (!isRecord(value) || typeof value.accepted !== "boolean") {
     return false;
   }
-  const allowedKeys = new Set(["accepted", "planError", "results"]);
+  const allowedKeys = new Set(["accepted", "directives"]);
   if (!Object.keys(value).every((k) => allowedKeys.has(k))) {
     return false;
   }
-  if (value.planError !== undefined && typeof value.planError !== "string") {
-    return false;
-  }
-  if (value.results !== undefined) {
-    if (!Array.isArray(value.results)) {
+  if (value.directives !== undefined) {
+    if (!Array.isArray(value.directives)) {
       return false;
     }
-    if (!value.results.every(isVoiceTranscriptStepResult)) {
+    if (!value.directives.every(isVoiceTranscriptDirective)) {
       return false;
     }
   }
-  const planErr = value.planError;
-  if (
-    typeof planErr === "string" &&
-    planErr !== "" &&
-    Array.isArray(value.results) &&
-    value.results.length > 0
-  ) {
+  if (value.accepted !== true && value.directives !== undefined) {
     return false;
   }
   return true;

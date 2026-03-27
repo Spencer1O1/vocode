@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vocoding.net/schemas/navigation-action.reveal-symbol.schema.json",
+  "title": "NavigationActionRevealSymbol",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "revealSymbol"],
+  "properties": {
+    "kind": { "const": "reveal_symbol" },
+    "revealSymbol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["symbolName"],
+      "properties": {
+        "path": { "type": "string" },
+        "symbolName": { "type": "string", "minLength": 1 },
+        "symbolKind": { "type": "string" }
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vocoding.net/schemas/navigation-action.schema.json",
+  "title": "NavigationAction",
+  "oneOf": [
+    { "$ref": "./navigation-action.open-file.schema.json" },
+    { "$ref": "./navigation-action.reveal-symbol.schema.json" },
+    { "$ref": "./navigation-action.move-cursor.schema.json" },
+    { "$ref": "./navigation-action.select-range.schema.json" },
+    { "$ref": "./navigation-action.reveal-edit.schema.json" }
+  ]
+}

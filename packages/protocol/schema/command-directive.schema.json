@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://vocoding.net/schemas/command-run.params.schema.json",
-  "title": "CommandRunParams",
+  "$id": "https://vocoding.net/schemas/command-directive.schema.json",
+  "title": "CommandDirective",
   "type": "object",
   "additionalProperties": false,
   "properties": {

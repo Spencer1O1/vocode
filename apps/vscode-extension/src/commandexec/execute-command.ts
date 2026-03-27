@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import type { CommandRunParams } from "@vocode/protocol";
+import type { CommandDirective } from "@vocode/protocol";
 
 const allowedExecutables = new Set<string>([
   "cmd.exe",
@@ -11,7 +11,7 @@ const allowedExecutables = new Set<string>([
   "echo",
 ]);
 
-function validateCommandParams(params: CommandRunParams): string | undefined {
+function validateCommandParams(params: CommandDirective): string | undefined {
   const cmd = params.command.trim();
   if (!cmd) {
     return "command cannot be empty";
@@ -35,7 +35,7 @@ function validateCommandParams(params: CommandRunParams): string | undefined {
   return undefined;
 }
 
-export async function runAllowedCommand(params: CommandRunParams): Promise<{
+export async function runAllowedCommand(params: CommandDirective): Promise<{
   ok: boolean;
   stdout: string;
   stderr: string;

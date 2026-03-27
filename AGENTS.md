@@ -20,25 +20,25 @@ One “turn” starts when the extension calls the daemon RPC:
 2. The daemon executes each intent in order using `dispatch.Dispatcher`.
 3. The daemon returns a `VoiceTranscriptResult` where `results` is an ordered list of execution results.
 4. Each execution result is exactly one of:
-   - `kind: "edit"` with an `editResult` (a single explicit variant of `EditApplyResult`)
-   - `kind: "command"` with `commandParams` (daemon-validated command shape; extension executes)
-   - `kind: "navigate"` with `navigationIntent` (extension applies deterministic UI navigation)
+   - `kind: "edit"` with an `editDirective` (a single explicit variant of `EditDirective`)
+   - `kind: "command"` with `commandDirective` (daemon-validated command shape; extension executes)
+   - `kind: "navigate"` with `navigationDirective` (extension applies deterministic UI navigation)
 
 ### What the extension guarantees
 
-1. The extension iterates `VoiceTranscriptResult.results` sequentially.
+1. The extension iterates `VoiceTranscriptResult.directives` sequentially.
 2. For `edit` results, it applies daemon-provided edit actions mechanically using `workspace.applyEdit`.
 3. For `command` results, it runs the command parameters using an allowlisted runner (no additional semantic policy).
 4. If any result fails, the extension stops processing remaining results.
 
 ### Invariant: no mixed-state payloads
 
-- `EditApplyResult` must be exactly one explicit variant: `success` (with `actions`) or `failure` (with `failure`) or `noop` (with `reason`).
+- `EditDirective` must be exactly one explicit variant: `success` (with `actions`) or `failure` (with `failure`) or `noop` (with `reason`).
 - “Mixed-state” (multiple variants at once) is invalid and must be rejected/avoided. Keep schema, generated types, and runtime validators aligned.
 
 ### Invariant: no daemon “execution RPCs”
 
-- The extension does not call `edit.apply` or `command.run`.
+- The extension does not call `edit.dispatch` or `command.run`.
 - The agent execution entrypoint is `voice.transcript`.
 
 ## Layering and Ownership (Where Logic Belongs)
@@ -81,8 +81,8 @@ One rule should have one owner. Duplicating ownership is a regression risk.
 
 ## What agents must not do
 
-- Do not add daemon-side execution calls to run shell commands. The daemon should validate and return `commandParams`; the extension executes.
-- Do not add new RPC endpoints like `edit.apply` or `command.run`. Keep the main entrypoint as `voice.transcript`.
+- Do not add daemon-side execution calls to run shell commands. The daemon should validate and return `commandDirective`; the extension executes.
+- Do not add new RPC endpoints like `edit.dispatch` or `command.run`. Keep the main entrypoint as `voice.transcript`.
 - Do not move semantic policy logic into the extension (keep it in daemon-owned layers).
 - Do not mix editor/transport policy decisions with planning/orchestration.
 - Do not move native microphone or STT transport logic into the extension host; keep it in `apps/voice`.
@@ -102,7 +102,7 @@ One rule should have one owner. Duplicating ownership is a regression risk.
 
 - Send transcript: `apps/vscode-extension/src/commands/send-transcript/run.ts`
 - Present/execute returned results: `apps/vscode-extension/src/commands/send-transcript/present-result.ts`
-- Mechanical edit apply: `apps/vscode-extension/src/edits/apply-workspace-edits.ts`
+- Mechanical edit dispatch/apply: `apps/vscode-extension/src/edits/dispatch-workspace-edits.ts`
 - Allowed command execution runner: `apps/vscode-extension/src/commandexec/execute-command.ts`
 - Daemon client: `apps/vscode-extension/src/daemon/client.ts`
 - Voice sidecar spawn/client: `apps/vscode-extension/src/voice-sidecar`
@@ -130,7 +130,7 @@ One rule should have one owner. Duplicating ownership is a regression risk.
 
 ### Add a new command capability
 
-1. Ensure the model can emit a `CommandIntent` that maps to protocol `commandParams`.
+1. Ensure the model can emit a `CommandIntent` that maps to protocol `commandDirective`.
 2. Update daemon allowlist in `apps/daemon/internal/commandexec/policy.go`.
 3. Update extension allowlist in `apps/vscode-extension/src/commandexec/execute-command.ts`.
 4. Keep execution semantics in the extension; keep command-shape validation in the daemon.
@@ -191,8 +191,8 @@ Rules:
 ### Add a new edit-planner capability
 
 1. Extend agent edit intent handling/validation in `apps/daemon/internal/agent`.
-2. Ensure the agent emits deterministic `EditIntent` (or structured `EditFailure`).
-3. Ensure `edits.Service.ApplyIntent` maps intent + file snapshot to the correct `EditApplyResult` variants.
+2. Ensure the agent emits deterministic `EditIntent`; edit-building failures are handled inside the daemon.
+3. Ensure `edits.Service.DispatchIntent` maps intent + file snapshot to the correct `EditDirective` variants.
 4. Add planner tests for supported/unsupported instruction expectations and failure codes.
 
 Rules:
@@ -206,7 +206,7 @@ Before merging:
 
 - `internal/app` remains composition + orchestration owner.
 - `internal/rpc` remains transport/routing only (thin handlers).
-- `edits.Service.ApplyIntent` wraps `BuildActions` into protocol `EditApplyResult` (not an RPC).
+- `edits.Service.DispatchIntent` wraps `BuildActions` into protocol `EditDirective` (not an RPC).
 - Extension contains only mechanical apply + UI-level orchestration; no semantic policy duplication.
 - Protocol schema/types/validators/runtime behavior stay aligned.
 - Tests cover variant invariants and boundary behavior.

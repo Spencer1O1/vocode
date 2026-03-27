@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { ReplaceBetweenAnchorsAction } from "@vocode/protocol";
 
-import { resolveReplaceBetweenAnchors } from "./apply-edit-helpers";
+import { resolveReplaceBetweenAnchors } from "./dispatch-edit-helpers";
 
 test("resolveReplaceBetweenAnchors replaces the range between unique anchors", () => {
   const action: ReplaceBetweenAnchorsAction = {

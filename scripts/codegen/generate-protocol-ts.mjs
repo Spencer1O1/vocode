@@ -24,31 +24,30 @@ const entries = [
   { file: "edit-action.schema.json", name: "EditAction" },
   { file: "ping.params.schema.json", name: "PingParams" },
   { file: "ping.result.schema.json", name: "PingResult" },
-  { file: "edit-apply.params.schema.json", name: "EditApplyParams" },
-  { file: "edit-apply.result.schema.json", name: "EditApplyResult" },
+  { file: "edit-directive.schema.json", name: "EditDirective" },
   {
     file: "voice-transcript.params.schema.json",
     name: "VoiceTranscriptParams",
   },
   {
-    file: "navigation-intent.schema.json",
-    name: "NavigationIntent",
+    file: "navigation-action.schema.json",
+    name: "NavigationAction",
   },
   {
-    file: "voice-transcript.step-result.schema.json",
-    name: "VoiceTranscriptStepResult",
+    file: "navigation-directive.schema.json",
+    name: "NavigationDirective",
+  },
+  {
+    file: "voice-transcript.directive.schema.json",
+    name: "VoiceTranscriptDirective",
   },
   {
     file: "voice-transcript.result.schema.json",
     name: "VoiceTranscriptResult",
   },
   {
-    file: "command-run.params.schema.json",
-    name: "CommandRunParams",
-  },
-  {
-    file: "command-run.result.schema.json",
-    name: "CommandRunResult",
+    file: "command-directive.schema.json",
+    name: "CommandDirective",
   },
 ];
 

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vocoding.net/schemas/navigation-action.move-cursor.schema.json",
+  "title": "NavigationActionMoveCursor",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "moveCursor"],
+  "properties": {
+    "kind": { "const": "move_cursor" },
+    "moveCursor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target"],
+      "properties": {
+        "target": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["line", "char"],
+          "properties": {
+            "path": { "type": "string" },
+            "line": { "type": "integer" },
+            "char": { "type": "integer" }
+          }
+        }
+      }
+    }
+  }
+}

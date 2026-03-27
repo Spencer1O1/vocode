@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vocoding.net/schemas/navigation-action.reveal-edit.schema.json",
+  "title": "NavigationActionRevealEdit",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "revealEdit"],
+  "properties": {
+    "kind": { "const": "reveal_edit" },
+    "revealEdit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["editId"],
+      "properties": {
+        "editId": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

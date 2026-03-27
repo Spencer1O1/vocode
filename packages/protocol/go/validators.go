@@ -6,73 +6,92 @@ import (
 	"strings"
 )
 
-// EditApplyResult validation lives here alongside future protocol-level validators
+// EditDirective validation lives here alongside future protocol-level validators
 // (mirrors typescript/validators.ts conceptually).
 
-func (r EditApplyResult) Validate() error {
+func (r EditDirective) Validate() error {
 	switch r.Kind {
 	case "success":
 		if r.Actions == nil {
 			return errors.New("success result must include actions")
 		}
-		if r.Failure != nil || r.Reason != "" {
-			return errors.New("success result must not contain failure or reason")
-		}
-	case "failure":
-		if r.Failure == nil {
-			return errors.New("failure result must include failure")
-		}
-		if len(r.Actions) > 0 || r.Reason != "" {
-			return errors.New("failure result must not contain actions or reason")
+		if r.Reason != "" {
+			return errors.New("success result must not contain reason")
 		}
 	case "noop":
 		if r.Reason == "" {
 			return errors.New("noop result must include reason")
 		}
-		if len(r.Actions) > 0 || r.Failure != nil {
-			return errors.New("noop result must not contain actions or failure")
+		if len(r.Actions) > 0 {
+			return errors.New("noop result must not contain actions")
 		}
 	default:
-		return errors.New("unknown edit.apply result kind")
+		return errors.New("unknown edit.dispatch result kind")
 	}
 
 	return nil
 }
 
-func (s VoiceTranscriptStepResult) Validate() error {
+func (s VoiceTranscriptDirective) Validate() error {
 	switch s.Kind {
 	case "edit":
-		if s.EditResult == nil || s.CommandParams != nil || s.NavigationIntent != nil {
-			return errors.New("voice transcript step: kind edit requires editResult and no commandParams/navigationIntent")
+		if s.EditDirective == nil || s.CommandDirective != nil || s.NavigationDirective != nil {
+			return errors.New("voice transcript step: kind edit requires editDirective and no commandDirective/navigationDirective")
 		}
-		return s.EditResult.Validate()
+		return s.EditDirective.Validate()
 	case "command":
-		if s.CommandParams == nil || s.EditResult != nil || s.NavigationIntent != nil {
-			return errors.New("voice transcript step: kind command requires commandParams and no editResult/navigationIntent")
+		if s.CommandDirective == nil || s.EditDirective != nil || s.NavigationDirective != nil {
+			return errors.New("voice transcript step: kind command requires commandDirective and no editDirective/navigationDirective")
 		}
-		if strings.TrimSpace(s.CommandParams.Command) == "" {
-			return errors.New("voice transcript step: command requires non-empty commandParams.command")
+		if strings.TrimSpace(s.CommandDirective.Command) == "" {
+			return errors.New("voice transcript step: command requires non-empty commandDirective.command")
 		}
-		// CommandRunParams has no additional protocol-level validation yet; host-side
+		// CommandDirective has no additional protocol-level validation yet; host-side
 		// policy executes the safety checks.
 		return nil
 	case "navigate":
-		if s.NavigationIntent == nil || s.EditResult != nil || s.CommandParams != nil {
-			return errors.New("voice transcript step: kind navigate requires navigationIntent and no editResult/commandParams")
+		if s.NavigationDirective == nil || s.EditDirective != nil || s.CommandDirective != nil {
+			return errors.New("voice transcript step: kind navigate requires navigationDirective and no editDirective/commandDirective")
 		}
-		return validateNavigationIntent(s.NavigationIntent)
+		return validateNavigationDirective(s.NavigationDirective)
 	default:
 		return fmt.Errorf("voice transcript step: unknown kind %q", s.Kind)
 	}
 }
 
-func validateNavigationIntent(n *NavigationIntent) error {
+func validateNavigationDirective(n *NavigationDirective) error {
 	if n == nil {
-		return errors.New("voice transcript step: navigate requires navigationIntent")
+		return errors.New("voice transcript step: navigate requires navigationDirective")
+	}
+	switch n.Kind {
+	case "success":
+		if n.Action == nil {
+			return errors.New("voice transcript step: navigate success requires navigationDirective.action")
+		}
+		if n.Reason != "" {
+			return errors.New("voice transcript step: navigate success must not include reason")
+		}
+		return validateNavigationAction(n.Action)
+	case "noop":
+		if strings.TrimSpace(n.Reason) == "" {
+			return errors.New("voice transcript step: navigate noop requires reason")
+		}
+		if n.Action != nil {
+			return errors.New("voice transcript step: navigate noop must not include action")
+		}
+		return nil
+	default:
+		return fmt.Errorf("voice transcript step: unknown navigation directive kind %q", n.Kind)
+	}
+}
+
+func validateNavigationAction(n *NavigationAction) error {
+	if n == nil {
+		return errors.New("voice transcript step: navigate requires navigationDirective.action")
 	}
 	kind := strings.TrimSpace(n.Kind)
 	if kind == "" {
-		return errors.New("voice transcript step: navigate requires non-empty navigationIntent.kind")
+		return errors.New("voice transcript step: navigate requires non-empty navigationDirective.action.kind")
 	}
 
 	payloads := 0
@@ -92,7 +111,7 @@ func validateNavigationIntent(n *NavigationIntent) error {
 		payloads++
 	}
 	if payloads != 1 {
-		return errors.New("voice transcript step: navigate requires exactly one navigation payload")
+		return errors.New("voice transcript step: navigate requires exactly one navigation action payload")
 	}
 
 	switch kind {
@@ -128,39 +147,14 @@ func validateNavigationIntent(n *NavigationIntent) error {
 }
 
 func (r VoiceTranscriptResult) Validate() error {
-	if !r.Accepted {
-		return errors.New("voice transcript result must have accepted=true")
+	if !r.Accepted && len(r.Directives) > 0 {
+		return errors.New("voice transcript result must not include directives when accepted=false")
 	}
-	if r.PlanError != "" && len(r.Results) > 0 {
-		return errors.New("voice transcript result must not include both planError and results")
-	}
-	for i := range r.Results {
-		if err := r.Results[i].Validate(); err != nil {
-			return fmt.Errorf("voice transcript result results[%d]: %w", i, err)
+	for i := range r.Directives {
+		if err := r.Directives[i].Validate(); err != nil {
+			return fmt.Errorf("voice transcript result directives[%d]: %w", i, err)
 		}
 	}
 	return nil
 }
 
-func (r CommandRunResult) Validate() error {
-	switch r.Kind {
-	case "success":
-		if r.Failure != nil {
-			return errors.New("command.run success result must not include failure")
-		}
-		if r.ExitCode == nil {
-			return errors.New("command.run success result must include exitCode")
-		}
-	case "failure":
-		if r.Failure == nil {
-			return errors.New("command.run failure result must include failure")
-		}
-		if r.ExitCode != nil {
-			return errors.New("command.run failure result must not include exitCode")
-		}
-	default:
-		return errors.New("unknown command.run result kind")
-	}
-
-	return nil
-}

@@ -1,12 +1,12 @@
 import type {
-  CommandRunParams,
-  EditApplyResult,
+  CommandDirective,
+  EditDirective,
   VoiceTranscriptResult,
 } from "@vocode/protocol";
 import * as vscode from "vscode";
 
 import { runAllowedCommand } from "../../commandexec/execute-command";
-import { applyEditResultWorkspaceEdits } from "../../edits/apply-workspace-edits";
+import { dispatchEditResultWorkspaceEdits } from "../../edits/dispatch-workspace-edits";
 import {
   type EditLocationMap,
   executeNavigationStep,
@@ -19,17 +19,17 @@ export async function presentTranscriptResult(
 ): Promise<void> {
   const editLocations: EditLocationMap = {};
 
-  if (result.planError) {
-    void vscode.window.showErrorMessage(`Vocode: ${result.planError}`);
+  if (!result.accepted) {
+    void vscode.window.showErrorMessage("Vocode: transcript was not accepted.");
     return;
   }
 
-  for (const step of result.results ?? []) {
+  for (const step of result.directives ?? []) {
     switch (step.kind) {
       case "edit": {
         if (
           !(await handleEditStep(
-            step.editResult,
+            step.editDirective,
             activeDocumentPath,
             editLocations,
           ))
@@ -40,7 +40,7 @@ export async function presentTranscriptResult(
       }
 
       case "command": {
-        if (!(await handleCommandStep(step.commandParams))) {
+        if (!(await handleCommandStep(step.commandDirective))) {
           return;
         }
         break;
@@ -62,19 +62,15 @@ export async function presentTranscriptResult(
 }
 
 async function handleEditStep(
-  edit: EditApplyResult | undefined,
+  edit: EditDirective | undefined,
   activeDocumentPath: string,
   editLocations: EditLocationMap,
 ): Promise<boolean> {
   if (!edit) {
-    void vscode.window.showWarningMessage("Vocode: missing editResult.");
+    void vscode.window.showWarningMessage("Vocode: missing editDirective.");
     return false;
   }
-  if (edit.kind === "failure") {
-    void vscode.window.showErrorMessage(`Vocode edit: ${edit.failure.message}`);
-    return false;
-  }
-  const applyOutcome = await applyEditResultWorkspaceEdits(
+  const applyOutcome = await dispatchEditResultWorkspaceEdits(
     edit,
     activeDocumentPath,
   );
@@ -93,10 +89,10 @@ async function handleEditStep(
 }
 
 async function handleCommandStep(
-  params: CommandRunParams | undefined,
+  params: CommandDirective | undefined,
 ): Promise<boolean> {
   if (!params) {
-    void vscode.window.showWarningMessage("Vocode: missing commandParams.");
+    void vscode.window.showWarningMessage("Vocode: missing commandDirective.");
     return false;
   }
   const outcome = await runAllowedCommand(params);

@@ -7,7 +7,7 @@ import (
 	intentpkg "vocoding.net/vocode/v2/apps/daemon/internal/intent"
 )
 
-func TestApplyIntentSuccess(t *testing.T) {
+func TestDispatchIntentSuccess(t *testing.T) {
 	t.Parallel()
 
 	service := NewService()
@@ -31,9 +31,9 @@ func TestApplyIntentSuccess(t *testing.T) {
 		},
 	}
 
-	result, err := service.ApplyIntent(params, intent)
+	result, err := service.DispatchIntent(params, intent)
 	if err != nil {
-		t.Fatalf("ApplyIntent returned error: %v", err)
+		t.Fatalf("DispatchIntent returned error: %v", err)
 	}
 	if result.Kind != "success" {
 		t.Fatalf("expected success result, got %q", result.Kind)
@@ -46,7 +46,7 @@ func TestApplyIntentSuccess(t *testing.T) {
 	}
 }
 
-func TestApplyIntentNoopWhenImportAlreadyPresent(t *testing.T) {
+func TestDispatchIntentNoopWhenImportAlreadyPresent(t *testing.T) {
 	t.Parallel()
 
 	service := NewService()
@@ -69,9 +69,9 @@ func main() {
 		},
 	}
 
-	result, err := service.ApplyIntent(params, intent)
+	result, err := service.DispatchIntent(params, intent)
 	if err != nil {
-		t.Fatalf("ApplyIntent returned error: %v", err)
+		t.Fatalf("DispatchIntent returned error: %v", err)
 	}
 	if result.Kind != "noop" {
 		t.Fatalf("expected noop result, got %q", result.Kind)

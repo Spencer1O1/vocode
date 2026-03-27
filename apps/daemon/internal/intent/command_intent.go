@@ -12,8 +12,8 @@ type CommandIntent struct {
 	TimeoutMs *int64   `json:"timeoutMs,omitempty"`
 }
 
-func (i CommandIntent) CommandParams() protocol.CommandRunParams {
-	return protocol.CommandRunParams{
+func (i CommandIntent) CommandDirective() protocol.CommandDirective {
+	return protocol.CommandDirective{
 		Command:   strings.TrimSpace(i.Command),
 		Args:      i.Args,
 		TimeoutMs: i.TimeoutMs,

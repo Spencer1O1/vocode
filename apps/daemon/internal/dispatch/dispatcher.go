@@ -6,50 +6,67 @@ import (
 	"vocoding.net/vocode/v2/apps/daemon/internal/commandexec"
 	"vocoding.net/vocode/v2/apps/daemon/internal/edits"
 	"vocoding.net/vocode/v2/apps/daemon/internal/intent"
+	"vocoding.net/vocode/v2/apps/daemon/internal/navigation"
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
 type Dispatcher struct {
 	edits    *edits.Service
 	commands *commandexec.Service
+	nav      *navigation.Service
 }
 
-func NewDispatcher(editsService *edits.Service, commandService *commandexec.Service) *Dispatcher {
-	return &Dispatcher{edits: editsService, commands: commandService}
+func NewDispatcher(editsService *edits.Service, commandService *commandexec.Service, navigationService *navigation.Service) *Dispatcher {
+	return &Dispatcher{edits: editsService, commands: commandService, nav: navigationService}
 }
 
-type StepResult struct {
-	EditResult    *protocol.EditApplyResult
-	CommandParams *protocol.CommandRunParams
+type DispatchResult struct {
+	EditDirective    *protocol.EditDirective
+	CommandDirective *protocol.CommandDirective
 	Navigation    *intent.NavigationIntent
 }
 
-func (d *Dispatcher) ExecuteNextIntent(next intent.NextIntent, editCtx edits.EditExecutionContext) (StepResult, error) {
+// DispatchExecutableIntent handles only executable intents (edit/command/navigate).
+// Control-flow intents (done/request_context) are handled by the intent loop.
+func (d *Dispatcher) DispatchExecutableIntent(next intent.NextIntent, editCtx edits.EditExecutionContext) (DispatchResult, error) {
 	if err := intent.ValidateNextIntent(next); err != nil {
-		return StepResult{}, err
+		return DispatchResult{}, err
 	}
 	switch next.Kind {
 	case intent.NextIntentKindEdit:
-		res, err := d.edits.ApplyIntent(editCtx, *next.Edit)
+		res, err := d.edits.DispatchIntent(editCtx, *next.Edit)
 		if err != nil {
-			return StepResult{}, fmt.Errorf("next intent edit: %w", err)
+			return DispatchResult{}, fmt.Errorf("next intent edit: %w", err)
 		}
-		return StepResult{EditResult: &res}, nil
+		return DispatchResult{EditDirective: &res}, nil
 	case intent.NextIntentKindCommand:
-		params := next.Command.CommandParams()
+		var (
+			directive protocol.CommandDirective
+			err    error
+		)
 		if d.commands != nil {
-			if err := d.commands.Validate(params); err != nil {
-				return StepResult{}, fmt.Errorf("next intent command: %w", err)
-			}
+			directive, err = d.commands.DispatchIntent(*next.Command)
+		} else {
+			directive = next.Command.CommandDirective()
 		}
-		return StepResult{CommandParams: &params}, nil
+		if err != nil {
+			return DispatchResult{}, fmt.Errorf("next intent command: %w", err)
+		}
+		return DispatchResult{CommandDirective: &directive}, nil
 	case intent.NextIntentKindNavigate:
-		return StepResult{Navigation: next.Navigate}, nil
+		if d.nav != nil {
+			nav, err := d.nav.DispatchIntent(*next.Navigate)
+			if err != nil {
+				return DispatchResult{}, fmt.Errorf("next intent navigate: %w", err)
+			}
+			return DispatchResult{Navigation: &nav}, nil
+		}
+		return DispatchResult{Navigation: next.Navigate}, nil
 	case intent.NextIntentKindDone:
-		return StepResult{}, fmt.Errorf("done is not executable")
+		return DispatchResult{}, fmt.Errorf("done is not executable")
 	case intent.NextIntentKindRequestContext:
-		return StepResult{}, fmt.Errorf("request_context is not executable")
+		return DispatchResult{}, fmt.Errorf("request_context is not executable")
 	default:
-		return StepResult{}, fmt.Errorf("unknown next intent kind %q", next.Kind)
+		return DispatchResult{}, fmt.Errorf("unknown next intent kind %q", next.Kind)
 	}
 }

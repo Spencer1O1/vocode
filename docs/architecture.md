@@ -82,11 +82,11 @@ Does not own:
 - Planning/orchestration/business logic
 - Editor or transport implementations
 
-## Edit apply result shape (`EditApplyResult`)
+## Edit directive shape (`EditDirective`)
 
-There is **no** `edit.apply` or **`command.run`** JSON-RPC method; the extension does not call them. **`EditApplyResult`** and **`CommandRunResult`** remain in the protocol for generated types, validators, and **Go tests**.
+There is **no** `edit.dispatch` or **`command.run`** JSON-RPC method; the extension does not call them. `VoiceTranscriptResult` carries execution `directives` for edit/command/navigation.
 
-**`EditApplyResult`** must be one explicit variant:
+**`EditDirective`** must be one explicit variant:
 
 - `success` with `actions`
 - `failure` with `failure`
@@ -163,9 +163,9 @@ Rules:
 ### How to add a new edit-planner capability
 
 1. Extend `internal/agent` edit intent handling (or model output validation) as needed.
-2. Return deterministic `EditIntent` or structured `EditFailure`.
+2. Return deterministic `EditIntent`; edit-building failures are handled inside the daemon and never reach the extension.
 3. Keep intent-level semantics in agent, not in `internal/edits`.
-4. Ensure `edits.Service.ApplyIntent` maps intent + file snapshot to `EditApplyResult` variants.
+4. Ensure `edits.Service.DispatchIntent` maps intent + file snapshot to `EditDirective` variants.
 5. Add planner tests for:
    - supported instruction parsing
    - unsupported instruction failures
@@ -202,7 +202,7 @@ Before merging:
 - `main.go` remains bootstrap-only
 - `internal/app` remains composition + orchestration owner
 - `internal/rpc` remains transport/routing only
-- `edits.Service.ApplyIntent` wraps `BuildActions` into protocol `EditApplyResult` (not an RPC)
+- `edits.Service.DispatchIntent` wraps `BuildActions` into protocol `EditDirective` (not an RPC)
 - Extension contains only mechanical apply + UI policy
 - Protocol schema/types/validators/runtime behavior stay aligned
 - Tests cover variant invariants and boundary behavior

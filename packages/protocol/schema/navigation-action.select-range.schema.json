@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vocoding.net/schemas/navigation-action.select-range.schema.json",
+  "title": "NavigationActionSelectRange",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "selectRange"],
+  "properties": {
+    "kind": { "const": "select_range" },
+    "selectRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target"],
+      "properties": {
+        "target": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["startLine", "startChar", "endLine", "endChar"],
+          "properties": {
+            "path": { "type": "string" },
+            "startLine": { "type": "integer" },
+            "startChar": { "type": "integer" },
+            "endLine": { "type": "integer" },
+            "endChar": { "type": "integer" }
+          }
+        }
+      }
+    }
+  }
+}
