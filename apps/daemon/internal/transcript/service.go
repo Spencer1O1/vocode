@@ -2,7 +2,6 @@ package transcript
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -269,8 +268,12 @@ func planHasEditStep(p *actionplan.ActionPlan) bool {
 // Unsaved editor buffers are not visible until workspace indexing supplies them.
 func buildEditApplyParams(params protocol.VoiceTranscriptParams, plan *actionplan.ActionPlan) (edits.EditExecutionContext, string) {
 	active := strings.TrimSpace(params.ActiveFile)
+	workspaceRoot := strings.TrimSpace(params.WorkspaceRoot)
 	if planHasEditStep(plan) && active == "" {
 		return edits.EditExecutionContext{}, "activeFile is required when the plan includes edit steps"
+	}
+	if planHasEditStep(plan) && workspaceRoot == "" {
+		return edits.EditExecutionContext{}, "workspaceRoot is required when the plan includes edit steps"
 	}
 	fileText := ""
 	if active != "" {
@@ -284,7 +287,7 @@ func buildEditApplyParams(params protocol.VoiceTranscriptParams, plan *actionpla
 		Instruction:   params.Text,
 		ActiveFile:    params.ActiveFile,
 		FileText:      fileText,
-		WorkspaceRoot: mustGetwd(),
+		WorkspaceRoot: workspaceRoot,
 	}, ""
 }
 
@@ -301,21 +304,57 @@ func envInt(key string, def int) int {
 }
 
 func toProtocolNavigationIntent(n actionplan.NavigationIntent) *protocol.NavigationIntent {
-	var out protocol.NavigationIntent
-	b, err := json.Marshal(n)
-	if err != nil {
-		return &out
+	out := &protocol.NavigationIntent{
+		Kind: string(n.Kind),
 	}
-	if err := json.Unmarshal(b, &out); err != nil {
-		return &out
+	if n.OpenFile != nil {
+		out.OpenFile = &struct {
+			Path string `json:"path"`
+		}{Path: n.OpenFile.Path}
 	}
-	return &out
-}
-
-func mustGetwd() string {
-	wd, err := os.Getwd()
-	if err != nil {
-		return ""
+	if n.RevealSymbol != nil {
+		out.RevealSymbol = &struct {
+			Path       string `json:"path,omitempty"`
+			SymbolName string `json:"symbolName"`
+			SymbolKind string `json:"symbolKind,omitempty"`
+		}{
+			Path:       n.RevealSymbol.Path,
+			SymbolName: n.RevealSymbol.SymbolName,
+			SymbolKind: n.RevealSymbol.SymbolKind,
+		}
 	}
-	return wd
+	if n.MoveCursor != nil {
+		out.MoveCursor = &struct {
+			Target struct {
+				Path string `json:"path,omitempty"`
+				Line int64  `json:"line"`
+				Char int64  `json:"char"`
+			} `json:"target"`
+		}{}
+		out.MoveCursor.Target.Path = n.MoveCursor.Target.Path
+		out.MoveCursor.Target.Line = int64(n.MoveCursor.Target.Line)
+		out.MoveCursor.Target.Char = int64(n.MoveCursor.Target.Char)
+	}
+	if n.SelectRange != nil {
+		out.SelectRange = &struct {
+			Target struct {
+				Path      string `json:"path,omitempty"`
+				StartLine int64  `json:"startLine"`
+				StartChar int64  `json:"startChar"`
+				EndLine   int64  `json:"endLine"`
+				EndChar   int64  `json:"endChar"`
+			} `json:"target"`
+		}{}
+		out.SelectRange.Target.Path = n.SelectRange.Target.Path
+		out.SelectRange.Target.StartLine = int64(n.SelectRange.Target.StartLine)
+		out.SelectRange.Target.StartChar = int64(n.SelectRange.Target.StartChar)
+		out.SelectRange.Target.EndLine = int64(n.SelectRange.Target.EndLine)
+		out.SelectRange.Target.EndChar = int64(n.SelectRange.Target.EndChar)
+	}
+	if n.RevealEdit != nil {
+		out.RevealEdit = &struct {
+			EditId string `json:"editId"`
+		}{EditId: n.RevealEdit.EditID}
+	}
+	return out
 }

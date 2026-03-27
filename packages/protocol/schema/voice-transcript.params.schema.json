@@ -9,6 +9,10 @@
     "activeFile": {
       "type": "string",
       "description": "Absolute path of the active editor file; the daemon loads content (indexing / snapshot later)."
+    },
+    "workspaceRoot": {
+      "type": "string",
+      "description": "Absolute workspace root path used for deterministic relative path resolution in daemon symbol/edit context."
     }
   },
   "required": ["text"]

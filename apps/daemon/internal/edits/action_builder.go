@@ -419,7 +419,7 @@ func (b *ActionBuilder) resolveFunctionSource(
 		if target.Symbol != nil {
 			kind = target.Symbol.SymbolKind
 		}
-		matches, err := b.symbolResolver.ResolveSymbol(ctx.WorkspaceRoot, name, kind, "")
+		matches, err := b.symbolResolver.ResolveSymbol(ctx.WorkspaceRoot, name, kind, ctx.ActiveFile)
 		if err == nil {
 			switch len(matches) {
 			case 0:

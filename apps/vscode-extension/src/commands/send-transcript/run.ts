@@ -41,12 +41,14 @@ export async function runSendTranscript(
   }
 
   const activePath = editor.document.uri.fsPath;
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
   try {
     services.voiceStatus.setProcessing();
     const result = await client.transcript({
       text: trimmedText,
       activeFile: activePath,
+      workspaceRoot,
     });
     await presentTranscriptResult(result, activePath);
   } catch (err) {

@@ -1,7 +1,9 @@
 package symbols
 
 import (
+	"bufio"
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -36,9 +38,12 @@ func (r *RipgrepResolver) ResolveSymbol(workspaceRoot, symbolName, symbolKind, h
 		kind = "function"
 	}
 
-	// Broad lexical search, narrowed by a lightweight parse of rg output.
-	pattern := regexp.QuoteMeta(name) + `\s*\(`
-	cmd := exec.Command("rg", "-n", "--no-heading", "--glob", "*.{go,ts,tsx,js,jsx}", pattern, root)
+	pattern := buildPattern(kind, name)
+	if pattern == "" {
+		pattern = regexp.QuoteMeta(name)
+	}
+
+	cmd := exec.Command("rg", "--json", "-n", "--glob", "*.{go,ts,tsx,js,jsx}", pattern, root)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -49,26 +54,25 @@ func (r *RipgrepResolver) ResolveSymbol(workspaceRoot, symbolName, symbolKind, h
 		return nil, nil
 	}
 
-	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
-	out := make([]SymbolRef, 0, len(lines))
+	out := make([]SymbolRef, 0, 8)
 	seen := map[string]bool{}
-	for _, line := range lines {
-		if strings.TrimSpace(line) == "" {
+	scanner := bufio.NewScanner(bytes.NewReader(stdout.Bytes()))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
 			continue
 		}
-		parts := strings.SplitN(line, ":", 3)
-		if len(parts) < 2 {
+		match, ok := parseRGJSONMatchLine(line)
+		if !ok {
 			continue
 		}
-		p := filepath.Clean(parts[0])
-		key := p + ":" + parts[1]
+		p := filepath.Clean(match.Path)
+		key := fmt.Sprintf("%s:%d", p, match.Line)
 		if seen[key] {
 			continue
 		}
 		seen[key] = true
-		lineNo := 0
-		_, _ = fmt.Sscanf(parts[1], "%d", &lineNo)
-		out = append(out, SymbolRef{Path: p, Line: lineNo, Kind: kind})
+		out = append(out, SymbolRef{Path: p, Line: match.Line, Kind: kind})
 	}
 
 	// If a hint path exists, bias to that file first.
@@ -85,6 +89,48 @@ func (r *RipgrepResolver) ResolveSymbol(workspaceRoot, symbolName, symbolKind, h
 		}
 	}
 	return out, nil
+}
+
+type rgJSONLine struct {
+	Type string `json:"type"`
+	Data struct {
+		Path struct {
+			Text string `json:"text"`
+		} `json:"path"`
+		LineNumber int `json:"line_number"`
+	} `json:"data"`
+}
+
+func parseRGJSONMatchLine(line string) (SymbolRef, bool) {
+	var msg rgJSONLine
+	if err := json.Unmarshal([]byte(line), &msg); err != nil {
+		return SymbolRef{}, false
+	}
+	if msg.Type != "match" {
+		return SymbolRef{}, false
+	}
+	if strings.TrimSpace(msg.Data.Path.Text) == "" || msg.Data.LineNumber <= 0 {
+		return SymbolRef{}, false
+	}
+	return SymbolRef{
+		Path: msg.Data.Path.Text,
+		Line: msg.Data.LineNumber,
+	}, true
+}
+
+func buildPattern(kind, name string) string {
+	q := regexp.QuoteMeta(strings.TrimSpace(name))
+	if q == "" {
+		return ""
+	}
+	switch kind {
+	case "function", "method":
+		return q + `\s*\(`
+	case "class":
+		return `\bclass\s+` + q + `\b`
+	default:
+		return q
+	}
 }
 
 func samePath(a, b string) bool {

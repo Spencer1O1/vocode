@@ -30,12 +30,9 @@ function toAbsolutePath(
 }
 
 /**
- * Applies one edit step's edit actions (anchor-based `replace_between_anchors`)
- * directly into the active VS Code editor.
- *
- * Returns `true` if the edit result either had nothing to apply or was applied
- * successfully. Returns `false` if the active editor/file no longer matches
- * or the workspace edit fails.
+ * Applies one edit step's actions by opening each target document and
+ * submitting workspace edits. Also returns per-action edit locations for
+ * follow-up navigation (e.g. reveal_edit).
  */
 export async function applyEditResultWorkspaceEdits(
   editResult: EditApplyResult,

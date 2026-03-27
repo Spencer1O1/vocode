@@ -13,6 +13,10 @@ import { MicrophoneCapture } from "./voice/microphone";
 import { VoiceSidecarClient } from "./voice-sidecar/client";
 import { spawnVoiceSidecar } from "./voice-sidecar/spawn";
 
+function workspaceRootPath(): string | undefined {
+  return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+}
+
 function createServices(
   context: vscode.ExtensionContext,
   voiceStatus: VoiceStatusIndicator,
@@ -82,6 +86,7 @@ function createServices(
           const result = await client.transcript({
             text,
             activeFile,
+            workspaceRoot: workspaceRootPath(),
           });
           await presentTranscriptResult(result, activeFile);
         } catch (err) {
