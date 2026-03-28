@@ -18,7 +18,7 @@ type controlDispatch interface {
 func controlFor(c *intents.ControlIntent) (controlDispatch, error) {
 	switch c.Kind {
 	case intents.ControlIntentKindDone:
-		return doneControl{}, nil
+		return doneControl{done: c.Done}, nil
 	case intents.ControlIntentKindRequestContext:
 		return requestContextControl{req: c.RequestContext}, nil
 	default:
@@ -26,14 +26,16 @@ func controlFor(c *intents.ControlIntent) (controlDispatch, error) {
 	}
 }
 
-type doneControl struct{}
+type doneControl struct {
+	done *intents.DoneIntent
+}
 
-func (doneControl) dispatch(_ *Handler, _ HandleInput) (*ControlResult, error) {
-	_, err := done.Dispatch()
+func (d doneControl) dispatch(_ *Handler, _ HandleInput) (*ControlResult, error) {
+	summary, err := done.Dispatch(d.done)
 	if err != nil {
 		return nil, err
 	}
-	return &ControlResult{Done: &DoneResult{}}, nil
+	return &ControlResult{Done: &DoneResult{Summary: summary}}, nil
 }
 
 type requestContextControl struct {

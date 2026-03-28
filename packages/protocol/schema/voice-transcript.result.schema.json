@@ -6,6 +6,11 @@
   "additionalProperties": false,
   "properties": {
     "accepted": { "type": "boolean" },
+    "summary": {
+      "type": "string",
+      "description": "Human-readable summary from the planner when the turn completes (done intent); for host UI.",
+      "maxLength": 8192
+    },
     "directives": {
       "type": "array",
       "items": {

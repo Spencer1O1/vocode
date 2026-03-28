@@ -7,6 +7,26 @@ test("isVoiceTranscriptResult accepts accepted=true shape", () => {
   assert.equal(isVoiceTranscriptResult({ accepted: true }), true);
 });
 
+test("isVoiceTranscriptResult accepts summary when accepted", () => {
+  assert.equal(
+    isVoiceTranscriptResult({
+      accepted: true,
+      summary: "Renamed the handler and fixed imports.",
+    }),
+    true,
+  );
+});
+
+test("isVoiceTranscriptResult rejects summary when not accepted", () => {
+  assert.equal(
+    isVoiceTranscriptResult({
+      accepted: false,
+      summary: "oops",
+    }),
+    false,
+  );
+});
+
 test("isVoiceTranscriptResult rejects accepted=false shape", () => {
   assert.equal(isVoiceTranscriptResult({ accepted: false }), true);
 });

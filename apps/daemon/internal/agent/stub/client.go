@@ -72,7 +72,7 @@ func (*Client) NextIntent(ctx context.Context, in agent.ModelInput) (intents.Int
 			Command: stubEchoRunCommand(),
 		}), nil
 	default:
-		return intents.ControlDone(), nil
+		return intents.ControlDoneSummary("stub model completed 4 steps"), nil
 	}
 }
 

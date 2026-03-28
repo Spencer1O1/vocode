@@ -248,9 +248,17 @@ export function isVoiceTranscriptResult(
   if (!isRecord(value) || typeof value.accepted !== "boolean") {
     return false;
   }
-  const allowedKeys = new Set(["accepted", "directives"]);
+  const allowedKeys = new Set(["accepted", "directives", "summary"]);
   if (!Object.keys(value).every((k) => allowedKeys.has(k))) {
     return false;
+  }
+  if (value.summary !== undefined) {
+    if (typeof value.summary !== "string") {
+      return false;
+    }
+    if ([...value.summary].length > 8192) {
+      return false;
+    }
   }
   if (value.directives !== undefined) {
     if (!Array.isArray(value.directives)) {
@@ -261,6 +269,9 @@ export function isVoiceTranscriptResult(
     }
   }
   if (value.accepted !== true && value.directives !== undefined) {
+    return false;
+  }
+  if (value.accepted !== true && value.summary !== undefined) {
     return false;
   }
   return true;

@@ -19,6 +19,7 @@ const (
 type ControlIntent struct {
 	Kind           ControlIntentKind     `json:"kind"`
 	RequestContext *RequestContextIntent `json:"requestContext,omitempty"`
+	Done           *DoneIntent           `json:"done,omitempty"`
 }
 
 // --- Executable intents (produce protocol directives for the host) ---
@@ -43,7 +44,7 @@ type ExecutableIntent struct {
 
 // Intent is exactly one of [ControlIntent] or [ExecutableIntent] (union).
 // JSON is a single object with top-level "kind" (and payload fields), e.g.
-// {"kind":"done"}, {"kind":"request_context","requestContext":{...}}, {"kind":"edit","edit":{...}}.
+// {"kind":"done"}, {"kind":"done","done":{"summary":"..."}}, {"kind":"request_context","requestContext":{...}}, {"kind":"edit","edit":{...}}.
 type Intent struct {
 	Control    *ControlIntent    `json:"-"`
 	Executable *ExecutableIntent `json:"-"`
@@ -52,6 +53,11 @@ type Intent struct {
 // ControlDone returns an intent that stops the planner loop.
 func ControlDone() Intent {
 	return Intent{Control: &ControlIntent{Kind: ControlIntentKindDone}}
+}
+
+// ControlDoneSummary returns a done intent with optional human-readable summary for the host UI.
+func ControlDoneSummary(summary string) Intent {
+	return Intent{Control: &ControlIntent{Kind: ControlIntentKindDone, Done: &DoneIntent{Summary: summary}}}
 }
 
 // ControlRequestContext returns an intent that enriches planner context (symbols, excerpts, notes).
@@ -99,7 +105,7 @@ func validateControlIntent(c ControlIntent) error {
 		if c.RequestContext != nil {
 			return fmt.Errorf("intent: kind %q must not set requestContext", c.Kind)
 		}
-		return nil
+		return validateDoneIntent(c.Done)
 	case ControlIntentKindRequestContext:
 		if c.RequestContext == nil {
 			return fmt.Errorf("intent: kind %q requires requestContext", c.Kind)
@@ -162,7 +168,14 @@ func (i *Intent) UnmarshalJSON(data []byte) error {
 	}
 	switch kind {
 	case string(ControlIntentKindDone):
-		i.Control = &ControlIntent{Kind: ControlIntentKindDone}
+		var d *DoneIntent
+		if rawDone, ok := raw["done"]; ok && len(rawDone) > 0 && string(rawDone) != "null" {
+			d = new(DoneIntent)
+			if err := json.Unmarshal(rawDone, d); err != nil {
+				return fmt.Errorf("intent: done: %w", err)
+			}
+		}
+		i.Control = &ControlIntent{Kind: ControlIntentKindDone, Done: d}
 	case string(ControlIntentKindRequestContext):
 		rc := new(RequestContextIntent)
 		if err := json.Unmarshal(raw["requestContext"], rc); err != nil {
@@ -214,6 +227,12 @@ func (i Intent) MarshalJSON() ([]byte, error) {
 	if c := i.Control; c != nil {
 		switch c.Kind {
 		case ControlIntentKindDone:
+			if c.Done != nil {
+				return json.Marshal(struct {
+					Kind string `json:"kind"`
+					Done *DoneIntent `json:"done"`
+				}{Kind: string(c.Kind), Done: c.Done})
+			}
 			return json.Marshal(struct {
 				Kind string `json:"kind"`
 			}{Kind: string(c.Kind)})

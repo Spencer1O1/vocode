@@ -58,6 +58,11 @@ async function sendTranscript(
       workspaceRoot,
     });
     await applyTranscriptResult(result, activePath);
+    if (result.accepted) {
+      services.transcriptStore.recordCompletedTranscript(trimmedText, {
+        summary: result.summary?.trim() || undefined,
+      });
+    }
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Failed to send transcript.";

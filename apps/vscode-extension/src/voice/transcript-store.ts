@@ -16,10 +16,11 @@ export type PendingTranscript = {
 export type TranscriptPanelSnapshot = {
   /** Committed lines still in flight (queued, processing, or error). */
   readonly pending: readonly PendingTranscript[];
-  /** Recently completed lines (newest first). */
+  /** Recently completed lines (newest first). Optional `summary` is planner text for the Summary panel. */
   readonly recentHandled: readonly {
     readonly text: string;
     readonly receivedAt: Date;
+    readonly summary?: string;
   }[];
   /** Latest partial hypothesis after the most recent committed event. */
   readonly latestPartial: string | null;
@@ -42,7 +43,11 @@ export class TranscriptStore {
   private nextId = 1;
 
   private readonly pending: PendingTranscript[] = [];
-  private recentHandled: { text: string; receivedAt: Date }[] = [];
+  private recentHandled: {
+    text: string;
+    receivedAt: Date;
+    summary?: string;
+  }[] = [];
 
   private latestPartial: string | null = null;
   private voiceListening = false;
@@ -161,15 +166,41 @@ export class TranscriptStore {
     }
   }
 
-  markHandled(id: number): void {
+  markHandled(id: number, options?: { summary?: string }): void {
     const index = this.pending.findIndex((p) => p.id === id);
     if (index === -1) {
       return;
     }
     const [removed] = this.pending.splice(index, 1);
+    const summary = options?.summary?.trim();
     this.recentHandled.unshift({
       text: removed.text,
       receivedAt: removed.receivedAt,
+      ...(summary ? { summary } : {}),
+    });
+    while (this.recentHandled.length > this.maxHandled) {
+      this.recentHandled.pop();
+    }
+    this.emit();
+  }
+
+  /**
+   * Records a completed transcript that did not go through the pending queue (e.g. manual send).
+   * Shown under Done; optional summary appears in the Summary section.
+   */
+  recordCompletedTranscript(
+    text: string,
+    options?: { summary?: string },
+  ): void {
+    const normalized = text.trim();
+    if (!normalized) {
+      return;
+    }
+    const summary = options?.summary?.trim();
+    this.recentHandled.unshift({
+      text: normalized,
+      receivedAt: new Date(),
+      ...(summary ? { summary } : {}),
     });
     while (this.recentHandled.length > this.maxHandled) {
       this.recentHandled.pop();

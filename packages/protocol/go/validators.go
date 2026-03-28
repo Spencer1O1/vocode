@@ -167,6 +167,12 @@ func (r VoiceTranscriptResult) Validate() error {
 	if !r.Accepted && len(r.Directives) > 0 {
 		return errors.New("voice transcript result must not include directives when accepted=false")
 	}
+	if !r.Accepted && r.Summary != "" {
+		return errors.New("voice transcript result must not include summary when accepted=false")
+	}
+	if len([]rune(r.Summary)) > 8192 {
+		return errors.New("voice transcript result: summary exceeds max length")
+	}
 	for i := range r.Directives {
 		if err := r.Directives[i].Validate(); err != nil {
 			return fmt.Errorf("voice transcript result directives[%d]: %w", i, err)

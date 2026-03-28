@@ -42,6 +42,22 @@ test("tracks pending through processing to handled", () => {
   assert.equal(store.getSnapshot().recentHandled[0]?.text, "run tests");
 });
 
+test("markHandled stores optional planner summary", () => {
+  const store = new TranscriptStore();
+  const id = store.enqueueCommitted("fix the bug") as number;
+  store.markHandled(id, { summary: "  Updated handler and tests.  " });
+  const h = store.getSnapshot().recentHandled[0];
+  assert.equal(h?.summary, "Updated handler and tests.");
+});
+
+test("recordCompletedTranscript appends done entry without pending", () => {
+  const store = new TranscriptStore();
+  store.recordCompletedTranscript("manual line", { summary: "Done." });
+  const h = store.getSnapshot().recentHandled[0];
+  assert.equal(h?.text, "manual line");
+  assert.equal(h?.summary, "Done.");
+});
+
 test("markError leaves the line visible as error", () => {
   const store = new TranscriptStore();
   const id = store.enqueueCommitted("x") as number;

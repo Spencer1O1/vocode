@@ -66,6 +66,7 @@ func (e *Executor) Execute(params protocol.VoiceTranscriptParams) (protocol.Voic
 	directives := make([]protocol.VoiceTranscriptDirective, 0, maxTurns)
 	trace := make([]string, 0, maxTurns*2)
 	stopPlanning := false
+	var transcriptSummary string
 
 loop:
 	for i := 0; i < maxTurns; i++ {
@@ -139,6 +140,7 @@ loop:
 		case out.Control != nil:
 			cr := out.Control
 			if cr.Done != nil {
+				transcriptSummary = cr.Done.Summary
 				break loop
 			}
 			if cr.Fulfilled != nil {
@@ -202,7 +204,7 @@ loop:
 		trace = appendTrace(trace, "cap:max_turns")
 		return protocol.VoiceTranscriptResult{Accepted: false}, true
 	}
-	result := protocol.VoiceTranscriptResult{Accepted: true, Directives: directives}
+	result := protocol.VoiceTranscriptResult{Accepted: true, Directives: directives, Summary: transcriptSummary}
 	if err := result.Validate(); err != nil {
 		return protocol.VoiceTranscriptResult{Accepted: false}, true
 	}

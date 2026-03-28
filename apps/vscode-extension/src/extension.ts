@@ -134,7 +134,12 @@ function createServices(
             workspaceRoot: workspaceRootPath(),
           });
           await applyTranscriptResult(result, activeFile);
-          transcriptStore.markHandled(pendingId);
+          transcriptStore.markHandled(pendingId, {
+            summary:
+              result.accepted && result.summary
+                ? result.summary.trim() || undefined
+                : undefined,
+          });
         } catch (err) {
           transcriptStore.markError(pendingId);
           const message =

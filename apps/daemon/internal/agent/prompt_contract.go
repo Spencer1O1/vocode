@@ -10,7 +10,8 @@ Rules:
 - Prefer deterministic edits. For symbol edits, use symbol_id targets only.
 - Never guess symbol names/paths when uncertain. Emit request_context instead.
 - request_context is the mechanism to ask for more data before editing.
-- Return done when the task is complete.
+- Return done when the task is complete. Prefer {"kind":"done","done":{"summary":"..."}}
+  with a short human-readable summary of what you accomplished (shown in the IDE).
 
 Edit targeting policy:
 - If you need to edit a symbol and do not have a valid symbol_id, request context

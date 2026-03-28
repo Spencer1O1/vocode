@@ -99,6 +99,17 @@ export class TranscriptPanelViewProvider
       box-shadow: 0 1px 2px rgba(0,0,0,0.06);
     }
     .card.done { opacity: 0.85; }
+    .card.summary {
+      border-left: 3px solid var(--vscode-notificationsInfoIcon-foreground, var(--vscode-textLink-foreground));
+      background: var(--vscode-editor-inactiveSelectionBackground, var(--vscode-input-background));
+    }
+    .summary-for {
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      margin-top: 8px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
     .card.pending { border-left: 3px solid var(--vscode-progressBar-background); }
     .card.processing { border-left: 3px solid var(--vscode-textLink-foreground); }
     .card.error { border-left: 3px solid var(--vscode-errorForeground); }
@@ -375,6 +386,39 @@ export class TranscriptPanelViewProvider
               '<div class="meta"><span>' + esc(fmtTime(h.receivedAt)) + "</span></div>" +
               '<div class="text">' + esc(h.text) + "</div>" +
             "</div>"
+          );
+        }
+        parts.push("</div>");
+      }
+
+      parts.push("<h1" + sectionTitleMargin + ">Summary</h1>");
+      const withSummaries = recentHandled.filter(
+        function (h) {
+          return typeof h.summary === "string" && h.summary.length > 0;
+        },
+      );
+      if (!withSummaries.length) {
+        parts.push(
+          '<div class="empty">When the planner finishes with a short summary, it appears here with the matching transcript.</div>',
+        );
+      } else {
+        parts.push('<div class="stack">');
+        for (const h of withSummaries) {
+          const preview =
+            typeof h.text === "string" && h.text.length > 140
+              ? h.text.slice(0, 140) + "…"
+              : h.text || "";
+          parts.push(
+            '<div class="card summary">' +
+              '<div class="meta">' +
+              '<span class="badge" title="Planner done summary for this turn">Summary</span>' +
+              "<span>" + esc(fmtTime(h.receivedAt)) + "</span>" +
+              "</div>" +
+              '<div class="text">' + esc(h.summary) + "</div>" +
+              (preview
+                ? '<div class="summary-for">Transcript: ' + esc(preview) + "</div>"
+                : "") +
+              "</div>",
           );
         }
         parts.push("</div>");

@@ -2,6 +2,7 @@ package intents
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -9,6 +10,18 @@ func TestValidateIntentDone(t *testing.T) {
 	t.Parallel()
 	if err := ControlDone().Validate(); err != nil {
 		t.Fatalf("expected done to be valid: %v", err)
+	}
+	if err := ControlDoneSummary("Applied edits and ran tests.").Validate(); err != nil {
+		t.Fatalf("expected done with summary to be valid: %v", err)
+	}
+}
+
+func TestValidateIntentDoneSummaryTooLong(t *testing.T) {
+	t.Parallel()
+	s := strings.Repeat("x", maxDoneSummaryRunes+1)
+	err := ControlDoneSummary(s).Validate()
+	if err == nil {
+		t.Fatal("expected error for oversized done summary")
 	}
 }
 
@@ -27,6 +40,7 @@ func TestIntentJSONRoundTrip(t *testing.T) {
 	t.Parallel()
 	cases := []Intent{
 		ControlDone(),
+		ControlDoneSummary("all set"),
 		FromExecutable(ExecutableIntent{
 			Kind: ExecutableIntentKindCommand,
 			Command: &CommandIntent{

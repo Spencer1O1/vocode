@@ -30,8 +30,10 @@ type ExecutableResult struct {
 }
 
 // DoneResult is the control outcome when the planner stops (done intent). It carries no
-// protocol directives; fields may grow (e.g. a host-facing summary string).
-type DoneResult struct{}
+// protocol directives; Summary is copied to the transcript result for the extension UI.
+type DoneResult struct {
+	Summary string
+}
 
 // RequestContextFulfilled is the control outcome after a request_context intent is fulfilled.
 type RequestContextFulfilled struct {
