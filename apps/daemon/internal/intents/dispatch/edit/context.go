@@ -3,8 +3,8 @@ package edit
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
+
+	"vocoding.net/vocode/v2/apps/daemon/internal/workspace"
 )
 
 // EditExecutionContext is the daemon-side context used to compile edit intents
@@ -22,18 +22,7 @@ type EditExecutionContext struct {
 }
 
 func (c EditExecutionContext) ResolvePath(targetPath string) string {
-	target := strings.TrimSpace(targetPath)
-	if target == "" {
-		return filepath.Clean(c.ActiveFile)
-	}
-	if filepath.IsAbs(target) || strings.HasPrefix(target, "/") || strings.HasPrefix(target, "\\") {
-		return filepath.Clean(target)
-	}
-	root := strings.TrimSpace(c.WorkspaceRoot)
-	if root == "" {
-		return ""
-	}
-	return filepath.Clean(filepath.Join(root, target))
+	return workspace.ResolveTargetPath(c.WorkspaceRoot, c.ActiveFile, targetPath)
 }
 
 func (c EditExecutionContext) GetFileText(path string) (string, error) {

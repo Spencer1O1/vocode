@@ -7,9 +7,9 @@ import (
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
-// DispatchEdit validates [intents.EditIntent], runs action building, and returns a protocol
+// Dispatch validates [intents.EditIntent], runs action building, and returns a protocol
 // [protocol.EditDirective] (success or noop).
-func (e *Engine) DispatchEdit(ctx EditExecutionContext, editIntent intents.EditIntent) (protocol.EditDirective, error) {
+func Dispatch(e *Engine, ctx EditExecutionContext, editIntent intents.EditIntent) (protocol.EditDirective, error) {
 	if err := intents.ValidateEditIntent(editIntent); err != nil {
 		return protocol.EditDirective{}, err
 	}

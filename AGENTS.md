@@ -96,7 +96,7 @@ One rule should have one owner. Duplicating ownership is a regression risk.
 - Intent types + validation: `apps/daemon/internal/intents`
 - Voice transcript (`apps/daemon/internal/transcript/`): `service.go` (RPC + optional queue/coalesce); `execute.go` (`Executor` — iterative planner intents, context rounds, retries, then `intents/dispatch` routing)
 - Intent model + validation: `apps/daemon/internal/intents/` (`package intents` — `Intent` union: `ControlIntent` | `ExecutableIntent`, `Validate`, JSON round-trip on `kind` + payloads)
-- Intent dispatch (`apps/daemon/internal/intents/dispatch/`): `dispatch.go` defines `Handler` + `Handle` (switches control vs executable). `dispatch/requestcontext` implements `request_context` fulfillment. `dispatch/command|navigation|undo|edit/` mirror extension `src/directives/`. `command`, `navigation`, and `undo` expose `DispatchCommand` / `DispatchNavigation` / `DispatchUndo` in each `dispatch.go`; `edit` uses `Engine` + `DispatchEdit` in `engine.go` / `edit/dispatch.go` (stateful builder)
+- Intent dispatch (`apps/daemon/internal/intents/dispatch/`): `dispatch.go` defines `Handler` + `Handle` (switches control vs executable). `dispatch/requestcontext` implements `request_context` fulfillment. `dispatch/command|navigation|undo|edit/` mirror extension `src/directives/`. `command`, `navigation`, and `undo` expose `Dispatch` in each `dispatch.go`; `edit` uses `Engine` + `DispatchEdit` in `engine.go` / `edit/dispatch.go` (stateful builder)
 
 ### Extension
 

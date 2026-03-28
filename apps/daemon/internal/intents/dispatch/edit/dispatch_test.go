@@ -31,9 +31,9 @@ func TestDispatchEditSuccess(t *testing.T) {
 		},
 	}
 
-	result, err := engine.DispatchEdit(params, intent)
+	result, err := Dispatch(engine, params, intent)
 	if err != nil {
-		t.Fatalf("DispatchEdit returned error: %v", err)
+		t.Fatalf("Dispatch returned error: %v", err)
 	}
 	if result.Kind != "success" {
 		t.Fatalf("expected success result, got %q", result.Kind)
@@ -69,9 +69,9 @@ func main() {
 		},
 	}
 
-	result, err := engine.DispatchEdit(params, intent)
+	result, err := Dispatch(engine, params, intent)
 	if err != nil {
-		t.Fatalf("DispatchEdit returned error: %v", err)
+		t.Fatalf("Dispatch returned error: %v", err)
 	}
 	if result.Kind != "noop" {
 		t.Fatalf("expected noop result, got %q", result.Kind)

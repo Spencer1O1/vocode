@@ -135,25 +135,32 @@ loop:
 			return protocol.VoiceTranscriptResult{Accepted: false}, true
 		}
 
-		switch out.Kind {
-		case dispatch.OutcomeDone:
-			break loop
-		case dispatch.OutcomeRequestContextFulfilled:
-			if e.maxContextBytes > 0 && estimatePlanningContextBytes(out.PlanningContext) > e.maxContextBytes {
-				trace = appendTurnTrace(trace, turn, "context:cap:byte_budget")
-				return protocol.VoiceTranscriptResult{Accepted: false}, true
+		switch {
+		case out.Control != nil:
+			cr := out.Control
+			if cr.Done != nil {
+				break loop
 			}
-			trace = appendTurnTrace(trace, turn, "context:fulfilled")
-			turnCtx = out.PlanningContext
-			completed = append(completed, next)
-			continue
-		case dispatch.OutcomeExecutableDispatched:
+			if cr.Fulfilled != nil {
+				pc := cr.Fulfilled.PlanningContext
+				if e.maxContextBytes > 0 && estimatePlanningContextBytes(pc) > e.maxContextBytes {
+					trace = appendTurnTrace(trace, turn, "context:cap:byte_budget")
+					return protocol.VoiceTranscriptResult{Accepted: false}, true
+				}
+				trace = appendTurnTrace(trace, turn, "context:fulfilled")
+				turnCtx = pc
+				completed = append(completed, next)
+				continue
+			}
+			trace = appendTurnTrace(trace, turn, "invalid_control_outcome")
+			return protocol.VoiceTranscriptResult{Accepted: false}, true
+		case out.Executable != nil:
 			maxRetries = e.maxIntentRetries
 			if maxRetries < 0 {
 				maxRetries = 0
 			}
 			consecutiveContextReq = 0
-			st := out.Dispatch
+			st := out.Executable
 			switch {
 			case st.EditDirective != nil:
 				if st.EditDirective.Kind == "success" {
@@ -179,7 +186,13 @@ loop:
 				directives = append(directives, protocol.VoiceTranscriptDirective{Kind: "undo", UndoDirective: st.UndoDirective})
 				trace = appendTurnTrace(trace, turn, "result:undo:"+st.UndoDirective.Scope)
 				completed = append(completed, next)
+			default:
+				trace = appendTurnTrace(trace, turn, "invalid_executable_outcome")
+				return protocol.VoiceTranscriptResult{Accepted: false}, true
 			}
+		default:
+			trace = appendTurnTrace(trace, turn, "empty_handle_outcome")
+			return protocol.VoiceTranscriptResult{Accepted: false}, true
 		}
 		if stopPlanning {
 			break

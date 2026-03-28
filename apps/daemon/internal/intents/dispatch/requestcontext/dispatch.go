@@ -12,8 +12,8 @@ import (
 
 	"vocoding.net/vocode/v2/apps/daemon/internal/agent"
 	"vocoding.net/vocode/v2/apps/daemon/internal/intents"
-	"vocoding.net/vocode/v2/apps/daemon/internal/intents/dispatch/edit"
 	"vocoding.net/vocode/v2/apps/daemon/internal/symbols"
+	"vocoding.net/vocode/v2/apps/daemon/internal/workspace"
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
@@ -28,11 +28,15 @@ func NewProvider(symbolResolver symbols.Resolver) *Provider {
 	return &Provider{symbols: symbolResolver}
 }
 
-func (p *Provider) Fulfill(
+func Dispatch(
+	p *Provider,
 	params protocol.VoiceTranscriptParams,
 	in agent.PlanningContext,
 	req *intents.RequestContextIntent,
 ) (agent.PlanningContext, error) {
+	if p == nil {
+		return in, fmt.Errorf("request_context: provider not configured")
+	}
 	if req == nil {
 		return in, fmt.Errorf("request_context missing payload")
 	}
@@ -71,8 +75,7 @@ func (p *Provider) Fulfill(
 		return out, nil
 	case intents.RequestContextKindFileExcerpt:
 		target := strings.TrimSpace(req.Path)
-		ec := edit.EditExecutionContext{ActiveFile: params.ActiveFile, WorkspaceRoot: params.WorkspaceRoot}
-		path := ec.ResolvePath(target)
+		path := workspace.ResolveTargetPath(params.WorkspaceRoot, params.ActiveFile, target)
 		if path == "" {
 			return out, fmt.Errorf("request_file_excerpt requires resolvable path")
 		}

@@ -12,7 +12,7 @@ var defaultPolicy = NewPolicy()
 
 // DispatchCommand validates command run parameters against daemon-side policy and returns
 // the wire directive for the extension.
-func DispatchCommand(cmd intents.CommandIntent) (protocol.CommandDirective, error) {
+func Dispatch(cmd intents.CommandIntent) (protocol.CommandDirective, error) {
 	params := protocol.NewCommandDirective(cmd.Command, cmd.Args, cmd.TimeoutMs)
 	if err := defaultPolicy.Validate(params); err != nil {
 		return protocol.CommandDirective{}, fmt.Errorf("%s", err.Error())

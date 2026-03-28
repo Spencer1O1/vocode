@@ -8,7 +8,7 @@ import (
 )
 
 // DispatchUndo maps a planner undo intent to the wire payload for the extension (host applies).
-func DispatchUndo(u intents.UndoIntent) (protocol.UndoDirective, error) {
+func Dispatch(u intents.UndoIntent) (protocol.UndoDirective, error) {
 	if err := intents.ValidateUndoIntent(u); err != nil {
 		return protocol.UndoDirective{}, fmt.Errorf("undo intent: %w", err)
 	}

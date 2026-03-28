@@ -5,11 +5,8 @@ import (
 
 	"vocoding.net/vocode/v2/apps/daemon/internal/agent"
 	"vocoding.net/vocode/v2/apps/daemon/internal/intents"
-	"vocoding.net/vocode/v2/apps/daemon/internal/intents/dispatch/command"
 	"vocoding.net/vocode/v2/apps/daemon/internal/intents/dispatch/edit"
-	"vocoding.net/vocode/v2/apps/daemon/internal/intents/dispatch/navigation"
 	"vocoding.net/vocode/v2/apps/daemon/internal/intents/dispatch/requestcontext"
-	"vocoding.net/vocode/v2/apps/daemon/internal/intents/dispatch/undo"
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
@@ -24,31 +21,39 @@ func NewHandler(editEngine *edit.Engine, request *requestcontext.Provider) *Hand
 	return &Handler{engine: editEngine, request: request}
 }
 
-// DispatchResult holds at most one populated directive pointer from a successful executable dispatch.
-type DispatchResult struct {
+// ExecutableResult holds at most one populated directive pointer from a successful executable dispatch.
+type ExecutableResult struct {
 	EditDirective       *protocol.EditDirective
 	CommandDirective    *protocol.CommandDirective
 	NavigationDirective *protocol.NavigationDirective
 	UndoDirective       *protocol.UndoDirective
 }
 
-// HandleOutcomeKind classifies the result of [Handler.Handle].
-type HandleOutcomeKind int8
+// DoneResult is the control outcome when the planner stops (done intent). It carries no
+// protocol directives; fields may grow (e.g. a host-facing summary string).
+type DoneResult struct{}
 
-const (
-	OutcomeDone HandleOutcomeKind = iota
-	OutcomeRequestContextFulfilled
-	OutcomeExecutableDispatched
-)
-
-// HandleOutcome is returned by [Handler.Handle] for control vs executable paths.
-type HandleOutcome struct {
-	Kind            HandleOutcomeKind
-	PlanningContext agent.PlanningContext // set when Kind == OutcomeRequestContextFulfilled
-	Dispatch        DispatchResult        // set when Kind == OutcomeExecutableDispatched
+// RequestContextFulfilled is the control outcome after a request_context intent is fulfilled.
+type RequestContextFulfilled struct {
+	PlanningContext agent.PlanningContext
 }
 
-// HandleInput carries transcript + planner state for one [Handler.Handle] call.
+// ControlResult is exactly one of [DoneResult] or [RequestContextFulfilled] (union).
+type ControlResult struct {
+	Done      *DoneResult
+	Fulfilled *RequestContextFulfilled
+}
+
+// HandleOutcome is the result of [Handler.Handle]: either a [ControlResult] or an [ExecutableResult].
+type HandleOutcome struct {
+	Control    *ControlResult
+	Executable *ExecutableResult
+}
+
+// HandleInput is everything one [Handler.Handle] call needs: transcript params, planner
+// context snapshot, the validated intent union, and (for executable intents) edit execution
+// state built by the transcript executor. Control vs executable branches read different fields;
+// unused fields are intentionally ignored (e.g. done ignores all of this; edit uses Engine + EditCtx).
 type HandleInput struct {
 	Params  protocol.VoiceTranscriptParams
 	TurnCtx agent.PlanningContext
@@ -62,60 +67,35 @@ func (h *Handler) Handle(in HandleInput) (HandleOutcome, error) {
 		return HandleOutcome{}, err
 	}
 	if c := in.Intent.Control; c != nil {
-		switch c.Kind {
-		case intents.ControlIntentKindDone:
-			return HandleOutcome{Kind: OutcomeDone}, nil
-		case intents.ControlIntentKindRequestContext:
-			if h.request == nil {
-				return HandleOutcome{}, fmt.Errorf("request_context: provider not configured")
-			}
-			updated, err := h.request.Fulfill(in.Params, in.TurnCtx, c.RequestContext)
-			if err != nil {
-				return HandleOutcome{}, err
-			}
-			return HandleOutcome{Kind: OutcomeRequestContextFulfilled, PlanningContext: updated}, nil
-		default:
-			return HandleOutcome{}, fmt.Errorf("unknown control intent kind %q", c.Kind)
-		}
+		return h.dispatchControl(c, in)
 	}
 	ex := in.Intent.Executable
 	if ex == nil {
 		return HandleOutcome{}, fmt.Errorf("planner intent: missing executable")
 	}
-	dr, err := h.dispatchExecutable(ex, in.EditCtx)
+	return h.dispatchExecutable(ex, in)
+}
+
+func (h *Handler) dispatchControl(c *intents.ControlIntent, in HandleInput) (HandleOutcome, error) {
+	op, err := controlFor(c)
 	if err != nil {
 		return HandleOutcome{}, err
 	}
-	return HandleOutcome{Kind: OutcomeExecutableDispatched, Dispatch: dr}, nil
+	cr, err := op.dispatch(h, in)
+	if err != nil {
+		return HandleOutcome{}, err
+	}
+	return HandleOutcome{Control: cr}, nil
 }
 
-func (h *Handler) dispatchExecutable(ex *intents.ExecutableIntent, editCtx edit.EditExecutionContext) (DispatchResult, error) {
-	switch ex.Kind {
-	case intents.ExecutableIntentKindEdit:
-		res, err := h.engine.DispatchEdit(editCtx, *ex.Edit)
-		if err != nil {
-			return DispatchResult{}, fmt.Errorf("intent edit: %w", err)
-		}
-		return DispatchResult{EditDirective: &res}, nil
-	case intents.ExecutableIntentKindCommand:
-		res, err := command.DispatchCommand(*ex.Command)
-		if err != nil {
-			return DispatchResult{}, fmt.Errorf("intent command: %w", err)
-		}
-		return DispatchResult{CommandDirective: &res}, nil
-	case intents.ExecutableIntentKindNavigate:
-		res, err := navigation.DispatchNavigation(*ex.Navigate)
-		if err != nil {
-			return DispatchResult{}, fmt.Errorf("intent navigate: %w", err)
-		}
-		return DispatchResult{NavigationDirective: &res}, nil
-	case intents.ExecutableIntentKindUndo:
-		res, err := undo.DispatchUndo(*ex.Undo)
-		if err != nil {
-			return DispatchResult{}, fmt.Errorf("intent undo: %w", err)
-		}
-		return DispatchResult{UndoDirective: &res}, nil
-	default:
-		return DispatchResult{}, fmt.Errorf("unknown executable intent kind %q", ex.Kind)
+func (h *Handler) dispatchExecutable(ex *intents.ExecutableIntent, in HandleInput) (HandleOutcome, error) {
+	op, err := executableFor(ex)
+	if err != nil {
+		return HandleOutcome{}, err
 	}
+	dr, err := op.dispatch(h, in)
+	if err != nil {
+		return HandleOutcome{}, err
+	}
+	return HandleOutcome{Executable: &dr}, nil
 }
