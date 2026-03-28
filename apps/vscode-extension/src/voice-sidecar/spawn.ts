@@ -30,7 +30,8 @@ export function spawnVoiceSidecar(
   if (vadDebug === true) {
     env.VOCODE_VOICE_VAD_DEBUG = "1";
   }
-  const logProtocolStdout = vocodeConfig.get<boolean>("voiceSidecarLogProtocol") === true;
+  const logProtocolStdout =
+    vocodeConfig.get<boolean>("voiceSidecarLogProtocol") === true;
 
   // Helps verify merged .env + settings (Developer Tools → Console when running the extension).
   console.log(
