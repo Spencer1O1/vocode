@@ -1,8 +1,7 @@
 import type { DaemonClient } from "../daemon/client";
+import type { TranscriptStore } from "../ui/transcript-store";
 import type { VoiceStatusIndicator } from "../ui/status-bar";
-import type { MicrophoneCapture } from "../voice/microphone";
-import type { TranscriptStore } from "../voice/transcript-store";
-import type { VoiceSidecarClient } from "../voice-sidecar/client";
+import type { VoiceSidecarClient } from "../voice/client";
 
 export class VoiceSessionController {
   private activeSessionId: number | null = null;
@@ -33,7 +32,6 @@ export interface ExtensionServices {
   client: DaemonClient | null;
   voiceStatus: VoiceStatusIndicator;
   voiceSession: VoiceSessionController;
-  microphone: MicrophoneCapture;
   voiceSidecar: VoiceSidecarClient | null;
   transcriptStore: TranscriptStore;
 }

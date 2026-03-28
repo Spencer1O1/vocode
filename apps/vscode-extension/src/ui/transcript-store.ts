@@ -1,3 +1,7 @@
+/**
+ * Observable state for the Voice transcript panel webview (Live / Applying / Done / Summary).
+ * Daemon transcript application lives in ../transcript/apply-result — this store is UI-only.
+ */
 const DEFAULT_MAX_HANDLED = 30;
 const WAVEFORM_SAMPLES = 64;
 /** STT sometimes sends empty/whitespace partials between words; debounce clearing so the Live card does not flicker off. */

@@ -1,6 +1,6 @@
 import type * as vscode from "vscode";
 
-import type { TranscriptStore } from "../voice/transcript-store";
+import type { TranscriptStore } from "./transcript-store";
 
 const viewType = "vocode.transcriptPanel";
 

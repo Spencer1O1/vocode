@@ -8,15 +8,14 @@ import {
 import { DaemonClient } from "./daemon/client";
 import { spawnDaemon } from "./daemon/spawn";
 import { applyTranscriptResult } from "./transcript/apply-result";
+import { TranscriptStore } from "./ui/transcript-store";
 import { VoiceStatusIndicator } from "./ui/status-bar";
 import {
   TranscriptPanelViewProvider,
   transcriptPanelViewType,
 } from "./ui/transcript-panel";
-import { MicrophoneCapture } from "./voice/microphone";
-import { TranscriptStore } from "./voice/transcript-store";
-import { VoiceSidecarClient } from "./voice-sidecar/client";
-import { spawnVoiceSidecar } from "./voice-sidecar/spawn";
+import { VoiceSidecarClient } from "./voice/client";
+import { spawnVoiceSidecar } from "./voice/spawn";
 
 function workspaceRootPath(): string | undefined {
   return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -27,20 +26,6 @@ function createServices(
   voiceStatus: VoiceStatusIndicator,
   transcriptStore: TranscriptStore,
 ): ExtensionServices {
-  const microphone = new MicrophoneCapture();
-  const debugAudioLogging = vscode.workspace
-    .getConfiguration("vocode")
-    .get<boolean>("debugAudioLogging", false);
-
-  const audioChunkSubscription = microphone.onAudioChunk(({ data }) => {
-    if (debugAudioLogging) {
-      console.debug(
-        `Vocode microphone chunk captured (${data.byteLength} bytes)`,
-      );
-    }
-  });
-
-  context.subscriptions.push(microphone, audioChunkSubscription);
   try {
     const daemon = spawnDaemon(context);
     console.log(`Vocode daemon started from ${daemon.binaryPath}`);
@@ -162,7 +147,6 @@ function createServices(
       client,
       voiceStatus,
       voiceSession,
-      microphone,
       voiceSidecar,
       transcriptStore,
     };
@@ -179,7 +163,6 @@ function createServices(
       client: null,
       voiceStatus,
       voiceSession: new VoiceSessionController(),
-      microphone,
       voiceSidecar: null,
       transcriptStore,
     };

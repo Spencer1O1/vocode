@@ -22,9 +22,9 @@ export const startVoiceCommand: CommandDefinition = {
       void vscode.window.showInformationMessage("Vocode started listening.");
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Unknown microphone error";
+        error instanceof Error ? error.message : "Unknown voice error";
       void vscode.window.showWarningMessage(
-        `Unable to start microphone capture: ${message}`,
+        `Unable to start voice: ${message}`,
       );
       services.voiceSession.stop();
       services.voiceStatus.setIdle();
