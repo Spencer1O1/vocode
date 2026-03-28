@@ -66,6 +66,12 @@ func NewElevenLabsStreamingClient(ctx context.Context, apiKey string, modelID st
 	if lc := strings.TrimSpace(languageCode); lc != "" {
 		query.Set("language_code", lc)
 	}
+	for _, kt := range RealtimeSTTKeyterms {
+		kt = strings.TrimSpace(kt)
+		if kt != "" {
+			query.Add("keyterms", kt)
+		}
+	}
 	// Do not set commit_strategy here: some API revisions reject the upgrade when unknown or
 	// mismatched query values are present (websocket: bad handshake). Manual commit is the
 	// documented default; we still send commit on input_audio_chunk from local VAD.

@@ -187,12 +187,12 @@ func (a *App) transcribeLoop(ctx context.Context, apiKey string, modelID string,
 // avoids the model truncating the tail of the segment when commit shared the last audio packet.
 func (a *App) sendSTTChunk(client *stt.ElevenLabsStreamingClient, contextWindow *utteranceWindow, pcm []byte, commit bool) error {
 	if !commit {
-		return client.SendInputAudioChunk(pcm, false, contextWindow.PreviousText())
+		return client.SendInputAudioChunk(pcm, false, elevenLabsPreviousText(contextWindow))
 	}
 	if len(pcm) == 0 {
 		return client.SendInputAudioChunk(nil, true, "")
 	}
-	if err := client.SendInputAudioChunk(pcm, false, contextWindow.PreviousText()); err != nil {
+	if err := client.SendInputAudioChunk(pcm, false, elevenLabsPreviousText(contextWindow)); err != nil {
 		return err
 	}
 	return client.SendInputAudioChunk(nil, true, "")

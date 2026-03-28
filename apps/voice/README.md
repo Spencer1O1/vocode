@@ -35,6 +35,8 @@ palette), set:
 
 STT uses ElevenLabs realtime websocket transcription with local VAD, `audio_meter` events for the VS Code panel, and optional `[vocode-vad]` traces on stderr.
 
+**Session context (not user-configurable):** the sidecar sends a fixed `previous_text` prefix on the **first** audio chunk of each WebSocket session (plus rolling committed transcript from `utteranceWindow`) so the model knows speech is programming-oriented. Programming vocabulary **keyterms** are also passed as repeated `keyterms` query parameters where the API accepts them (see `internal/stt/keyterms.go`, including **vocode** / **Vocode**). If a client upgrade ever fails with `400`/`403`, confirm with current ElevenLabs docs whether realtime supports `keyterms`; batch STT documents them explicitly.
+
 Core model selection:
 - `ELEVENLABS_STT_MODEL_ID` (default: `scribe_v2`)
 
