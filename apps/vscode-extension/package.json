@@ -32,6 +32,10 @@
       {
         "command": "vocode.sendTranscript",
         "title": "Vocode: Send Transcript"
+      },
+      {
+        "command": "vocode.undoLastEdit",
+        "title": "Vocode: Undo Last Edit"
       }
     ],
     "viewsContainers": {

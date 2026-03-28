@@ -100,6 +100,15 @@ export async function dispatchEditResultWorkspaceEdits(
       );
       return { ok: false, appliedEdits };
     }
+
+    const savedDocument = await vscode.workspace.openTextDocument(actionPath);
+    const saved = await savedDocument.save();
+    if (!saved) {
+      void vscode.window.showWarningMessage(
+        `Vocode: could not save ${path.basename(actionPath)} after applying edit.`,
+      );
+      return { ok: false, appliedEdits };
+    }
   }
 
   return { ok: true, appliedEdits };
