@@ -156,6 +156,21 @@ Useful knobs while debugging the agent loop:
 - `VOCODE_DAEMON_VOICE_MAX_CONTEXT_BYTES`
 - `VOCODE_DAEMON_VOICE_MAX_CONSECUTIVE_CONTEXT_REQUESTS`
 
+### Common dev mismatch: "transcript was not accepted" / legacy `{ "accepted": false }`
+
+If the daemon logs show a `voice.transcript` result shaped like `{ "accepted": false }`, your local binaries are stale relative to the current protocol (current shape is `VoiceTranscriptResult` with `success`).
+
+From repo root, run:
+
+```bash
+pnpm codegen
+pnpm --filter @vocode/daemon build
+pnpm --filter @vocode/vscode-extension build
+pnpm --filter @vocode/voice build
+```
+
+Then reload the Extension Development Host (or restart VS Code dev session with `F5`).
+
 3. Build the daemon
 
 ```bash
