@@ -10,4 +10,7 @@ type SymbolRef struct {
 
 type Resolver interface {
 	ResolveSymbol(workspaceRoot, symbolName, symbolKind, hintPath string) ([]SymbolRef, error)
+	// ResolveInnermostAtLine returns the innermost definition span for tree-sitter coordinates:
+	// 0-based line and 0-based UTF-8 byte column within that line (after converting from LSP UTF-16 in the executor).
+	ResolveInnermostAtLine(workspaceRoot, activeFile string, line0Based, byteCol0 int) (SymbolRef, bool)
 }

@@ -70,7 +70,7 @@ docs/                # architecture + specs
    **Daemon (Go):**
    - agent logic
    - edit planning/applying
-   - indexing
+   - symbol resolution (tree-sitter tags)
    - command execution
    - speech processing
 

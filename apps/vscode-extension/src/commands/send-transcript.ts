@@ -2,6 +2,10 @@ import * as vscode from "vscode";
 
 import type { DaemonClient } from "../daemon/client";
 import { applyTranscriptResult } from "../transcript/apply-result";
+import {
+  mergeCarriedTranscriptParams,
+  recordTranscriptApplyCycle,
+} from "../transcript/carry";
 import type { ExtensionServices } from "./services";
 import type { CommandDefinition } from "./types";
 
@@ -52,12 +56,18 @@ async function sendTranscript(
 
   try {
     services.voiceStatus.setProcessing();
-    const result = await client.transcript({
-      text: trimmedText,
-      activeFile: activePath,
-      workspaceRoot,
-    });
-    await applyTranscriptResult(result, activePath);
+    const pos = editor.selection.active;
+    const result = await client.transcript(
+      mergeCarriedTranscriptParams({
+        text: trimmedText,
+        activeFile: activePath,
+        workspaceRoot,
+        cursorPosition: { line: pos.line, character: pos.character },
+        contextSessionId: services.voiceSession.contextSessionId(),
+      }),
+    );
+    const outcomes = await applyTranscriptResult(result, activePath);
+    recordTranscriptApplyCycle(result, outcomes);
     if (result.accepted) {
       services.transcriptStore.recordCompletedTranscript(trimmedText, {
         summary: result.summary?.trim() || undefined,

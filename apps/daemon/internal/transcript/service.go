@@ -1,14 +1,16 @@
 package transcript
 
 import (
-	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"vocoding.net/vocode/v2/apps/daemon/internal/agent"
+	"vocoding.net/vocode/v2/apps/daemon/internal/agentcontext"
 	"vocoding.net/vocode/v2/apps/daemon/internal/intents/dispatch"
+	"vocoding.net/vocode/v2/apps/daemon/internal/symbols"
+	"vocoding.net/vocode/v2/apps/daemon/internal/transcript/config"
+	"vocoding.net/vocode/v2/apps/daemon/internal/transcript/executor"
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
@@ -16,7 +18,14 @@ import (
 // action-plan execution (edits via structured results for the extension;
 // commands on the daemon).
 type TranscriptService struct {
-	executor *Executor
+	executor *executor.Executor
+
+	sessions *agentcontext.VoiceSessionStore
+	// When contextSessionId is empty, gathered is not persisted between RPCs; an open
+	// directive-apply batch is still tracked so the host can report outcomes on the next call.
+	ephemeralPendingDirectiveApply *agentcontext.DirectiveApplyBatch
+
+	executeMu sync.Mutex
 
 	queue chan transcriptJob
 
@@ -39,27 +48,30 @@ type transcriptAcceptResp struct {
 func NewService(
 	agentRuntime *agent.Agent,
 	intentHandler *dispatch.Handler,
+	symbolResolver symbols.Resolver,
 ) *TranscriptService {
-	queueSize := envInt("VOCODE_DAEMON_VOICE_TRANSCRIPT_QUEUE_SIZE", 10)
-	coalesceMs := envInt("VOCODE_DAEMON_VOICE_TRANSCRIPT_COALESCE_MS", 750)
-	maxMergeJobs := envInt("VOCODE_DAEMON_VOICE_TRANSCRIPT_MAX_MERGE_JOBS", 5)
-	maxMergeChars := envInt("VOCODE_DAEMON_VOICE_TRANSCRIPT_MAX_MERGE_CHARS", 6000)
-	maxPlannerTurns := envInt("VOCODE_DAEMON_VOICE_MAX_PLANNER_TURNS", 8)
-	maxIntentRetries := envInt("VOCODE_DAEMON_VOICE_MAX_INTENT_RETRIES", 2)
-	maxContextRounds := envInt("VOCODE_DAEMON_VOICE_MAX_CONTEXT_ROUNDS", 2)
-	maxContextBytes := envInt("VOCODE_DAEMON_VOICE_MAX_CONTEXT_BYTES", 12000)
-	maxConsecutiveContextReq := envInt("VOCODE_DAEMON_VOICE_MAX_CONSECUTIVE_CONTEXT_REQUESTS", 3)
+	queueSize := config.Int("VOCODE_DAEMON_VOICE_TRANSCRIPT_QUEUE_SIZE", 10)
+	coalesceMs := config.Int("VOCODE_DAEMON_VOICE_TRANSCRIPT_COALESCE_MS", 750)
+	maxMergeJobs := config.Int("VOCODE_DAEMON_VOICE_TRANSCRIPT_MAX_MERGE_JOBS", 5)
+	maxMergeChars := config.Int("VOCODE_DAEMON_VOICE_TRANSCRIPT_MAX_MERGE_CHARS", 6000)
+	maxAgentTurns := config.Int("VOCODE_DAEMON_VOICE_MAX_AGENT_TURNS", 8)
+	maxIntentRetries := config.Int("VOCODE_DAEMON_VOICE_MAX_INTENT_RETRIES", 2)
+	maxContextRounds := config.Int("VOCODE_DAEMON_VOICE_MAX_CONTEXT_ROUNDS", 2)
+	maxContextBytes := config.Int("VOCODE_DAEMON_VOICE_MAX_CONTEXT_BYTES", 12000)
+	maxConsecutiveContextReq := config.Int("VOCODE_DAEMON_VOICE_MAX_CONSECUTIVE_CONTEXT_REQUESTS", 3)
 
-	exec := NewExecutor(agentRuntime, intentHandler, ExecutorOptions{
-		MaxPlannerTurns:          maxPlannerTurns,
+	exec := executor.New(agentRuntime, intentHandler, executor.Options{
+		MaxAgentTurns:            maxAgentTurns,
 		MaxIntentRetries:         maxIntentRetries,
 		MaxContextRounds:         maxContextRounds,
 		MaxContextBytes:          maxContextBytes,
 		MaxConsecutiveContextReq: maxConsecutiveContextReq,
+		Symbols:                  symbolResolver,
 	})
 
 	s := &TranscriptService{
 		executor:       exec,
+		sessions:       agentcontext.NewVoiceSessionStore(),
 		coalesceWindow: time.Duration(coalesceMs) * time.Millisecond,
 		maxMergeJobs:   maxMergeJobs,
 		maxMergeChars:  maxMergeChars,
@@ -83,9 +95,8 @@ func (s *TranscriptService) AcceptTranscript(
 		return protocol.VoiceTranscriptResult{}, false
 	}
 
-	// If the queue is disabled, execute immediately.
 	if s.queue == nil {
-		return s.executor.Execute(params)
+		return s.runExecute(params)
 	}
 
 	respCh := make(chan transcriptAcceptResp, 1)
@@ -94,7 +105,6 @@ func (s *TranscriptService) AcceptTranscript(
 		resp:   respCh,
 	}
 
-	// Keep RPC calls responsive: if the queue is full, reject quickly.
 	select {
 	case s.queue <- job:
 	default:
@@ -108,95 +118,4 @@ func (s *TranscriptService) AcceptTranscript(
 
 	resp := <-respCh
 	return resp.result, resp.ok
-}
-
-func (s *TranscriptService) runWorker() {
-	// buffered contains jobs that couldn't be merged into the current coalescing batch,
-	// but must preserve FIFO order for later processing.
-	buffered := make([]transcriptJob, 0, cap(s.queue))
-
-	for {
-		primary := func() transcriptJob {
-			if len(buffered) > 0 {
-				j := buffered[0]
-				buffered = buffered[1:]
-				return j
-			}
-			return <-s.queue
-		}()
-
-		baseActiveFile := strings.TrimSpace(primary.params.ActiveFile)
-
-		batch := []transcriptJob{primary}
-		mergedTextParts := []string{primary.params.Text}
-		mergedChars := len(primary.params.Text)
-
-		timer := time.NewTimer(s.coalesceWindow)
-
-		for collecting := true; collecting; {
-			select {
-			case j := <-s.queue:
-				activeFile := strings.TrimSpace(j.params.ActiveFile)
-				text := strings.TrimSpace(j.params.Text)
-				if text == "" {
-					// Invalid/empty transcripts should just no-op.
-					j.resp <- transcriptAcceptResp{
-						result: protocol.VoiceTranscriptResult{Accepted: true},
-						ok:     true,
-					}
-					continue
-				}
-
-				eligible := activeFile == baseActiveFile &&
-					len(batch) < s.maxMergeJobs &&
-					mergedChars+1+len(text) <= s.maxMergeChars
-
-				if eligible {
-					j.params.Text = text
-					batch = append(batch, j)
-					mergedTextParts = append(mergedTextParts, text)
-					mergedChars += 1 + len(text)
-				} else {
-					buffered = append(buffered, j)
-				}
-			case <-timer.C:
-				collecting = false
-			}
-		}
-
-		timer.Stop()
-
-		mergedParams := primary.params
-		mergedParams.Text = strings.Join(mergedTextParts, " ")
-
-		mergedResult, ok := s.executor.Execute(mergedParams)
-
-		// Respond: only the primary job returns the actual execution.
-		// Coalesced jobs succeed with an empty result to avoid duplicate UI edits.
-		for i, j := range batch {
-			if i == 0 {
-				j.resp <- transcriptAcceptResp{
-					result: mergedResult,
-					ok:     ok,
-				}
-			} else {
-				j.resp <- transcriptAcceptResp{
-					result: protocol.VoiceTranscriptResult{Accepted: true},
-					ok:     true,
-				}
-			}
-		}
-	}
-}
-
-func envInt(key string, def int) int {
-	v := strings.TrimSpace(os.Getenv(key))
-	if v == "" {
-		return def
-	}
-	i, err := strconv.Atoi(v)
-	if err != nil {
-		return def
-	}
-	return i
 }

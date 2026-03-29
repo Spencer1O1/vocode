@@ -8,6 +8,10 @@ import {
 import { DaemonClient } from "./daemon/client";
 import { spawnDaemon } from "./daemon/spawn";
 import { applyTranscriptResult } from "./transcript/apply-result";
+import {
+  mergeCarriedTranscriptParams,
+  recordTranscriptApplyCycle,
+} from "./transcript/carry";
 import { VoiceStatusIndicator } from "./ui/status-bar";
 import {
   TranscriptPanelViewProvider,
@@ -113,12 +117,18 @@ function createServices(
 
       void (async () => {
         try {
-          const result = await client.transcript({
-            text,
-            activeFile,
-            workspaceRoot: workspaceRootPath(),
-          });
-          await applyTranscriptResult(result, activeFile);
+          const pos = editor.selection.active;
+          const result = await client.transcript(
+            mergeCarriedTranscriptParams({
+              text,
+              activeFile,
+              workspaceRoot: workspaceRootPath(),
+              cursorPosition: { line: pos.line, character: pos.character },
+              contextSessionId: voiceSession.contextSessionId(),
+            }),
+          );
+          const outcomes = await applyTranscriptResult(result, activeFile);
+          recordTranscriptApplyCycle(result, outcomes);
           transcriptStore.markHandled(pendingId, {
             summary:
               result.accepted && result.summary

@@ -1,15 +1,15 @@
 // Package dispatch routes validated planner intents to outcomes (control vs executable).
 //
 // Strategy-style layout: [Handler] holds long-lived services (edit engine, request-context provider).
-// [HandleInput] is the per-call runtime (transcript params, planning snapshot, intent, edit snapshot).
+// [HandleInput] is the per-call runtime (transcript params, gathered context, intent, edit snapshot).
 // Kind-specific logic lives in subpackages, each exporting a Dispatch function for its payload.
 package dispatch
 
 import (
 	"fmt"
 
-	"vocoding.net/vocode/v2/apps/daemon/internal/agent"
 	"vocoding.net/vocode/v2/apps/daemon/internal/intents"
+	"vocoding.net/vocode/v2/apps/daemon/internal/agentcontext"
 	"vocoding.net/vocode/v2/apps/daemon/internal/intents/dispatch/edit"
 	"vocoding.net/vocode/v2/apps/daemon/internal/intents/dispatch/requestcontext"
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
@@ -42,7 +42,7 @@ type DoneResult struct {
 
 // RequestContextFulfilled is the control outcome after a request_context intent is fulfilled.
 type RequestContextFulfilled struct {
-	PlanningContext agent.PlanningContext
+	UpdatedGathered agentcontext.Gathered
 }
 
 // ControlResult is exactly one of [DoneResult] or [RequestContextFulfilled] (union).
@@ -57,14 +57,14 @@ type HandleOutcome struct {
 	Executable *ExecutableResult
 }
 
-// HandleInput is per-call dispatch context: transcript params, planner snapshot, validated [intents.Intent],
+// HandleInput is per-call dispatch context: transcript params, gathered planner context, validated [intents.Intent],
 // and edit execution state from the transcript executor. Strategies read only the fields they need;
-// others are ignored (e.g. done uses neither Params nor EditCtx; request_context uses Params + TurnCtx).
+// others are ignored (e.g. done uses neither Params nor EditCtx; request_context uses Params + Gathered).
 type HandleInput struct {
-	Params  protocol.VoiceTranscriptParams
-	TurnCtx agent.PlanningContext
-	Intent  intents.Intent
-	EditCtx edit.EditExecutionContext
+	Params   protocol.VoiceTranscriptParams
+	Gathered agentcontext.Gathered
+	Intent   intents.Intent
+	EditCtx  edit.EditExecutionContext
 }
 
 // Handle validates the union and dispatches control intents vs executables.

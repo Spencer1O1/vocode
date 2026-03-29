@@ -170,12 +170,24 @@ func (r VoiceTranscriptResult) Validate() error {
 	if !r.Accepted && r.Summary != "" {
 		return errors.New("voice transcript result must not include summary when accepted=false")
 	}
+	if !r.Accepted && r.ApplyBatchId != "" {
+		return errors.New("voice transcript result must not include applyBatchId when accepted=false")
+	}
 	if len([]rune(r.Summary)) > 8192 {
 		return errors.New("voice transcript result: summary exceeds max length")
 	}
 	for i := range r.Directives {
 		if err := r.Directives[i].Validate(); err != nil {
 			return fmt.Errorf("voice transcript result directives[%d]: %w", i, err)
+		}
+	}
+	if r.Accepted {
+		if len(r.Directives) > 0 {
+			if strings.TrimSpace(r.ApplyBatchId) == "" {
+				return errors.New("voice transcript result requires applyBatchId when directives are present")
+			}
+		} else if r.ApplyBatchId != "" {
+			return errors.New("voice transcript result must not include applyBatchId without directives")
 		}
 	}
 	return nil

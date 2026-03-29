@@ -32,7 +32,13 @@ test("isVoiceTranscriptResult rejects accepted=false shape", () => {
 });
 
 test("isVoiceTranscriptResult rejects extra keys", () => {
-  assert.equal(isVoiceTranscriptResult({ accepted: true, extra: 123 }), false);
+  assert.equal(
+    isVoiceTranscriptResult({
+      accepted: true,
+      extra: 123,
+    }),
+    false,
+  );
 });
 
 test("isVoiceTranscriptResult accepts directives with edit directive success", () => {
@@ -55,8 +61,24 @@ test("isVoiceTranscriptResult accepts directives with edit directive success", (
           },
         },
       ],
+      applyBatchId: "abc123",
     }),
     true,
+  );
+});
+
+test("isVoiceTranscriptResult rejects directives without applyBatchId", () => {
+  assert.equal(
+    isVoiceTranscriptResult({
+      accepted: true,
+      directives: [
+        {
+          kind: "command",
+          commandDirective: { command: "echo", args: ["stub"] },
+        },
+      ],
+    }),
+    false,
   );
 });
 
@@ -71,6 +93,7 @@ test("isVoiceTranscriptResult rejects extra keys (unexpected property)", () => {
           commandDirective: { command: "echo", args: ["stub"] },
         },
       ],
+      applyBatchId: "x",
     }),
     false,
   );
@@ -86,6 +109,7 @@ test("isVoiceTranscriptResult accepts undo directive", () => {
           undoDirective: { scope: "last_transcript" },
         },
       ],
+      applyBatchId: "batch-1",
     }),
     true,
   );

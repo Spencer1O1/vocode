@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"vocoding.net/vocode/v2/apps/daemon/internal/intents"
+	"vocoding.net/vocode/v2/apps/daemon/internal/agentcontext"
 )
 
 // Agent is the iterative planner facade.
@@ -16,6 +17,6 @@ func New(model ModelClient) *Agent {
 }
 
 // NextIntent proxies one iterative planner turn.
-func (a *Agent) NextIntent(ctx context.Context, in ModelInput) (intents.Intent, error) {
+func (a *Agent) NextIntent(ctx context.Context, in agentcontext.TurnContext) (intents.Intent, error) {
 	return a.model.NextIntent(ctx, in)
 }

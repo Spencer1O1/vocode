@@ -22,7 +22,7 @@ Vocode is composed of three main parts:
 - Handles:
   - agent logic
   - code edits (AST/diff-based)
-  - indexing (grep → symbols → AST)
+  - symbol resolution (tree-sitter tags, grep-backed name search)
   - command execution
   - transcript planning/orchestration
 
@@ -230,8 +230,8 @@ VS Code Extension
 Go Daemon
 ├── rpc/
 ├── agent/
-├── edits/
-├── indexing/
+├── intents/
+├── symbols/ (tree-sitter `tags` subpackage)
 ├── workspace/
 └── transcript/
 

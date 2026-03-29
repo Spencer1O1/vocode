@@ -30,6 +30,10 @@ const entries = [
     name: "VoiceTranscriptParams",
   },
   {
+    file: "voice-transcript.directive-apply-item.schema.json",
+    name: "VoiceTranscriptDirectiveApplyItem",
+  },
+  {
     file: "navigation-action.schema.json",
     name: "NavigationAction",
   },

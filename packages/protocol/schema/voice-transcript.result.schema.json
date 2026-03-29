@@ -8,7 +8,7 @@
     "accepted": { "type": "boolean" },
     "summary": {
       "type": "string",
-      "description": "Human-readable summary from the planner when the turn completes (done intent); for host UI.",
+      "description": "Human-readable summary when the model emits done; for host UI.",
       "maxLength": 8192
     },
     "directives": {
@@ -16,6 +16,10 @@
       "items": {
         "$ref": "./voice-transcript.directive.schema.json"
       }
+    },
+    "applyBatchId": {
+      "type": "string",
+      "description": "Correlates host apply reports with daemon-held intents; present when accepted and directives is non-empty."
     }
   },
   "required": ["accepted"]

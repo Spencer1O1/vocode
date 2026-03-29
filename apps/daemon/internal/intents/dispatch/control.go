@@ -10,7 +10,7 @@ import (
 
 // controlDispatch turns one validated [intents.ControlIntent] into a [ControlResult]
 // (no protocol directives). [doneControl] ignores h and in; [requestContextControl] uses
-// [Handler.request], transcript params, and planning context from [HandleInput].
+// [Handler.request], transcript params, and [HandleInput.Gathered].
 type controlDispatch interface {
 	dispatch(h *Handler, in HandleInput) (*ControlResult, error)
 }
@@ -43,11 +43,11 @@ type requestContextControl struct {
 }
 
 func (r requestContextControl) dispatch(h *Handler, in HandleInput) (*ControlResult, error) {
-	updated, err := requestcontext.Dispatch(h.request, in.Params, in.TurnCtx, r.req)
+	updated, err := requestcontext.Dispatch(h.request, in.Params, in.Gathered, r.req)
 	if err != nil {
 		return nil, err
 	}
 	return &ControlResult{
-		Fulfilled: &RequestContextFulfilled{PlanningContext: updated},
+		Fulfilled: &RequestContextFulfilled{UpdatedGathered: updated},
 	}, nil
 }

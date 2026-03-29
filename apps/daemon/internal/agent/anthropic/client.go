@@ -6,8 +6,8 @@ import (
 	"context"
 	"errors"
 
-	"vocoding.net/vocode/v2/apps/daemon/internal/agent"
 	"vocoding.net/vocode/v2/apps/daemon/internal/intents"
+	"vocoding.net/vocode/v2/apps/daemon/internal/agentcontext"
 )
 
 // ErrNotImplemented is returned by [Client.NextIntent] until implemented.
@@ -22,7 +22,7 @@ func New() *Client {
 }
 
 // NextIntent implements [agent.ModelClient].
-func (*Client) NextIntent(ctx context.Context, in agent.ModelInput) (intents.Intent, error) {
+func (*Client) NextIntent(ctx context.Context, in agentcontext.TurnContext) (intents.Intent, error) {
 	_ = ctx
 	_ = in
 	return intents.Intent{}, ErrNotImplemented

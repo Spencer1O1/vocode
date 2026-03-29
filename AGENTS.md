@@ -18,8 +18,8 @@ One “turn” starts when the extension calls the daemon RPC:
 
 1. The daemon runs an iterative planner loop (`Agent.NextIntent` per turn; each step yields an `intents.Intent` validated with `Intent.Validate`).
 2. Each turn is handled by `intents/dispatch.Handler.Handle` (control intents vs executable intents in one switch).
-3. The daemon returns a `VoiceTranscriptResult` where `results` is an ordered list of execution results.
-4. Each execution result is exactly one of:
+3. The daemon returns a `VoiceTranscriptResult` with ordered `directives` and, when `directives` is non-empty, an `applyBatchId` that correlates the next host apply report. The daemon holds at most one open `DirectiveApplyBatch` per `VoiceSession` (`SourceIntents` parallel to `directives`) until the host reports via `lastBatchApply` / `reportApplyBatchId`. Per-`contextSessionId` state lives in `VoiceSessionStore`, subject to idle reset (`VOCODE_DAEMON_SESSION_IDLE_RESET_MS`: unset → 30m default, `0` → off) and a rolling byte/excerpt cap (active-file excerpt is retained).
+4. Each directive is exactly one of:
    - `kind: "edit"` with an `editDirective` (a single explicit variant of `EditDirective`)
    - `kind: "command"` with `commandDirective` (daemon-validated command shape; extension executes)
    - `kind: "navigate"` with `navigationDirective` (extension applies deterministic UI navigation)
@@ -30,6 +30,7 @@ One “turn” starts when the extension calls the daemon RPC:
 2. For `edit` results, it applies daemon-provided edit actions mechanically using `workspace.applyEdit`.
 3. For `command` results, it runs the command parameters using an allowlisted runner (no additional semantic policy).
 4. If any result fails, the extension stops processing remaining results.
+5. On the next `voice.transcript`, it sends the same `contextSessionId` while voice is active (so gathered context continues), plus `reportApplyBatchId` (prior `applyBatchId`) and `lastBatchApply` (one entry per directive: `ok` and optional `message`, including `not attempted` after the first failure) so the daemon can feed extension outcomes back into planning.
 
 ### Invariant: no mixed-state payloads
 
@@ -92,16 +93,16 @@ One rule should have one owner. Duplicating ownership is a regression risk.
 
 ### Daemon
 
-- Agent/runtime: `apps/daemon/internal/agent`
+- Agent/runtime: `apps/daemon/internal/agent` (`ModelClient` / `Agent.NextIntent` take `agentcontext.TurnContext` from `model_client.go`). Model turn input types: `apps/daemon/internal/agentcontext` (`TurnContext`, `EditorSnapshot`, `Gathered`, `VoiceSessionStore`, `FailedIntent`, `ComposeTurnContext`). Tree-sitter tag parsing + cursor containment: `apps/daemon/internal/symbols/tags`
 - Intent types + validation: `apps/daemon/internal/intents`
-- Voice transcript (`apps/daemon/internal/transcript/`): `service.go` (RPC + optional queue/coalesce); `execute.go` (`Executor` — iterative planner intents, context rounds, retries, then `intents/dispatch` routing)
+- Voice transcript (`apps/daemon/internal/transcript/`): root `service*.go` (RPC, run path, coalesce worker); subpackages `transcript/executor` (planner → `intents/dispatch`), `transcript/voicesession` (session + apply report), `transcript/config` (env); see `transcript/doc.go`
 - Intent model + validation: `apps/daemon/internal/intents/` (`package intents` — `Intent` union: `ControlIntent` | `ExecutableIntent`, `Validate`, JSON round-trip on `kind` + payloads)
 - Intent dispatch (`apps/daemon/internal/intents/dispatch/`): `dispatch.go` defines `Handler` + `Handle` (switches control vs executable). `dispatch/requestcontext` implements `request_context` fulfillment. `dispatch/command|navigation|undo|edit/` mirror extension `src/directives/`. `command`, `navigation`, and `undo` expose `Dispatch` in each `dispatch.go`; `edit` uses `Engine` + `DispatchEdit` in `engine.go` / `edit/dispatch.go` (stateful builder)
 
 ### Extension
 
-- Send transcript: `apps/vscode-extension/src/commands/send-transcript/run.ts`
-- Apply daemon transcript results to the editor: `apps/vscode-extension/src/transcript/apply-result.ts` (`applyTranscriptResult`)
+- Send transcript: `apps/vscode-extension/src/commands/send-transcript.ts`
+- Apply daemon transcript results + round-trip carry: `apps/vscode-extension/src/transcript/apply-result.ts`, `apps/vscode-extension/src/transcript/carry.ts`
 - Voice transcript panel (webview UI state): `apps/vscode-extension/src/ui/transcript-store.ts` + `ui/transcript-panel.ts`
 - Directive host layer (`apps/vscode-extension/src/directives/`): `command`, `edits`, `navigation`, `undo` (each has `dispatch.ts` exporting `dispatchCommand` / `dispatchEdit` / `dispatchNavigation` / `dispatchUndo`), plus root `dispatch.ts` (`dispatchTranscript`)
 - Daemon client: `apps/vscode-extension/src/daemon/client.ts`

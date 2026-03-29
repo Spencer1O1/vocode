@@ -29,10 +29,11 @@ type App struct {
 func New(opts Options) (*App, error) {
 	agentRuntime := agent.New(stub.New())
 	editEngine := edit.NewEngine()
-	reqProvider := requestcontext.NewProvider(symbols.NewTreeSitterResolver())
+	sym := symbols.NewTreeSitterResolver()
+	reqProvider := requestcontext.NewProvider(sym)
 	intentHandler := dispatch.NewHandler(editEngine, reqProvider)
 
-	voiceService := transcript.NewService(agentRuntime, intentHandler)
+	voiceService := transcript.NewService(agentRuntime, intentHandler, sym)
 
 	router := rpc.NewRouter(opts.Logger)
 	for _, def := range rpc.BuildHandlers(voiceService) {

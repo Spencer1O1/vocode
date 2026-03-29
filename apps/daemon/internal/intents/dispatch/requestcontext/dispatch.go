@@ -10,14 +10,14 @@ import (
 	"regexp"
 	"strings"
 
-	"vocoding.net/vocode/v2/apps/daemon/internal/agent"
+	"vocoding.net/vocode/v2/apps/daemon/internal/agentcontext"
 	"vocoding.net/vocode/v2/apps/daemon/internal/intents"
 	"vocoding.net/vocode/v2/apps/daemon/internal/symbols"
 	"vocoding.net/vocode/v2/apps/daemon/internal/workspace"
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
-// Provider fulfills request_context intents by enriching [agent.PlanningContext]
+// Provider fulfills request_context intents by enriching [agentcontext.Gathered]
 // (symbols, file excerpts, usage notes). Used by the transcript executor, not the
 // directive pipeline (no protocol directive is emitted).
 type Provider struct {
@@ -31,9 +31,9 @@ func NewProvider(symbolResolver symbols.Resolver) *Provider {
 func Dispatch(
 	p *Provider,
 	params protocol.VoiceTranscriptParams,
-	in agent.PlanningContext,
+	in agentcontext.Gathered,
 	req *intents.RequestContextIntent,
-) (agent.PlanningContext, error) {
+) (agentcontext.Gathered, error) {
 	if p == nil {
 		return in, fmt.Errorf("request_context: provider not configured")
 	}
@@ -88,7 +88,7 @@ func Dispatch(
 		if len(content) > maxChars {
 			content = content[:maxChars]
 		}
-		out.Excerpts = append(out.Excerpts, agent.FileExcerpt{Path: filepath.Clean(path), Content: content})
+		out = agentcontext.UpsertGatheredExcerpt(out, filepath.Clean(path), content)
 		return out, nil
 	case intents.RequestContextKindUsages:
 		ref, err := symbols.ParseSymbolID(strings.TrimSpace(req.SymbolID))

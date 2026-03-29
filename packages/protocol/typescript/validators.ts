@@ -242,13 +242,36 @@ export function isVoiceTranscriptDirective(
   return false;
 }
 
+function isVoiceTranscriptResultApplyBatchIdField(
+  value: Record<string, unknown>,
+): boolean {
+  const idRaw = value.applyBatchId;
+  if (idRaw !== undefined && typeof idRaw !== "string") {
+    return false;
+  }
+  if (value.accepted !== true) {
+    return idRaw === undefined;
+  }
+  const batchID = typeof idRaw === "string" ? idRaw.trim() : "";
+  const dirs = value.directives;
+  if (Array.isArray(dirs) && dirs.length > 0) {
+    return batchID !== "";
+  }
+  return batchID === "";
+}
+
 export function isVoiceTranscriptResult(
   value: unknown,
 ): value is VoiceTranscriptResult {
   if (!isRecord(value) || typeof value.accepted !== "boolean") {
     return false;
   }
-  const allowedKeys = new Set(["accepted", "directives", "summary"]);
+  const allowedKeys = new Set([
+    "accepted",
+    "directives",
+    "summary",
+    "applyBatchId",
+  ]);
   if (!Object.keys(value).every((k) => allowedKeys.has(k))) {
     return false;
   }
@@ -274,5 +297,5 @@ export function isVoiceTranscriptResult(
   if (value.accepted !== true && value.summary !== undefined) {
     return false;
   }
-  return true;
+  return isVoiceTranscriptResultApplyBatchIdField(value);
 }

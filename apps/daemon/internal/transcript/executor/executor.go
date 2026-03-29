@@ -1,43 +1,49 @@
-package transcript
+package executor
 
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"vocoding.net/vocode/v2/apps/daemon/internal/agent"
+	"vocoding.net/vocode/v2/apps/daemon/internal/agentcontext"
 	"vocoding.net/vocode/v2/apps/daemon/internal/intents"
 	"vocoding.net/vocode/v2/apps/daemon/internal/intents/dispatch"
 	"vocoding.net/vocode/v2/apps/daemon/internal/intents/dispatch/edit"
+	"vocoding.net/vocode/v2/apps/daemon/internal/symbols"
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
-// Executor runs one voice.transcript through the agent: iterative planner intents, optional context
-// rounds, retries, and dispatch via [dispatch.Handler.Handle] (control vs executable).
+// Executor runs one voice.transcript through the agent: iterative NextIntent turns, optional
+// request_context rounds, retries, and dispatch via [dispatch.Handler.Handle] (control vs executable).
 type Executor struct {
 	agent                    *agent.Agent
 	intentHandler            *dispatch.Handler
-	maxPlannerTurns          int
+	symbols                  symbols.Resolver
+	maxAgentTurns            int
 	maxIntentRetries         int
 	maxContextRounds         int
 	maxContextBytes          int
 	maxConsecutiveContextReq int
 }
 
-type ExecutorOptions struct {
-	MaxPlannerTurns          int
+// Options configures caps and optional symbol resolution for [Executor].
+type Options struct {
+	MaxAgentTurns            int
 	MaxIntentRetries         int
 	MaxContextRounds         int
 	MaxContextBytes          int
 	MaxConsecutiveContextReq int
+	Symbols                  symbols.Resolver
 }
 
-func NewExecutor(a *agent.Agent, h *dispatch.Handler, opts ExecutorOptions) *Executor {
+// New constructs an [Executor].
+func New(a *agent.Agent, h *dispatch.Handler, opts Options) *Executor {
 	return &Executor{
 		agent:                    a,
 		intentHandler:            h,
-		maxPlannerTurns:          opts.MaxPlannerTurns,
+		symbols:                  opts.Symbols,
+		maxAgentTurns:            opts.MaxAgentTurns,
 		maxIntentRetries:         opts.MaxIntentRetries,
 		maxContextRounds:         opts.MaxContextRounds,
 		maxContextBytes:          opts.MaxContextBytes,
@@ -45,12 +51,13 @@ func NewExecutor(a *agent.Agent, h *dispatch.Handler, opts ExecutorOptions) *Exe
 	}
 }
 
-func (e *Executor) Execute(params protocol.VoiceTranscriptParams) (protocol.VoiceTranscriptResult, bool) {
+// Execute runs the planner loop until done, caps, or failure.
+func (e *Executor) Execute(params protocol.VoiceTranscriptParams, gatheredIn agentcontext.Gathered, extSucceeded []intents.Intent, extFailed []agentcontext.FailedIntent) (protocol.VoiceTranscriptResult, agentcontext.Gathered, *agentcontext.DirectiveApplyBatch, bool) {
 	text := strings.TrimSpace(params.Text)
 	if text == "" {
-		return protocol.VoiceTranscriptResult{}, false
+		return protocol.VoiceTranscriptResult{}, gatheredIn, nil, false
 	}
-	maxTurns := e.maxPlannerTurns
+	maxTurns := e.maxAgentTurns
 	if maxTurns <= 0 {
 		maxTurns = 8
 	}
@@ -58,12 +65,15 @@ func (e *Executor) Execute(params protocol.VoiceTranscriptParams) (protocol.Voic
 	if maxRetries < 0 {
 		maxRetries = 0
 	}
-	turnCtx := agent.PlanningContext{}
+	gathered := agentcontext.SeedGatheredActiveFile(gatheredIn, params.ActiveFile)
+	hostCursor := resolveHostCursorSymbol(e.symbols, params)
 	completed := make([]intents.Intent, 0, maxTurns)
+	var failedIntents []agentcontext.FailedIntent
 	contextRounds := 0
 	consecutiveContextReq := 0
 	editCounter := 0
 	directives := make([]protocol.VoiceTranscriptDirective, 0, maxTurns)
+	var batchSourceIntents []intents.Intent
 	trace := make([]string, 0, maxTurns*2)
 	stopPlanning := false
 	var transcriptSummary string
@@ -71,18 +81,21 @@ func (e *Executor) Execute(params protocol.VoiceTranscriptParams) (protocol.Voic
 loop:
 	for i := 0; i < maxTurns; i++ {
 		turn := i + 1
-		next, err := e.agent.NextIntent(context.Background(), agent.ModelInput{
-			Transcript:       text,
-			CompletedActions: append([]intents.Intent(nil), completed...),
-			Context:          turnCtx,
-		})
+		succeededForTurn := make([]intents.Intent, 0, len(extSucceeded)+len(completed))
+		succeededForTurn = append(succeededForTurn, extSucceeded...)
+		succeededForTurn = append(succeededForTurn, completed...)
+		failedForTurn := make([]agentcontext.FailedIntent, 0, len(extFailed)+len(failedIntents))
+		failedForTurn = append(failedForTurn, extFailed...)
+		failedForTurn = append(failedForTurn, failedIntents...)
+		turnCtx := agentcontext.ComposeTurnContext(params, text, succeededForTurn, failedForTurn, gathered, hostCursor)
+		next, err := e.agent.NextIntent(context.Background(), turnCtx)
 		if err != nil {
 			trace = appendTurnTrace(trace, turn, "model_error")
-			return protocol.VoiceTranscriptResult{Accepted: false}, true
+			return protocol.VoiceTranscriptResult{Accepted: false}, gathered, nil, true
 		}
 		if err := next.Validate(); err != nil {
 			trace = appendTurnTrace(trace, turn, "invalid_intent")
-			return protocol.VoiceTranscriptResult{Accepted: false}, true
+			return protocol.VoiceTranscriptResult{Accepted: false}, gathered, nil, true
 		}
 		trace = appendTurnTrace(trace, turn, "intent:"+next.Summary())
 
@@ -94,11 +107,16 @@ loop:
 				trace = appendTurnTrace(trace, turn, "pre_execute_error")
 				if maxRetries > 0 {
 					trace = appendTurnTrace(trace, turn, "retry:pre_execute")
-					turnCtx = appendPlanningNote(turnCtx, fmt.Sprintf("daemon rejected %q intent before execution: %s; retry with corrected intent", next.Executable.Kind, planErr))
+					failedIntents = append(failedIntents, agentcontext.FailedIntent{
+						Intent: next,
+						Phase:  agentcontext.PhasePreExecute,
+						Reason: planErr,
+					})
+					gathered = appendGatheredNote(gathered, fmt.Sprintf("daemon rejected %q intent before execution: %s; retry with corrected intent", next.Executable.Kind, planErr))
 					maxRetries--
 					continue
 				}
-				return protocol.VoiceTranscriptResult{Accepted: false}, true
+				return protocol.VoiceTranscriptResult{Accepted: false}, gathered, nil, true
 			}
 		}
 
@@ -107,33 +125,38 @@ loop:
 			consecutiveContextReq++
 			if e.maxContextRounds > 0 && contextRounds > e.maxContextRounds {
 				trace = appendTurnTrace(trace, turn, "context:cap:max_rounds")
-				return protocol.VoiceTranscriptResult{Accepted: false}, true
+				return protocol.VoiceTranscriptResult{Accepted: false}, gathered, nil, true
 			}
 			if e.maxConsecutiveContextReq > 0 && consecutiveContextReq > e.maxConsecutiveContextReq {
 				trace = appendTurnTrace(trace, turn, "context:cap:consecutive_requests")
-				return protocol.VoiceTranscriptResult{Accepted: false}, true
+				return protocol.VoiceTranscriptResult{Accepted: false}, gathered, nil, true
 			}
 		}
 
 		out, err := e.intentHandler.Handle(dispatch.HandleInput{
-			Params:  params,
-			TurnCtx: turnCtx,
-			Intent:  next,
-			EditCtx: editCtx,
+			Params:   params,
+			Gathered: gathered,
+			Intent:   next,
+			EditCtx:  editCtx,
 		})
 		if err != nil {
 			if next.Executable != nil {
 				trace = appendTurnTrace(trace, turn, "execute_error")
 				if maxRetries > 0 {
 					trace = appendTurnTrace(trace, turn, "retry:execute")
-					turnCtx = appendPlanningNote(turnCtx, fmt.Sprintf("daemon execution failed for %q intent: %v; retry with corrected intent", next.Executable.Kind, err))
+					failedIntents = append(failedIntents, agentcontext.FailedIntent{
+						Intent: next,
+						Phase:  agentcontext.PhaseDispatch,
+						Reason: err.Error(),
+					})
+					gathered = appendGatheredNote(gathered, fmt.Sprintf("daemon execution failed for %q intent: %v; retry with corrected intent", next.Executable.Kind, err))
 					maxRetries--
 					continue
 				}
 			} else {
 				trace = appendTurnTrace(trace, turn, "context:fulfill_error")
 			}
-			return protocol.VoiceTranscriptResult{Accepted: false}, true
+			return protocol.VoiceTranscriptResult{Accepted: false}, gathered, nil, true
 		}
 
 		switch {
@@ -144,23 +167,24 @@ loop:
 				break loop
 			}
 			if cr.Fulfilled != nil {
-				pc := cr.Fulfilled.PlanningContext
-				if e.maxContextBytes > 0 && estimatePlanningContextBytes(pc) > e.maxContextBytes {
+				updated := cr.Fulfilled.UpdatedGathered
+				if e.maxContextBytes > 0 && agentcontext.EstimatedGatheredBytes(updated) > e.maxContextBytes {
 					trace = appendTurnTrace(trace, turn, "context:cap:byte_budget")
-					return protocol.VoiceTranscriptResult{Accepted: false}, true
+					return protocol.VoiceTranscriptResult{Accepted: false}, gathered, nil, true
 				}
 				trace = appendTurnTrace(trace, turn, "context:fulfilled")
-				turnCtx = pc
+				gathered = updated
 				completed = append(completed, next)
 				continue
 			}
 			trace = appendTurnTrace(trace, turn, "invalid_control_outcome")
-			return protocol.VoiceTranscriptResult{Accepted: false}, true
+			return protocol.VoiceTranscriptResult{Accepted: false}, gathered, nil, true
 		case out.Executable != nil:
 			maxRetries = e.maxIntentRetries
 			if maxRetries < 0 {
 				maxRetries = 0
 			}
+			failedIntents = nil
 			consecutiveContextReq = 0
 			st := out.Executable
 			switch {
@@ -176,25 +200,29 @@ loop:
 				directives = append(directives, protocol.VoiceTranscriptDirective{Kind: "edit", EditDirective: st.EditDirective})
 				trace = appendTurnTrace(trace, turn, "result:edit:"+st.EditDirective.Kind)
 				completed = append(completed, next)
+				appendSourceIntentForDirective(&batchSourceIntents, next)
 			case st.CommandDirective != nil:
 				directives = append(directives, protocol.VoiceTranscriptDirective{Kind: "command", CommandDirective: st.CommandDirective})
 				trace = appendTurnTrace(trace, turn, "result:command")
 				completed = append(completed, next)
+				appendSourceIntentForDirective(&batchSourceIntents, next)
 			case st.NavigationDirective != nil:
 				directives = append(directives, protocol.VoiceTranscriptDirective{Kind: "navigate", NavigationDirective: st.NavigationDirective})
 				trace = appendTurnTrace(trace, turn, "result:navigate")
 				completed = append(completed, next)
+				appendSourceIntentForDirective(&batchSourceIntents, next)
 			case st.UndoDirective != nil:
 				directives = append(directives, protocol.VoiceTranscriptDirective{Kind: "undo", UndoDirective: st.UndoDirective})
 				trace = appendTurnTrace(trace, turn, "result:undo:"+st.UndoDirective.Scope)
 				completed = append(completed, next)
+				appendSourceIntentForDirective(&batchSourceIntents, next)
 			default:
 				trace = appendTurnTrace(trace, turn, "invalid_executable_outcome")
-				return protocol.VoiceTranscriptResult{Accepted: false}, true
+				return protocol.VoiceTranscriptResult{Accepted: false}, gathered, nil, true
 			}
 		default:
 			trace = appendTurnTrace(trace, turn, "empty_handle_outcome")
-			return protocol.VoiceTranscriptResult{Accepted: false}, true
+			return protocol.VoiceTranscriptResult{Accepted: false}, gathered, nil, true
 		}
 		if stopPlanning {
 			break
@@ -202,86 +230,28 @@ loop:
 	}
 	if len(completed) >= maxTurns {
 		trace = appendTrace(trace, "cap:max_turns")
-		return protocol.VoiceTranscriptResult{Accepted: false}, true
+		return protocol.VoiceTranscriptResult{Accepted: false}, gathered, nil, true
 	}
-	result := protocol.VoiceTranscriptResult{Accepted: true, Directives: directives, Summary: transcriptSummary}
-	if err := result.Validate(); err != nil {
-		return protocol.VoiceTranscriptResult{Accepted: false}, true
+	result := protocol.VoiceTranscriptResult{
+		Accepted:   true,
+		Directives: directives,
+		Summary:    transcriptSummary,
 	}
-	return result, true
-}
-
-func buildEditExecutionContext(params protocol.VoiceTranscriptParams, ex *intents.ExecutableIntent) (edit.EditExecutionContext, string) {
-	if ex == nil {
-		return edit.EditExecutionContext{}, "missing executable intent"
-	}
-	if ex.Kind == intents.ExecutableIntentKindUndo {
-		return edit.EditExecutionContext{}, ""
-	}
-	active := strings.TrimSpace(params.ActiveFile)
-	workspaceRoot := strings.TrimSpace(params.WorkspaceRoot)
-	if ex.Kind == intents.ExecutableIntentKindEdit && active == "" {
-		return edit.EditExecutionContext{}, "activeFile is required when the next intent is an edit"
-	}
-	if ex.Kind == intents.ExecutableIntentKindEdit && workspaceRoot == "" {
-		return edit.EditExecutionContext{}, "workspaceRoot is required when the next intent is an edit"
-	}
-	fileText := ""
-	if active != "" {
-		b, err := os.ReadFile(active)
+	var pending *agentcontext.DirectiveApplyBatch
+	if len(directives) > 0 {
+		bid, err := newDirectiveApplyBatchID()
 		if err != nil {
-			return edit.EditExecutionContext{}, fmt.Sprintf("read active file: %v", err)
+			trace = appendTrace(trace, "directive_apply_batch_id_error")
+			return protocol.VoiceTranscriptResult{Accepted: false}, gathered, nil, true
 		}
-		fileText = string(b)
+		result.ApplyBatchId = bid
+		pending = &agentcontext.DirectiveApplyBatch{
+			ID:            bid,
+			SourceIntents: append([]intents.Intent(nil), batchSourceIntents...),
+		}
 	}
-	return edit.EditExecutionContext{
-		Instruction:   params.Text,
-		ActiveFile:    params.ActiveFile,
-		FileText:      fileText,
-		WorkspaceRoot: workspaceRoot,
-	}, ""
-}
-
-func estimatePlanningContextBytes(c agent.PlanningContext) int {
-	total := 0
-	for _, sref := range c.Symbols {
-		total += len(sref.ID) + len(sref.Name) + len(sref.Path) + len(sref.Kind) + 16
+	if err := result.Validate(); err != nil {
+		return protocol.VoiceTranscriptResult{Accepted: false}, gathered, nil, true
 	}
-	for _, ex := range c.Excerpts {
-		total += len(ex.Path) + len(ex.Content)
-	}
-	for _, note := range c.Notes {
-		total += len(note)
-	}
-	return total
-}
-
-func appendTurnTrace(trace []string, turn int, msg string) []string {
-	return appendTrace(trace, fmt.Sprintf("t%d:%s", turn, msg))
-}
-
-func appendTrace(trace []string, msg string) []string {
-	const maxTraceEntries = 16
-	msg = strings.TrimSpace(msg)
-	if msg == "" {
-		return trace
-	}
-	trace = append(trace, msg)
-	if len(trace) > maxTraceEntries {
-		trace = trace[len(trace)-maxTraceEntries:]
-	}
-	return trace
-}
-
-func appendPlanningNote(c agent.PlanningContext, note string) agent.PlanningContext {
-	const maxNotes = 8
-	note = strings.TrimSpace(note)
-	if note == "" {
-		return c
-	}
-	c.Notes = append(c.Notes, note)
-	if len(c.Notes) > maxNotes {
-		c.Notes = c.Notes[len(c.Notes)-maxNotes:]
-	}
-	return c
+	return result, gathered, pending, true
 }

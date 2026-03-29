@@ -1,8 +1,6 @@
 package symbols
 
 import (
-	"bufio"
-	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -10,6 +8,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"vocoding.net/vocode/v2/apps/daemon/internal/symbols/tags"
 )
 
 // TreeSitterResolver resolves symbols via the `tree-sitter tags` CLI.
@@ -36,7 +36,7 @@ func (r *TreeSitterResolver) ResolveSymbol(workspaceRoot, symbolName, symbolKind
 		return nil, nil
 	}
 
-	kindFilter := normalizeKind(symbolKind)
+	kindFilter := tags.NormalizeKind(symbolKind)
 	candidates, err := candidateFiles(root, name, hintPath)
 	if err != nil {
 		return nil, err
@@ -48,15 +48,18 @@ func (r *TreeSitterResolver) ResolveSymbol(workspaceRoot, symbolName, symbolKind
 	out := make([]SymbolRef, 0, 8)
 	seen := map[string]bool{}
 	for _, file := range candidates {
-		refs, err := tagsForFile(r.binaryPath, file)
+		tagList, err := tags.LoadTags(r.binaryPath, file)
 		if err != nil {
 			continue
 		}
-		for _, ref := range refs {
+		for _, ref := range tagList {
+			if !ref.IsDefinition {
+				continue
+			}
 			if !strings.EqualFold(ref.Name, name) {
 				continue
 			}
-			if kindFilter != "" && normalizeKind(ref.Kind) != kindFilter {
+			if kindFilter != "" && ref.Kind != kindFilter {
 				continue
 			}
 			key := ref.Path + ":" + ref.Kind + ":" + ref.Name
@@ -64,24 +67,11 @@ func (r *TreeSitterResolver) ResolveSymbol(workspaceRoot, symbolName, symbolKind
 				continue
 			}
 			seen[key] = true
-			match := SymbolRef{
-				Name: ref.Name,
-				Path: ref.Path,
-				Line: ref.Line,
-				Kind: normalizeKind(ref.Kind),
-			}
-			match.ID = BuildSymbolID(match)
+			match := tagToSymbolRef(ref)
 			out = append(out, match)
 		}
 	}
 	return out, nil
-}
-
-type tagRef struct {
-	Name string
-	Path string
-	Kind string
-	Line int
 }
 
 func candidateFiles(workspaceRoot, symbolName, hintPath string) ([]string, error) {
@@ -94,7 +84,6 @@ func candidateFiles(workspaceRoot, symbolName, hintPath string) ([]string, error
 		files = append(files, hint)
 	}
 
-	// Gather candidate files across common source-language extensions.
 	cmd := exec.Command(
 		"rg",
 		"--files-with-matches",
@@ -103,23 +92,21 @@ func candidateFiles(workspaceRoot, symbolName, hintPath string) ([]string, error
 		`\b`+regexp.QuoteMeta(symbolName)+`\b`,
 		workspaceRoot,
 	)
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
+	var stdout strings.Builder
+	var stderr strings.Builder
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil && stdout.Len() == 0 {
 		return nil, fmt.Errorf("candidate file search failed: %v (%s)", err, strings.TrimSpace(stderr.String()))
 	}
 
-	sc := bufio.NewScanner(bytes.NewReader(stdout.Bytes()))
-	for sc.Scan() {
-		p := filepath.Clean(strings.TrimSpace(sc.Text()))
+	for _, line := range strings.Split(stdout.String(), "\n") {
+		p := filepath.Clean(strings.TrimSpace(line))
 		if p == "" || seen[p] {
 			continue
 		}
 		seen[p] = true
 		files = append(files, p)
-		// Keep runtime predictable for now.
 		if len(files) >= 50 {
 			break
 		}
@@ -127,79 +114,17 @@ func candidateFiles(workspaceRoot, symbolName, hintPath string) ([]string, error
 	return files, nil
 }
 
-func tagsForFile(treeSitterBin, path string) ([]tagRef, error) {
-	cmd := exec.Command(treeSitterBin, "tags", path)
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("tree-sitter tags failed for %q: %v (%s)", path, err, strings.TrimSpace(stderr.String()))
+func tagToSymbolRef(t tags.Tag) SymbolRef {
+	line := t.Line
+	if line < 1 && t.HasSpan() {
+		line = t.StartLine + 1
 	}
-
-	out := make([]tagRef, 0, 16)
-	sc := bufio.NewScanner(bytes.NewReader(stdout.Bytes()))
-	for sc.Scan() {
-		ref, ok := parseTagLine(sc.Text())
-		if !ok {
-			continue
-		}
-		if ref.Path == "" {
-			ref.Path = path
-		}
-		ref.Path = filepath.Clean(ref.Path)
-		out = append(out, ref)
+	ref := SymbolRef{
+		Name: t.Name,
+		Path: t.Path,
+		Line: line,
+		Kind: t.Kind,
 	}
-	return out, nil
-}
-
-// parseTagLine parses ctags-like lines:
-// name \t path \t /^...$/;" \t kind [ \t line:123 ] [ \t kind:function ]
-func parseTagLine(line string) (tagRef, bool) {
-	parts := strings.Split(line, "\t")
-	if len(parts) < 4 {
-		return tagRef{}, false
-	}
-	ref := tagRef{
-		Name: strings.TrimSpace(parts[0]),
-		Path: strings.TrimSpace(parts[1]),
-		Kind: normalizeKind(strings.TrimSpace(parts[3])),
-	}
-	if ref.Name == "" {
-		return tagRef{}, false
-	}
-	for _, p := range parts[4:] {
-		p = strings.TrimSpace(p)
-		if strings.HasPrefix(p, "line:") {
-			_, _ = fmt.Sscanf(strings.TrimPrefix(p, "line:"), "%d", &ref.Line)
-			continue
-		}
-		if strings.HasPrefix(p, "kind:") {
-			ref.Kind = normalizeKind(strings.TrimPrefix(p, "kind:"))
-		}
-	}
-	return ref, true
-}
-
-func normalizeKind(kind string) string {
-	k := strings.ToLower(strings.TrimSpace(kind))
-	k = strings.TrimPrefix(k, "kind:")
-	switch k {
-	case "f", "func", "function", "function_definition", "function_declaration", "constructor":
-		return "function"
-	case "m", "method", "member_function", "member":
-		return "method"
-	case "c", "class", "class_declaration", "struct":
-		return "class"
-	case "i", "interface", "trait", "protocol":
-		return "interface"
-	case "e", "enum":
-		return "enum"
-	case "t", "type", "type_alias", "typedef":
-		return "type"
-	case "v", "var", "variable", "field", "property", "member_variable":
-		return "variable"
-	default:
-		return k
-	}
+	ref.ID = BuildSymbolID(ref)
+	return ref
 }

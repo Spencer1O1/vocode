@@ -6,8 +6,8 @@ import (
 	"context"
 	"runtime"
 
-	"vocoding.net/vocode/v2/apps/daemon/internal/agent"
 	"vocoding.net/vocode/v2/apps/daemon/internal/intents"
+	"vocoding.net/vocode/v2/apps/daemon/internal/agentcontext"
 	"vocoding.net/vocode/v2/apps/daemon/internal/symbols"
 )
 
@@ -20,9 +20,9 @@ func New() *Client {
 }
 
 // NextIntent emits a deterministic 4-step sequence, then done.
-func (*Client) NextIntent(ctx context.Context, in agent.ModelInput) (intents.Intent, error) {
+func (*Client) NextIntent(ctx context.Context, in agentcontext.TurnContext) (intents.Intent, error) {
 	_ = ctx
-	switch len(in.CompletedActions) {
+	switch len(in.SucceededIntents) {
 	case 0:
 		return intents.FromExecutable(intents.ExecutableIntent{
 			Kind: intents.ExecutableIntentKindNavigate,

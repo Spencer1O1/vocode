@@ -13,6 +13,37 @@
     "workspaceRoot": {
       "type": "string",
       "description": "Absolute workspace root path used for deterministic relative path resolution in daemon symbol/edit context."
+    },
+    "cursorPosition": {
+      "type": "object",
+      "description": "Caret in the active editor (LSP / VS Code Position). The daemon resolves the innermost symbol at this location using its symbol index (e.g. tree-sitter tags), not the host's document symbol provider.",
+      "additionalProperties": false,
+      "required": ["line", "character"],
+      "properties": {
+        "line": {
+          "type": "integer",
+          "description": "0-based line index."
+        },
+        "character": {
+          "type": "integer",
+          "description": "0-based UTF-16 code unit offset within the line. Reserved for finer resolution; tag-based backend may use line only today."
+        }
+      }
+    },
+    "contextSessionId": {
+      "type": "string",
+      "description": "Internal-only key for persisting Gathered between RPCs (host assigns; user never manages it). Omit for ephemeral gathered."
+    },
+    "reportApplyBatchId": {
+      "type": "string",
+      "description": "Must match the prior result's applyBatchId when lastBatchApply is present."
+    },
+    "lastBatchApply": {
+      "type": "array",
+      "description": "Apply outcome per directive index for the batch identified by reportApplyBatchId (same length as that batch's directives).",
+      "items": {
+        "$ref": "./voice-transcript.directive-apply-item.schema.json"
+      }
     }
   },
   "required": ["text"]
