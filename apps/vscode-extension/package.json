@@ -22,6 +22,10 @@
         "title": "Vocode: Ping Daemon"
       },
       {
+        "command": "vocode.restartBackend",
+        "title": "Vocode: Restart Daemon & Voice"
+      },
+      {
         "command": "vocode.startVoice",
         "title": "Vocode: Start Voice"
       },

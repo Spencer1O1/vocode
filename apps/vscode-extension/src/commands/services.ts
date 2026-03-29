@@ -45,4 +45,6 @@ export interface ExtensionServices {
   voiceSession: VoiceSessionController;
   voiceSidecar: VoiceSidecarClient | null;
   mainPanelStore: MainPanelStore;
+  /** Stops and respawns daemon + voice sidecar with current spawn environment. */
+  restartVocode?: () => Promise<void>;
 }

@@ -1,12 +1,28 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import type { VocodePanelConfig } from "./panel-config-types";
+import {
+  AdvancedDisclosure,
+  LanguageSelectRow,
+  OptionalZeroSliderRow,
+  SLIDER_SPECS,
+  SliderRow,
+  SttModelChoiceRow,
+} from "./settings-widgets";
 import { getVsCodeApi } from "./vscode-api";
 
 export type PanelConfig = VocodePanelConfig;
 
 function patchConfig(patch: Partial<VocodePanelConfig>) {
   getVsCodeApi()?.postMessage({ type: "setPanelConfig", patch });
+}
+
+function formatMs(ms: number): string {
+  if (ms >= 60_000) {
+    const m = ms / 60_000;
+    return Number.isInteger(m) ? `${m} min` : `${m.toFixed(1)} min`;
+  }
+  return `${ms} ms`;
 }
 
 function ToggleRow(props: {
@@ -36,65 +52,6 @@ function ToggleRow(props: {
   );
 }
 
-function TextField(props: {
-  label: string;
-  hint?: string;
-  value: string;
-  disabled?: boolean;
-  onCommit: (v: string) => void;
-}) {
-  const { label, hint, value, disabled, onCommit } = props;
-  const [local, setLocal] = useState(value);
-  useEffect(() => setLocal(value), [value]);
-  return (
-    <label className="settings-field">
-      <span className="settings-field-label">{label}</span>
-      {hint ? <span className="settings-field-hint">{hint}</span> : null}
-      <input
-        type="text"
-        className="settings-input"
-        disabled={disabled}
-        value={local}
-        onChange={(e) => setLocal(e.target.value)}
-        onBlur={() => onCommit(local)}
-      />
-    </label>
-  );
-}
-
-function NumField(props: {
-  label: string;
-  hint?: string;
-  value: number;
-  step?: string;
-  disabled?: boolean;
-  onCommit: (n: number) => void;
-}) {
-  const { label, hint, value, step, disabled, onCommit } = props;
-  const [local, setLocal] = useState(String(value));
-  useEffect(() => setLocal(String(value)), [value]);
-  return (
-    <label className="settings-field">
-      <span className="settings-field-label">{label}</span>
-      {hint ? <span className="settings-field-hint">{hint}</span> : null}
-      <input
-        type="number"
-        className="settings-input"
-        step={step}
-        disabled={disabled}
-        value={local}
-        onChange={(e) => setLocal(e.target.value)}
-        onBlur={() => {
-          const n = Number(local);
-          if (Number.isFinite(n)) {
-            onCommit(n);
-          }
-        }}
-      />
-    </label>
-  );
-}
-
 export function SettingsPanel(props: { config: PanelConfig | null }) {
   const { config } = props;
   const api = getVsCodeApi();
@@ -112,16 +69,9 @@ export function SettingsPanel(props: { config: PanelConfig | null }) {
           Code secret storage (not settings.json).
         </div>
       ) : null}
-      <p className="settings-intro">
-        <strong>Defaults</strong> ship in the extension (
-        <code>package.json</code>
-        ). <strong>Your changes</strong> are VS Code settings (this panel or
-        Settings → Vocode) plus the API key in secret storage. To{" "}
-        <strong>reset a value to default</strong>, open Settings → search{" "}
-        <code>vocode</code> → use the gear icon on that row → Reset setting (or
-        remove the key from your <code>settings.json</code>). After changing
-        values, restart voice (Stop → Start) and reload the window so the daemon
-        restarts.
+
+      <p className="settings-intro-short">
+        Vocode settings. Use the button below to reload and apply.
       </p>
 
       {config ? (
@@ -175,35 +125,207 @@ export function SettingsPanel(props: { config: PanelConfig | null }) {
       {config ? (
         <section className="settings-section">
           <h2 className="settings-section-title">Speech (ElevenLabs)</h2>
-          <div className="settings-field-grid">
-            <TextField
-              label="STT language"
-              hint='ISO 639-1 (e.g. en) or "auto"'
+          <div className="settings-field-stack">
+            <LanguageSelectRow
               value={config.elevenLabsSttLanguage}
               disabled={disabled}
               onCommit={(v) => patchConfig({ elevenLabsSttLanguage: v })}
             />
-            <TextField
-              label="STT model id"
+            <SttModelChoiceRow
               value={config.elevenLabsSttModelId}
               disabled={disabled}
               onCommit={(v) => patchConfig({ elevenLabsSttModelId: v })}
             />
-            <NumField
-              label="Commit response timeout (ms)"
-              hint="0 = wait indefinitely for committed_transcript"
+            <OptionalZeroSliderRow
+              label="Commit response timeout"
+              hint="When off, wait indefinitely for a committed transcript after commit:true."
+              toggleLabel="Limit how long to wait for committed transcript"
               value={config.voiceSttCommitResponseTimeoutMs}
+              spec={SLIDER_SPECS.voiceSttCommitResponseTimeoutMs}
               disabled={disabled}
+              enableDefault={5000}
               onCommit={(n) =>
                 patchConfig({ voiceSttCommitResponseTimeoutMs: n })
               }
+              formatDisplay={formatMs}
+              offSummary="Unlimited"
             />
           </div>
         </section>
       ) : null}
 
       {config ? (
-        <section className="settings-section">
+        <AdvancedDisclosure title="Advanced">
+          <div className="settings-advanced-inner">
+            <h3 className="settings-subhead">VAD</h3>
+            <div className="settings-field-stack">
+              <SliderRow
+                label="Threshold multiplier"
+                value={config.voiceVadThresholdMultiplier}
+                spec={SLIDER_SPECS.voiceVadThresholdMultiplier}
+                disabled={disabled}
+                onCommit={(n) =>
+                  patchConfig({ voiceVadThresholdMultiplier: n })
+                }
+              />
+              <SliderRow
+                label="Min energy floor"
+                value={config.voiceVadMinEnergyFloor}
+                spec={SLIDER_SPECS.voiceVadMinEnergyFloor}
+                disabled={disabled}
+                onCommit={(n) => patchConfig({ voiceVadMinEnergyFloor: n })}
+              />
+              <SliderRow
+                label="Start (ms)"
+                value={config.voiceVadStartMs}
+                spec={SLIDER_SPECS.voiceVadStartMs}
+                disabled={disabled}
+                onCommit={(n) => patchConfig({ voiceVadStartMs: n })}
+              />
+              <SliderRow
+                label="End (ms)"
+                value={config.voiceVadEndMs}
+                spec={SLIDER_SPECS.voiceVadEndMs}
+                disabled={disabled}
+                onCommit={(n) => patchConfig({ voiceVadEndMs: n })}
+              />
+              <SliderRow
+                label="Preroll (ms)"
+                value={config.voiceVadPrerollMs}
+                spec={SLIDER_SPECS.voiceVadPrerollMs}
+                disabled={disabled}
+                onCommit={(n) => patchConfig({ voiceVadPrerollMs: n })}
+              />
+            </div>
+            <h3 className="settings-subhead">Stream</h3>
+            <div className="settings-field-stack">
+              <SliderRow
+                label="Min chunk (ms)"
+                value={config.voiceStreamMinChunkMs}
+                spec={SLIDER_SPECS.voiceStreamMinChunkMs}
+                disabled={disabled}
+                onCommit={(n) => patchConfig({ voiceStreamMinChunkMs: n })}
+              />
+              <SliderRow
+                label="Max chunk (ms)"
+                value={config.voiceStreamMaxChunkMs}
+                spec={SLIDER_SPECS.voiceStreamMaxChunkMs}
+                disabled={disabled}
+                onCommit={(n) => patchConfig({ voiceStreamMaxChunkMs: n })}
+              />
+              <OptionalZeroSliderRow
+                label="Max utterance (ms)"
+                hint="When off, commits only on silence or end of stream. When on, force a commit at most every N ms during continuous speech."
+                toggleLabel="Cap utterance length (periodic commit)"
+                value={config.voiceStreamMaxUtteranceMs}
+                spec={SLIDER_SPECS.voiceStreamMaxUtteranceMs}
+                disabled={disabled}
+                enableDefault={8000}
+                onCommit={(n) => patchConfig({ voiceStreamMaxUtteranceMs: n })}
+                formatDisplay={formatMs}
+                offSummary="Unlimited"
+              />
+            </div>
+            <h3 className="settings-subhead">Daemon (voice transcript)</h3>
+            <div className="settings-field-stack">
+              <SliderRow
+                label="Queue size"
+                value={config.daemonVoiceTranscriptQueueSize}
+                spec={SLIDER_SPECS.daemonVoiceTranscriptQueueSize}
+                disabled={disabled}
+                onCommit={(n) =>
+                  patchConfig({ daemonVoiceTranscriptQueueSize: n })
+                }
+              />
+              <SliderRow
+                label="Coalesce (ms)"
+                value={config.daemonVoiceTranscriptCoalesceMs}
+                spec={SLIDER_SPECS.daemonVoiceTranscriptCoalesceMs}
+                disabled={disabled}
+                onCommit={(n) =>
+                  patchConfig({ daemonVoiceTranscriptCoalesceMs: n })
+                }
+                formatDisplay={formatMs}
+              />
+              <SliderRow
+                label="Max merge jobs"
+                value={config.daemonVoiceTranscriptMaxMergeJobs}
+                spec={SLIDER_SPECS.daemonVoiceTranscriptMaxMergeJobs}
+                disabled={disabled}
+                onCommit={(n) =>
+                  patchConfig({ daemonVoiceTranscriptMaxMergeJobs: n })
+                }
+              />
+              <SliderRow
+                label="Max merge chars"
+                value={config.daemonVoiceTranscriptMaxMergeChars}
+                spec={SLIDER_SPECS.daemonVoiceTranscriptMaxMergeChars}
+                disabled={disabled}
+                onCommit={(n) =>
+                  patchConfig({ daemonVoiceTranscriptMaxMergeChars: n })
+                }
+              />
+              <SliderRow
+                label="Max agent turns"
+                value={config.daemonVoiceMaxAgentTurns}
+                spec={SLIDER_SPECS.daemonVoiceMaxAgentTurns}
+                disabled={disabled}
+                onCommit={(n) => patchConfig({ daemonVoiceMaxAgentTurns: n })}
+              />
+              <SliderRow
+                label="Max intent retries"
+                value={config.daemonVoiceMaxIntentRetries}
+                spec={SLIDER_SPECS.daemonVoiceMaxIntentRetries}
+                disabled={disabled}
+                onCommit={(n) =>
+                  patchConfig({ daemonVoiceMaxIntentRetries: n })
+                }
+              />
+              <SliderRow
+                label="Max context rounds"
+                value={config.daemonVoiceMaxContextRounds}
+                spec={SLIDER_SPECS.daemonVoiceMaxContextRounds}
+                disabled={disabled}
+                onCommit={(n) =>
+                  patchConfig({ daemonVoiceMaxContextRounds: n })
+                }
+              />
+              <SliderRow
+                label="Max context bytes"
+                value={config.daemonVoiceMaxContextBytes}
+                spec={SLIDER_SPECS.daemonVoiceMaxContextBytes}
+                disabled={disabled}
+                onCommit={(n) => patchConfig({ daemonVoiceMaxContextBytes: n })}
+              />
+              <SliderRow
+                label="Max consecutive context requests"
+                value={config.daemonVoiceMaxConsecutiveContextRequests}
+                spec={SLIDER_SPECS.daemonVoiceMaxConsecutiveContextRequests}
+                disabled={disabled}
+                onCommit={(n) =>
+                  patchConfig({
+                    daemonVoiceMaxConsecutiveContextRequests: n,
+                  })
+                }
+              />
+              <OptionalZeroSliderRow
+                label="Session idle reset"
+                hint="When off, the daemon does not auto-drop voice session state from this setting (see package default)."
+                toggleLabel="Drop voice session after idle"
+                value={config.daemonSessionIdleResetMs}
+                spec={SLIDER_SPECS.daemonSessionIdleResetMs}
+                disabled={disabled}
+                enableDefault={1_800_000}
+                onCommit={(n) => patchConfig({ daemonSessionIdleResetMs: n })}
+                formatDisplay={formatMs}
+              />
+            </div>
+          </div>
+        </AdvancedDisclosure>
+      ) : null}
+
+      {config ? (
+        <section className="settings-section settings-section-after-advanced">
           <h2 className="settings-section-title">Debug</h2>
           <div className="settings-stack">
             <ToggleRow
@@ -229,149 +351,16 @@ export function SettingsPanel(props: { config: PanelConfig | null }) {
       ) : null}
 
       {config ? (
-        <details className="settings-advanced">
-          <summary className="settings-advanced-summary">Advanced</summary>
-          <div className="settings-advanced-body">
-            <h3 className="settings-subhead">VAD</h3>
-            <div className="settings-field-grid">
-              <NumField
-                label="Threshold multiplier"
-                value={config.voiceVadThresholdMultiplier}
-                step="0.05"
-                disabled={disabled}
-                onCommit={(n) =>
-                  patchConfig({ voiceVadThresholdMultiplier: n })
-                }
-              />
-              <NumField
-                label="Min energy floor"
-                value={config.voiceVadMinEnergyFloor}
-                disabled={disabled}
-                onCommit={(n) => patchConfig({ voiceVadMinEnergyFloor: n })}
-              />
-              <NumField
-                label="Start (ms)"
-                value={config.voiceVadStartMs}
-                disabled={disabled}
-                onCommit={(n) => patchConfig({ voiceVadStartMs: n })}
-              />
-              <NumField
-                label="End (ms)"
-                value={config.voiceVadEndMs}
-                disabled={disabled}
-                onCommit={(n) => patchConfig({ voiceVadEndMs: n })}
-              />
-              <NumField
-                label="Preroll (ms)"
-                value={config.voiceVadPrerollMs}
-                disabled={disabled}
-                onCommit={(n) => patchConfig({ voiceVadPrerollMs: n })}
-              />
-            </div>
-            <h3 className="settings-subhead">Stream</h3>
-            <div className="settings-field-grid">
-              <NumField
-                label="Min chunk (ms)"
-                value={config.voiceStreamMinChunkMs}
-                disabled={disabled}
-                onCommit={(n) => patchConfig({ voiceStreamMinChunkMs: n })}
-              />
-              <NumField
-                label="Max chunk (ms)"
-                value={config.voiceStreamMaxChunkMs}
-                disabled={disabled}
-                onCommit={(n) => patchConfig({ voiceStreamMaxChunkMs: n })}
-              />
-              <NumField
-                label="Max utterance (ms)"
-                hint="0 = off"
-                value={config.voiceStreamMaxUtteranceMs}
-                disabled={disabled}
-                onCommit={(n) => patchConfig({ voiceStreamMaxUtteranceMs: n })}
-              />
-            </div>
-            <h3 className="settings-subhead">Daemon (voice transcript)</h3>
-            <div className="settings-field-grid">
-              <NumField
-                label="Queue size"
-                value={config.daemonVoiceTranscriptQueueSize}
-                disabled={disabled}
-                onCommit={(n) =>
-                  patchConfig({ daemonVoiceTranscriptQueueSize: n })
-                }
-              />
-              <NumField
-                label="Coalesce (ms)"
-                value={config.daemonVoiceTranscriptCoalesceMs}
-                disabled={disabled}
-                onCommit={(n) =>
-                  patchConfig({ daemonVoiceTranscriptCoalesceMs: n })
-                }
-              />
-              <NumField
-                label="Max merge jobs"
-                value={config.daemonVoiceTranscriptMaxMergeJobs}
-                disabled={disabled}
-                onCommit={(n) =>
-                  patchConfig({ daemonVoiceTranscriptMaxMergeJobs: n })
-                }
-              />
-              <NumField
-                label="Max merge chars"
-                value={config.daemonVoiceTranscriptMaxMergeChars}
-                disabled={disabled}
-                onCommit={(n) =>
-                  patchConfig({ daemonVoiceTranscriptMaxMergeChars: n })
-                }
-              />
-              <NumField
-                label="Max agent turns"
-                value={config.daemonVoiceMaxAgentTurns}
-                disabled={disabled}
-                onCommit={(n) => patchConfig({ daemonVoiceMaxAgentTurns: n })}
-              />
-              <NumField
-                label="Max intent retries"
-                value={config.daemonVoiceMaxIntentRetries}
-                disabled={disabled}
-                onCommit={(n) =>
-                  patchConfig({ daemonVoiceMaxIntentRetries: n })
-                }
-              />
-              <NumField
-                label="Max context rounds"
-                value={config.daemonVoiceMaxContextRounds}
-                disabled={disabled}
-                onCommit={(n) =>
-                  patchConfig({ daemonVoiceMaxContextRounds: n })
-                }
-              />
-              <NumField
-                label="Max context bytes"
-                value={config.daemonVoiceMaxContextBytes}
-                disabled={disabled}
-                onCommit={(n) => patchConfig({ daemonVoiceMaxContextBytes: n })}
-              />
-              <NumField
-                label="Max consecutive context requests"
-                value={config.daemonVoiceMaxConsecutiveContextRequests}
-                disabled={disabled}
-                onCommit={(n) =>
-                  patchConfig({
-                    daemonVoiceMaxConsecutiveContextRequests: n,
-                  })
-                }
-              />
-              <NumField
-                label="Session idle reset (ms)"
-                hint="0 = off"
-                value={config.daemonSessionIdleResetMs}
-                disabled={disabled}
-                onCommit={(n) => patchConfig({ daemonSessionIdleResetMs: n })}
-              />
-            </div>
-          </div>
-        </details>
+        <div className="settings-apply-row">
+          <button
+            type="button"
+            className="settings-btn settings-btn-primary"
+            disabled={disabled}
+            onClick={() => api?.postMessage({ type: "restartVocodeBackend" })}
+          >
+            Apply changes and restart
+          </button>
+        </div>
       ) : null}
 
       <button

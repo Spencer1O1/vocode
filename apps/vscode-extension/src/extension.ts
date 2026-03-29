@@ -1,3 +1,4 @@
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import * as vscode from "vscode";
 
 import { registerAllCommands } from "./commands";
@@ -7,24 +8,30 @@ import {
 } from "./commands/services";
 import { DaemonClient } from "./daemon/client";
 import { spawnDaemon } from "./daemon/spawn";
-import { applyTranscriptResult } from "./transcript/apply-result";
-import {
-  mergeCarriedTranscriptParams,
-  recordTranscriptApplyCycle,
-} from "./transcript/carry";
-import { FAILED_TO_PROCESS_TRANSCRIPT } from "./transcript/messages";
-import { transcriptWorkspaceRoot } from "./transcript/workspace-root";
+import { attachTranscriptPipeline } from "./extension/transcript-pipeline";
 import { MainPanelViewProvider, mainPanelViewType } from "./ui/main-panel";
 import { MainPanelStore } from "./ui/main-panel-store";
 import { VoiceStatusIndicator } from "./ui/status-bar";
 import { VoiceSidecarClient } from "./voice/client";
 import { spawnVoiceSidecar } from "./voice/spawn";
 
-async function createServices(
+function safeKillProcess(proc: ChildProcessWithoutNullStreams | null): void {
+  if (!proc || proc.killed) {
+    return;
+  }
+  try {
+    proc.kill();
+  } catch {
+    // Process may already be gone.
+  }
+}
+
+async function wireVocodeBackend(
   context: vscode.ExtensionContext,
-  voiceStatus: VoiceStatusIndicator,
-  mainPanelStore: MainPanelStore,
-): Promise<ExtensionServices> {
+  services: ExtensionServices,
+  daemonProcRef: { current: ChildProcessWithoutNullStreams | null },
+  voiceProcRef: { current: ChildProcessWithoutNullStreams | null },
+): Promise<void> {
   try {
     const daemon = await spawnDaemon(context);
     console.log(`Vocode daemon started from ${daemon.binaryPath}`);
@@ -32,133 +39,12 @@ async function createServices(
     const voice = await spawnVoiceSidecar(context);
     console.log(`Vocode voice sidecar started from ${voice.binaryPath}`);
 
-    const voiceSession = new VoiceSessionController();
-    const client = new DaemonClient(daemon.process);
-    const voiceSidecar = new VoiceSidecarClient(voice.process);
+    services.client = new DaemonClient(daemon.process);
+    services.voiceSidecar = new VoiceSidecarClient(voice.process);
+    daemonProcRef.current = daemon.process;
+    voiceProcRef.current = voice.process;
 
-    let inFlightTranscripts = 0;
-
-    voiceSidecar.onAudioMeter((evt) => {
-      mainPanelStore.setAudioMeter(evt.speaking, evt.rms);
-    });
-
-    voiceSidecar.onError((evt) => {
-      const message =
-        typeof evt.message === "string" ? evt.message : "unknown error";
-      // Always clear partial / meter UI — do not gate on isRunning (avoids a stuck "Live" card).
-      mainPanelStore.setVoiceListening(false);
-      voiceStatus.setIdle();
-      if (voiceSession.isRunning()) {
-        voiceSession.stop();
-        void vscode.window.showWarningMessage(
-          `Vocode voice sidecar error: ${message}`,
-        );
-      }
-      // Sync stdin protocol so a future start is not confused with an orphaned session.
-      voiceSidecar.stop();
-    });
-
-    voiceSidecar.onState((evt) => {
-      if (evt.state !== "stopped" && evt.state !== "shutdown") {
-        return;
-      }
-      if (!voiceSession.isRunning()) {
-        return;
-      }
-      voiceSession.stop();
-      voiceStatus.setIdle();
-      mainPanelStore.setVoiceListening(false);
-    });
-
-    voiceSidecar.onTranscript((evt) => {
-      if (evt.committed !== true) {
-        mainPanelStore.onPartial(evt.text);
-        if (!voiceSession.isRunning()) {
-          return;
-        }
-        return;
-      }
-
-      const pendingId = mainPanelStore.enqueueCommitted(evt.text);
-
-      // Daemon work only while listening; the store still records late commits for the panel.
-      if (!voiceSession.isRunning()) {
-        return;
-      }
-
-      if (pendingId === null) {
-        return;
-      }
-
-      // Only final/committed transcript hypotheses should be forwarded to the core daemon.
-      const editor = vscode.window.activeTextEditor;
-      if (!editor) {
-        const message =
-          "Open a text editor so Vocode can run actions against the active file.";
-        mainPanelStore.markError(pendingId, message);
-        void vscode.window.showWarningMessage(message);
-        return;
-      }
-
-      const activeFile = editor.document.uri.fsPath;
-      const text = evt.text;
-
-      if (inFlightTranscripts === 0) {
-        voiceStatus.setProcessing();
-      }
-      inFlightTranscripts++;
-
-      mainPanelStore.markProcessing(pendingId);
-
-      void (async () => {
-        try {
-          const pos = editor.selection.active;
-          const result = await client.transcript(
-            mergeCarriedTranscriptParams({
-              text,
-              activeFile,
-              workspaceRoot: transcriptWorkspaceRoot(activeFile),
-              cursorPosition: { line: pos.line, character: pos.character },
-              contextSessionId: voiceSession.contextSessionId(),
-            }),
-          );
-          const outcomes = await applyTranscriptResult(result, activeFile);
-          recordTranscriptApplyCycle(result, outcomes);
-          const firstBad = outcomes.find((o) => !o.ok);
-          if (!result.success || firstBad) {
-            const msg = !result.success
-              ? FAILED_TO_PROCESS_TRANSCRIPT
-              : firstBad?.message && firstBad.message !== "not attempted"
-                ? firstBad.message
-                : "A directive failed to apply.";
-            mainPanelStore.markError(pendingId, msg);
-          } else {
-            mainPanelStore.markHandled(pendingId, {
-              summary: result.summary?.trim() || undefined,
-            });
-          }
-        } catch (err) {
-          const message =
-            err instanceof Error
-              ? err.message
-              : "Unknown error while running the transcript.";
-          mainPanelStore.markError(pendingId, message);
-        } finally {
-          inFlightTranscripts = Math.max(0, inFlightTranscripts - 1);
-          if (voiceSession.isRunning() && inFlightTranscripts === 0) {
-            voiceStatus.setListening();
-          }
-        }
-      })();
-    });
-
-    return {
-      client,
-      voiceStatus,
-      voiceSession,
-      voiceSidecar,
-      mainPanelStore,
-    };
+    attachTranscriptPipeline(services);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unknown daemon startup error";
@@ -168,13 +54,10 @@ async function createServices(
       `Failed to start Vocode daemon: ${message}`,
     );
 
-    return {
-      client: null,
-      voiceStatus,
-      voiceSession: new VoiceSessionController(),
-      voiceSidecar: null,
-      mainPanelStore,
-    };
+    services.client = null;
+    services.voiceSidecar = null;
+    daemonProcRef.current = null;
+    voiceProcRef.current = null;
   }
 }
 
@@ -194,7 +77,55 @@ export async function activate(context: vscode.ExtensionContext) {
     mainPanel,
   );
 
-  const services = await createServices(context, voiceStatus, mainPanelStore);
+  const voiceSession = new VoiceSessionController();
+  const daemonProcRef: {
+    current: ChildProcessWithoutNullStreams | null;
+  } = { current: null };
+  const voiceProcRef: {
+    current: ChildProcessWithoutNullStreams | null;
+  } = { current: null };
+
+  const services: ExtensionServices = {
+    client: null,
+    voiceStatus,
+    voiceSession,
+    voiceSidecar: null,
+    mainPanelStore,
+  };
+
+  let restartInFlight = false;
+  services.restartVocode = async () => {
+    if (restartInFlight) {
+      return;
+    }
+    restartInFlight = true;
+    try {
+      voiceSession.stop();
+      services.voiceSidecar?.stop();
+      mainPanelStore.setVoiceListening(false);
+      voiceStatus.setIdle();
+      services.client?.dispose();
+      services.voiceSidecar?.dispose();
+      safeKillProcess(daemonProcRef.current);
+      safeKillProcess(voiceProcRef.current);
+      daemonProcRef.current = null;
+      voiceProcRef.current = null;
+      services.client = null;
+      services.voiceSidecar = null;
+
+      await wireVocodeBackend(context, services, daemonProcRef, voiceProcRef);
+
+      if (services.client) {
+        void vscode.window.showInformationMessage(
+          "Vocode daemon and voice sidecar restarted.",
+        );
+      }
+    } finally {
+      restartInFlight = false;
+    }
+  };
+
+  await wireVocodeBackend(context, services, daemonProcRef, voiceProcRef);
 
   context.subscriptions.push(voiceStatus, ...registerAllCommands(services), {
     dispose: () => {

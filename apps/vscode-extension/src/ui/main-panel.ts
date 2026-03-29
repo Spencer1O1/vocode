@@ -134,6 +134,10 @@ export class MainPanelViewProvider
             "workbench.action.openSettings",
             "vocode",
           );
+          return;
+        }
+        if (m.type === "restartVocodeBackend") {
+          void vscode.commands.executeCommand("vocode.restartBackend");
         }
       }),
     );
