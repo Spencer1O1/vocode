@@ -66,7 +66,7 @@ func NewElevenLabsStreamingClient(ctx context.Context, apiKey string, modelID st
 	if lc := strings.TrimSpace(languageCode); lc != "" {
 		query.Set("language_code", lc)
 	}
-	for _, kt := range RealtimeSTTKeyterms {
+	for _, kt := range AllRealtimeSTTKeyterms() {
 		kt = strings.TrimSpace(kt)
 		if kt != "" {
 			query.Add("keyterms", kt)

@@ -94,6 +94,7 @@ var sttKeytermsVocodeDirectives = []string{
 }
 
 // RealtimeSTTKeyterms is the concatenation of the lists above, in order.
+// AllRealtimeSTTKeyterms() appends workspace extras from VOCODE_STT_KEYTERMS_JSON (see workspace_keyterms.go).
 var RealtimeSTTKeyterms = slices.Concat(
 	sttKeytermsProgramming,
 	sttKeytermsVocodeProduct,

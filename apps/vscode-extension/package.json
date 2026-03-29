@@ -23,7 +23,11 @@
       },
       {
         "command": "vocode.restartBackend",
-        "title": "Vocode: Restart Daemon & Voice"
+        "title": "Vocode: Restart"
+      },
+      {
+        "command": "vocode.initWorkspaceVocode",
+        "title": "Vocode: Initialize Workspace"
       },
       {
         "command": "vocode.startVoice",

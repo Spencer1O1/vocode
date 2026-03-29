@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
 
+import { readWorkspaceSttKeywords } from "./workspace-vocode";
+
 /** VS Code SecretStorage key (never log). */
 export const ELEVENLABS_API_KEY_SECRET = "vocode.elevenLabsApiKey";
 
@@ -183,6 +185,13 @@ export async function applyVocodeSpawnEnvironment(
     env.VOCODE_VOICE_VAD_DEBUG = "1";
   } else {
     delete env.VOCODE_VOICE_VAD_DEBUG;
+  }
+
+  const sttKeywords = await readWorkspaceSttKeywords();
+  if (sttKeywords.length > 0) {
+    env.VOCODE_STT_KEYTERMS_JSON = JSON.stringify(sttKeywords);
+  } else {
+    delete env.VOCODE_STT_KEYTERMS_JSON;
   }
 }
 

@@ -125,6 +125,12 @@ export function SettingsPanel(props: { config: PanelConfig | null }) {
       {config ? (
         <section className="settings-section">
           <h2 className="settings-section-title">Speech (ElevenLabs)</h2>
+          <p className="settings-subtle">
+            Workspace STT keywords: add a <code>.vocode</code> JSON file at a
+            folder root with <code>sttKeywords</code> (string array). Command
+            Palette: <strong>Vocode: Create Workspace .vocode File</strong>,
+            then apply &amp; restart.
+          </p>
           <div className="settings-field-stack">
             <LanguageSelectRow
               value={config.elevenLabsSttLanguage}
