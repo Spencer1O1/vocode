@@ -15,18 +15,15 @@ import {
 import { FAILED_TO_PROCESS_TRANSCRIPT } from "./transcript/messages";
 import { transcriptWorkspaceRoot } from "./transcript/workspace-root";
 import { VoiceStatusIndicator } from "./ui/status-bar";
-import {
-  TranscriptPanelViewProvider,
-  transcriptPanelViewType,
-} from "./ui/transcript-panel";
-import { TranscriptStore } from "./ui/transcript-store";
+import { MainPanelViewProvider, mainPanelViewType } from "./ui/main-panel";
+import { MainPanelStore } from "./ui/main-panel-store";
 import { VoiceSidecarClient } from "./voice/client";
 import { spawnVoiceSidecar } from "./voice/spawn";
 
 function createServices(
   context: vscode.ExtensionContext,
   voiceStatus: VoiceStatusIndicator,
-  transcriptStore: TranscriptStore,
+  mainPanelStore: MainPanelStore,
 ): ExtensionServices {
   try {
     const daemon = spawnDaemon(context);
@@ -42,14 +39,14 @@ function createServices(
     let inFlightTranscripts = 0;
 
     voiceSidecar.onAudioMeter((evt) => {
-      transcriptStore.setAudioMeter(evt.speaking, evt.rms);
+      mainPanelStore.setAudioMeter(evt.speaking, evt.rms);
     });
 
     voiceSidecar.onError((evt) => {
       const message =
         typeof evt.message === "string" ? evt.message : "unknown error";
       // Always clear partial / meter UI — do not gate on isRunning (avoids a stuck "Live" card).
-      transcriptStore.setVoiceListening(false);
+      mainPanelStore.setVoiceListening(false);
       voiceStatus.setIdle();
       if (voiceSession.isRunning()) {
         voiceSession.stop();
@@ -70,19 +67,19 @@ function createServices(
       }
       voiceSession.stop();
       voiceStatus.setIdle();
-      transcriptStore.setVoiceListening(false);
+      mainPanelStore.setVoiceListening(false);
     });
 
     voiceSidecar.onTranscript((evt) => {
       if (evt.committed !== true) {
-        transcriptStore.onPartial(evt.text);
+        mainPanelStore.onPartial(evt.text);
         if (!voiceSession.isRunning()) {
           return;
         }
         return;
       }
 
-      const pendingId = transcriptStore.enqueueCommitted(evt.text);
+      const pendingId = mainPanelStore.enqueueCommitted(evt.text);
 
       // Daemon work only while listening; the store still records late commits for the panel.
       if (!voiceSession.isRunning()) {
@@ -98,7 +95,7 @@ function createServices(
       if (!editor) {
         const message =
           "Open a text editor so Vocode can run actions against the active file.";
-        transcriptStore.markError(pendingId, message);
+        mainPanelStore.markError(pendingId, message);
         void vscode.window.showWarningMessage(message);
         return;
       }
@@ -111,7 +108,7 @@ function createServices(
       }
       inFlightTranscripts++;
 
-      transcriptStore.markProcessing(pendingId);
+      mainPanelStore.markProcessing(pendingId);
 
       void (async () => {
         try {
@@ -134,9 +131,9 @@ function createServices(
               : firstBad?.message && firstBad.message !== "not attempted"
                 ? firstBad.message
                 : "A directive failed to apply.";
-            transcriptStore.markError(pendingId, msg);
+            mainPanelStore.markError(pendingId, msg);
           } else {
-            transcriptStore.markHandled(pendingId, {
+            mainPanelStore.markHandled(pendingId, {
               summary: result.summary?.trim() || undefined,
             });
           }
@@ -145,7 +142,7 @@ function createServices(
             err instanceof Error
               ? err.message
               : "Unknown error while running the transcript.";
-          transcriptStore.markError(pendingId, message);
+          mainPanelStore.markError(pendingId, message);
         } finally {
           inFlightTranscripts = Math.max(0, inFlightTranscripts - 1);
           if (voiceSession.isRunning() && inFlightTranscripts === 0) {
@@ -160,7 +157,7 @@ function createServices(
       voiceStatus,
       voiceSession,
       voiceSidecar,
-      transcriptStore,
+      mainPanelStore,
     };
   } catch (error) {
     const message =
@@ -176,7 +173,7 @@ function createServices(
       voiceStatus,
       voiceSession: new VoiceSessionController(),
       voiceSidecar: null,
-      transcriptStore,
+      mainPanelStore,
     };
   }
 }
@@ -185,21 +182,18 @@ export function activate(context: vscode.ExtensionContext) {
   console.log("Vocode extension activated");
 
   const voiceStatus = new VoiceStatusIndicator();
-  const transcriptStore = new TranscriptStore();
-  const transcriptPanel = new TranscriptPanelViewProvider(
+  const mainPanelStore = new MainPanelStore();
+  const mainPanel = new MainPanelViewProvider(
     context.extensionUri,
-    transcriptStore,
+    mainPanelStore,
   );
 
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(
-      transcriptPanelViewType,
-      transcriptPanel,
-    ),
-    transcriptPanel,
+    vscode.window.registerWebviewViewProvider(mainPanelViewType, mainPanel),
+    mainPanel,
   );
 
-  const services = createServices(context, voiceStatus, transcriptStore);
+  const services = createServices(context, voiceStatus, mainPanelStore);
 
   context.subscriptions.push(voiceStatus, ...registerAllCommands(services), {
     dispose: () => {

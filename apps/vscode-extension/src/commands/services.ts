@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { DaemonClient } from "../daemon/client";
 import type { VoiceStatusIndicator } from "../ui/status-bar";
-import type { TranscriptStore } from "../ui/transcript-store";
+import type { MainPanelStore } from "../ui/main-panel-store";
 import type { VoiceSidecarClient } from "../voice/client";
 
 export class VoiceSessionController {
@@ -44,5 +44,5 @@ export interface ExtensionServices {
   voiceStatus: VoiceStatusIndicator;
   voiceSession: VoiceSessionController;
   voiceSidecar: VoiceSidecarClient | null;
-  transcriptStore: TranscriptStore;
+  mainPanelStore: MainPanelStore;
 }

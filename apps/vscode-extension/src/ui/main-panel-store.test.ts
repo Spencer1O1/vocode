@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { TranscriptStore } from "./transcript-store";
+import { MainPanelStore } from "./main-panel-store";
 
 test("clears partial buffer when a committed line arrives", () => {
-  const store = new TranscriptStore();
+  const store = new MainPanelStore();
   store.setVoiceListening(true);
 
   store.onPartial("partial one");
@@ -21,14 +21,14 @@ test("clears partial buffer when a committed line arrives", () => {
 });
 
 test("does not enqueue empty committed text", () => {
-  const store = new TranscriptStore();
+  const store = new MainPanelStore();
 
   assert.equal(store.enqueueCommitted("   "), null);
   assert.equal(store.getSnapshot().pending.length, 0);
 });
 
 test("tracks pending through processing to handled", () => {
-  const store = new TranscriptStore();
+  const store = new MainPanelStore();
   const id = store.enqueueCommitted("run tests");
 
   assert.ok(id !== null);
@@ -43,7 +43,7 @@ test("tracks pending through processing to handled", () => {
 });
 
 test("markHandled stores optional agent summary", () => {
-  const store = new TranscriptStore();
+  const store = new MainPanelStore();
   const id = store.enqueueCommitted("fix the bug") as number;
   store.markHandled(id, { summary: "  Updated handler and tests.  " });
   const h = store.getSnapshot().recentHandled[0];
@@ -51,7 +51,7 @@ test("markHandled stores optional agent summary", () => {
 });
 
 test("recordCompletedTranscript appends done entry without pending", () => {
-  const store = new TranscriptStore();
+  const store = new MainPanelStore();
   store.recordCompletedTranscript("manual line", { summary: "Done." });
   const h = store.getSnapshot().recentHandled[0];
   assert.equal(h?.text, "manual line");
@@ -59,7 +59,7 @@ test("recordCompletedTranscript appends done entry without pending", () => {
 });
 
 test("recordCompletedTranscript can record a failed manual line for the panel", () => {
-  const store = new TranscriptStore();
+  const store = new MainPanelStore();
   store.recordCompletedTranscript("manual line", {
     errorMessage: "Failed to process transcript.",
   });
@@ -70,7 +70,7 @@ test("recordCompletedTranscript can record a failed manual line for the panel", 
 });
 
 test("markError moves the line to Done without blocking Applying", () => {
-  const store = new TranscriptStore();
+  const store = new MainPanelStore();
   const id = store.enqueueCommitted("x") as number;
 
   store.markError(id);
@@ -81,7 +81,7 @@ test("markError moves the line to Done without blocking Applying", () => {
 });
 
 test("markError stores a readable error message on the Done entry", () => {
-  const store = new TranscriptStore();
+  const store = new MainPanelStore();
   const id = store.enqueueCommitted("x") as number;
 
   store.markError(id, "  failed to apply directive  ");
@@ -93,7 +93,7 @@ test("markError stores a readable error message on the Done entry", () => {
 });
 
 test("markProcessing is a no-op after markError removed the line", () => {
-  const store = new TranscriptStore();
+  const store = new MainPanelStore();
   const id = store.enqueueCommitted("x") as number;
 
   store.markError(id, "failed");
@@ -105,7 +105,7 @@ test("markProcessing is a no-op after markError removed the line", () => {
 });
 
 test("setVoiceListening false removes live hypothesis", () => {
-  const store = new TranscriptStore();
+  const store = new MainPanelStore();
   store.setVoiceListening(true);
 
   store.onPartial("hello");
@@ -117,14 +117,14 @@ test("setVoiceListening false removes live hypothesis", () => {
 });
 
 test("onPartial is ignored while not listening", () => {
-  const store = new TranscriptStore();
+  const store = new MainPanelStore();
 
   store.onPartial("hello");
   assert.equal(store.getSnapshot().latestPartial, null);
 });
 
 test("notifies listeners on change", () => {
-  const store = new TranscriptStore();
+  const store = new MainPanelStore();
   store.setVoiceListening(true);
   let notifications = 0;
 
@@ -140,7 +140,7 @@ test("notifies listeners on change", () => {
 });
 
 test("a throwing listener does not block other listeners", () => {
-  const store = new TranscriptStore();
+  const store = new MainPanelStore();
   store.setVoiceListening(true);
   let ok = 0;
 
@@ -157,7 +157,7 @@ test("a throwing listener does not block other listeners", () => {
 });
 
 test("empty partial debounces clearing latestPartial", async () => {
-  const store = new TranscriptStore(30, 40);
+  const store = new MainPanelStore(30, 40);
   store.setVoiceListening(true);
   store.onPartial("stay");
   store.onPartial("   ");
@@ -167,7 +167,7 @@ test("empty partial debounces clearing latestPartial", async () => {
 });
 
 test("non-empty partial after empty cancels debounced clear", async () => {
-  const store = new TranscriptStore(30, 40);
+  const store = new MainPanelStore(30, 40);
   store.setVoiceListening(true);
   store.onPartial("a");
   store.onPartial("   ");
@@ -178,7 +178,7 @@ test("non-empty partial after empty cancels debounced clear", async () => {
 });
 
 test("caps recent handled history", () => {
-  const store = new TranscriptStore(2);
+  const store = new MainPanelStore(2);
 
   const a = store.enqueueCommitted("a") as number;
   const b = store.enqueueCommitted("b") as number;

@@ -1,6 +1,7 @@
 /**
- * Observable state for the Voice transcript panel webview (Live / Applying / Done / Summary).
- * Daemon transcript application lives in ../transcript/apply-result — this store is UI-only.
+ * Observable state for the main voice sidebar webview (Live / Applying / Done / Summary,
+ * partial hypotheses, listening flag, audio meter). Daemon transcript application lives in
+ * ../transcript/apply-result — this store is UI-only.
  */
 const DEFAULT_MAX_HANDLED = 30;
 const WAVEFORM_SAMPLES = 64;
@@ -17,7 +18,7 @@ export type PendingTranscript = {
   status: PendingStatus;
 };
 
-export type TranscriptPanelSnapshot = {
+export type MainPanelSnapshot = {
   /** Committed lines still in flight (queued, processing, or error). */
   readonly pending: readonly PendingTranscript[];
   /**
@@ -40,13 +41,13 @@ export type TranscriptPanelSnapshot = {
 
 export type AudioMeterSnapshot = {
   readonly speaking: boolean;
-  /** Normalized 0–1 RMS level from sidecar. */
+  /** Normalized 0-1 RMS level from sidecar. */
   readonly rms: number;
   /** Recent normalized levels (oldest → newest) for a simple waveform strip. */
   readonly waveform: readonly number[];
 };
 
-export class TranscriptStore {
+export class MainPanelStore {
   private readonly listeners = new Set<() => void>();
   private nextId = 1;
 
@@ -243,7 +244,7 @@ export class TranscriptStore {
     this.emit();
   }
 
-  getSnapshot(): TranscriptPanelSnapshot {
+  getSnapshot(): MainPanelSnapshot {
     return {
       pending: this.pending,
       recentHandled: this.recentHandled,
@@ -269,7 +270,7 @@ export class TranscriptStore {
       try {
         listener();
       } catch (err) {
-        console.error("[TranscriptStore] listener threw:", err);
+        console.error("[MainPanelStore] listener threw:", err);
       }
     }
   }

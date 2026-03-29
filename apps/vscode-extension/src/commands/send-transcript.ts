@@ -71,7 +71,7 @@ async function sendTranscript(
     recordTranscriptApplyCycle(result, outcomes);
     const firstBad = outcomes.find((o) => !o.ok);
     if (!result.success) {
-      services.transcriptStore.recordCompletedTranscript(trimmedText, {
+      services.mainPanelStore.recordCompletedTranscript(trimmedText, {
         errorMessage: FAILED_TO_PROCESS_TRANSCRIPT,
       });
     } else if (firstBad) {
@@ -79,18 +79,18 @@ async function sendTranscript(
         firstBad.message && firstBad.message !== "not attempted"
           ? firstBad.message
           : "A directive failed to apply.";
-      services.transcriptStore.recordCompletedTranscript(trimmedText, {
+      services.mainPanelStore.recordCompletedTranscript(trimmedText, {
         errorMessage: msg,
       });
     } else {
-      services.transcriptStore.recordCompletedTranscript(trimmedText, {
+      services.mainPanelStore.recordCompletedTranscript(trimmedText, {
         summary: result.summary?.trim() || undefined,
       });
     }
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Failed to send transcript.";
-    services.transcriptStore.recordCompletedTranscript(trimmedText, {
+    services.mainPanelStore.recordCompletedTranscript(trimmedText, {
       errorMessage: message,
     });
   } finally {

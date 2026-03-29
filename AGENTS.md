@@ -103,7 +103,7 @@ One rule should have one owner. Duplicating ownership is a regression risk.
 
 - Send transcript: `apps/vscode-extension/src/commands/send-transcript.ts`
 - Apply daemon transcript results + round-trip carry: `apps/vscode-extension/src/transcript/apply-result.ts`, `apps/vscode-extension/src/transcript/carry.ts`
-- Voice transcript panel (webview UI state): `apps/vscode-extension/src/ui/transcript-store.ts` + `ui/transcript-panel.ts`
+- Voice main sidebar (webview UI state): `apps/vscode-extension/src/ui/main-panel-store.ts` + `ui/main-panel.ts`
 - Directive host layer (`apps/vscode-extension/src/directives/`): `command`, `edits`, `navigation`, `undo` (each has `dispatch.ts` exporting `dispatchCommand` / `dispatchEdit` / `dispatchNavigation` / `dispatchUndo`), plus root `dispatch.ts` (`dispatchTranscript`)
 - Daemon client: `apps/vscode-extension/src/daemon/client.ts`
 - Voice sidecar spawn/client: `apps/vscode-extension/src/voice` (`client`, `spawn`, `paths`, `workspace-env`)
