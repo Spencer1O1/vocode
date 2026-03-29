@@ -8,6 +8,7 @@ import type {
 import { isPingResult, isVoiceTranscriptResult } from "@vocode/protocol";
 
 import { RpcTransport } from "./rpc-transport";
+import { voiceTranscriptResponseValidationError } from "./transcript-response-error";
 
 export class DaemonClient {
   private readonly transport: RpcTransport;
@@ -37,11 +38,14 @@ export class DaemonClient {
   public transcript(
     params: VoiceTranscriptParams,
   ): Promise<VoiceTranscriptResult> {
-    return this.sendRequest<VoiceTranscriptResult>(
-      "voice.transcript",
-      params,
-      isVoiceTranscriptResult,
-    );
+    return this.transport
+      .request("voice.transcript", params)
+      .then((result) => {
+        if (!isVoiceTranscriptResult(result)) {
+          throw new Error(voiceTranscriptResponseValidationError(result));
+        }
+        return result;
+      });
   }
 
   public dispose(): void {
