@@ -130,7 +130,7 @@ const btnBase =
   "inline-flex items-center justify-center rounded-md border border-transparent px-[1.15rem] py-[0.65rem] text-[0.95rem] font-semibold transition-colors";
 
 const stepKbd =
-  "[&_kbd]:rounded [&_kbd]:border [&_kbd]:border-black/15 [&_kbd]:bg-black/5 [&_kbd]:px-1.5 [&_kbd]:py-0.5 [&_kbd]:font-mono [&_kbd]:text-[0.85em] dark:[&_kbd]:border-white/20 dark:[&_kbd]:bg-white/8";
+  "[&_kbd]:rounded [&_kbd]:border [&_kbd]:border-white/20 [&_kbd]:bg-white/8 [&_kbd]:px-1.5 [&_kbd]:py-0.5 [&_kbd]:font-mono [&_kbd]:text-[0.85em]";
 
 const tabBtn =
   "rounded-md border px-3 py-2 text-[0.9rem] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500";
@@ -144,11 +144,11 @@ function HomePage() {
       <header className="mb-5 py-12 bg-[url(https://images.unsplash.com/photo-1617994452722-4145e196248b?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D)] bg-cover bg-center">
         <h1
           id="hero-title"
-          className="mb-3 text-[clamp(1.75rem,4vw,3.5rem)] font-normal leading-tight tracking-tight text-slate-900 dark:text-slate-100 w3-animate-opacity"
+          className="mb-3 text-[clamp(1.75rem,4vw,3.5rem)] font-normal leading-tight tracking-tight text-slate-100 w3-animate-opacity"
         >
           {EXTENSION.name}
         </h1>
-        <p className="mb-4 text-xl font-semibold leading-snug text-neutral-900 dark:text-sky-200 w3-animate-opacity">
+        <p className="mb-4 text-xl font-semibold leading-snug text-sky-200 w3-animate-opacity">
           {EXTENSION.tagline}
         </p>
         <div className="max-w-3xl w-screen mx-auto">
@@ -156,7 +156,7 @@ function HomePage() {
             {OVERVIEW.filter((p) => p?.trim()).map((p) => (
               <p
                 key={p}
-                className="mb-4 leading-relaxed text-neutral-800 last:mb-0 dark:text-neutral-300"
+                className="mb-4 leading-relaxed last:mb-0 text-neutral-300"
               >
                 {renderRichText(p)}
               </p>
@@ -171,7 +171,7 @@ function HomePage() {
         >
           <h2
             id="help-heading"
-            className="mb-2 text-[1.4rem] font-normal tracking-tight text-slate-900 dark:font-semibold dark:text-sky-400"
+            className="mb-2 text-[1.4rem] tracking-tight font-semibold text-sky-400"
           >
             How it will let you be a better developer
           </h2>
@@ -179,7 +179,7 @@ function HomePage() {
             {BEBETTER.filter((p) => p?.trim()).map((p) => (
               <p
                 key={p}
-                className="mb-4 leading-relaxed text-neutral-800 last:mb-0 dark:text-neutral-300"
+                className="mb-4 leading-relaxed last:mb-0 text-neutral-300"
               >
                 {renderRichText(p)}
               </p>
@@ -193,7 +193,7 @@ function HomePage() {
         >
           <h2
             id="faster-heading"
-            className="mb-2 text-[1.4rem] font-normal tracking-tight text-slate-900 dark:font-semibold dark:text-sky-400"
+            className="mb-2 text-[1.4rem] tracking-tight font-semibold text-sky-400"
           >
             Write Code Faster
           </h2>
@@ -201,7 +201,7 @@ function HomePage() {
             {WRITEFASTER.filter((p) => p?.trim()).map((p) => (
               <p
                 key={p}
-                className="mb-4 leading-relaxed text-neutral-800 last:mb-0 dark:text-neutral-300"
+                className="mb-4 leading-relaxed last:mb-0 text-neutral-300"
               >
                 {renderRichText(p)}
               </p>
@@ -215,7 +215,7 @@ function HomePage() {
         >
           <h2
             id="how-heading"
-            className="mb-2 text-[1.4rem] font-normal tracking-tight text-slate-900 dark:font-semibold dark:text-sky-400"
+            className="mb-2 text-[1.4rem] tracking-tight font-semibold text-sky-400"
           >
             How it works
           </h2>
@@ -223,19 +223,19 @@ function HomePage() {
             {HOW_IT_WORKS.map((step, i) => (
               <article
                 key={step.title}
-                className="flex items-start gap-4 rounded-[10px] border border-black/10 bg-white/65 p-4 dark:border-white/14 dark:bg-black/20 sm:p-[1.15rem]"
+                className="flex items-start gap-4 rounded-[10px] border border-white/14 bg-black/20 p-4 sm:p-[1.15rem]"
               >
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#007acc]/15 text-[0.95rem] font-bold text-sky-800 dark:bg-[rgba(100,181,255,0.14)] dark:text-sky-200">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[rgba(100,181,255,0.14)] text-[0.95rem] font-bold text-sky-200">
                   {i + 1}
                 </span>
                 <div>
-                  <h3 className="mb-1.5 text-[1.05rem] text-slate-900 dark:text-sky-100">
+                  <h3 className="mb-1.5 text-[1.05rem] text-sky-100">
                     {step.title}
                   </h3>
                   {step.body.map((line) => (
                     <p
                       key={line}
-                      className="mb-2 text-[0.95rem] leading-snug text-neutral-600 last:mb-0 dark:text-neutral-400"
+                      className="mb-2 text-[0.95rem] leading-snug text-neutral-400 last:mb-0"
                     >
                       {renderRichText(line)}
                     </p>
@@ -249,16 +249,16 @@ function HomePage() {
         <section className="mb-12" aria-labelledby="install-heading">
           <h2
             id="install-heading"
-            className="mb-2 text-[1.4rem] font-normal tracking-tight text-slate-900 dark:font-semibold dark:text-sky-400"
+            className="mb-2 text-[1.4rem] font-semibold tracking-tight text-sky-400"
           >
             Install
           </h2>
-          <p className="mb-4 max-w-3xl text-[0.95rem] text-neutral-600 dark:text-neutral-400">
+          <p className="mb-4 max-w-3xl text-[0.95rem] text-neutral-400">
             Pick your editor. The core flow is the same: install the plugin, run
             the daemon, then connect from the IDE.
           </p>
           <div
-            className="mb-4 flex flex-wrap gap-2 border-b border-black/10 pb-3 dark:border-white/15"
+            className="mb-4 flex flex-wrap gap-2 border-b border-white/15 pb-3"
             role="tablist"
             aria-label="Choose IDE for install instructions"
           >
@@ -275,8 +275,8 @@ function HomePage() {
                   tabIndex={selected ? 0 : -1}
                   className={`${tabBtn} ${
                     selected
-                      ? "border-sky-600 bg-sky-50 text-sky-900 dark:border-sky-400/60 dark:bg-sky-950/50 dark:text-sky-100"
-                      : "border-black/12 bg-white/70 text-neutral-700 hover:border-sky-500/40 hover:bg-[#007acc]/8 dark:border-white/15 dark:bg-black/25 dark:text-neutral-300 dark:hover:bg-white/8"
+                      ? "border-sky-400/60 bg-sky-950/50 text-sky-100"
+                      : "border-white/15 bg-black/25 text-neutral-300 hover:border-sky-500/40 hover:bg-white/8"
                   }`}
                   onClick={() => setInstallTab(t.id)}
                 >
@@ -308,7 +308,7 @@ function HomePage() {
                         {i + 1}
                       </span>
                       <span
-                        className={`pt-0.5 text-neutral-800 dark:text-neutral-300 ${stepKbd}`}
+                        className={`pt-0.5 text-neutral-300 ${stepKbd}`}
                       >
                         {step.content}
                       </span>
@@ -316,14 +316,14 @@ function HomePage() {
                   ))}
                 </ol>
                 {cli ? (
-                  <p className="mt-5 text-sm text-neutral-600 dark:text-neutral-400">
+                  <p className="mt-5 text-sm text-neutral-400">
                     {cli.label}:{" "}
-                    <code className="rounded bg-black/6 px-1.5 py-0.5 font-mono text-[0.82em] text-neutral-800 dark:bg-white/10 dark:text-neutral-200">
+                    <code className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[0.82em] text-neutral-200">
                       {cli.cmd}
                     </code>
                   </p>
                 ) : (
-                  <p className="mt-5 text-sm text-neutral-600 dark:text-neutral-400">
+                  <p className="mt-5 text-sm text-neutral-400">
                     coming soon
                   </p>
                 )}
@@ -339,7 +339,7 @@ function HomePage() {
               Marketplace listing
             </a>
             <a
-              className={`${btnBase} border-sky-600/45 bg-white/85 text-sky-800 hover:border-sky-600 hover:bg-white hover:text-sky-900 dark:border-sky-400/40 dark:bg-white/10 dark:text-sky-300 dark:hover:bg-white/15`}
+              className={`${btnBase} border-sky-400/40 bg-white/10 text-sky-300 hover:border-sky-600 hover:bg-white/15`}
               href={EXTENSION.githubUrl}
               rel="noopener noreferrer"
             >
@@ -354,7 +354,7 @@ function HomePage() {
         >
           <h2
             id="bottom-cta"
-            className="mb-2 text-[1.35rem] font-semibold text-slate-100 dark:text-sky-200"
+            className="mb-2 text-[1.35rem] font-semibold text-sky-200"
           >
             Learn more
           </h2>
