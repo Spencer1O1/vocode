@@ -28,5 +28,9 @@
     "json-schema-to-typescript": "^15.0.4",
     "tree-sitter-cli": "^0.26.7",
     "turbo": "^2.8.20"
+  },
+  "dependencies": {
+    "tailwind": "^4.0.0",
+    "vite": "^8.0.3"
   }
 }
