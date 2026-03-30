@@ -62,17 +62,15 @@ func (a *App) handleShutdown() (bool, error) {
 
 func (a *App) stopIfRunning() {
 	a.stateMu.Lock()
-	if !a.running {
-		a.stateMu.Unlock()
-		return
-	}
-	a.running = false
 	cancel := a.cancel
+	// Ensure the session is marked not running and no further use of the cancel func.
+	a.running = false
 	a.cancel = nil
 	a.stateMu.Unlock()
 	if cancel != nil {
 		cancel()
 	}
+	// Always wait for the transcribe goroutine to finish so shutdown fully quiesces.
 	a.wg.Wait()
 }
 
