@@ -1,17 +1,18 @@
-// Package stub provides a fixed-response iterative [agent.ModelClient] for tests
-// and dev wiring.
+// Package stub provides a fixed-response [agent.ModelClient] for tests and dev wiring.
 package stub
 
 import (
 	"context"
 	"runtime"
+	"strings"
 
-	"vocoding.net/vocode/v2/apps/daemon/internal/intents"
+	"vocoding.net/vocode/v2/apps/daemon/internal/agent"
 	"vocoding.net/vocode/v2/apps/daemon/internal/agentcontext"
+	"vocoding.net/vocode/v2/apps/daemon/internal/intents"
 	"vocoding.net/vocode/v2/apps/daemon/internal/symbols"
 )
 
-// Client ignores input and returns a fixed iterative action sequence.
+// Client ignores most input and returns a deterministic turn sequence.
 type Client struct{}
 
 // New returns a [Client] that satisfies [agent.ModelClient].
@@ -19,65 +20,68 @@ func New() *Client {
 	return &Client{}
 }
 
-// NextIntent emits a deterministic 4-step sequence, then done.
-func (*Client) NextIntent(ctx context.Context, in agentcontext.TurnContext) (intents.Intent, error) {
+// NextTurn implements [agent.ModelClient].
+func (*Client) NextTurn(ctx context.Context, in agentcontext.TurnContext) (agent.TurnResult, error) {
 	_ = ctx
-	switch len(in.SucceededIntents) {
-	case 0:
-		return intents.FromExecutable(intents.ExecutableIntent{
-			Kind: intents.ExecutableIntentKindNavigate,
-			Navigate: &intents.NavigationIntent{
-				Kind: intents.NavigationIntentKindOpenFile,
-				OpenFile: &intents.OpenFileNavigationIntent{
-					Path: "test.js",
-				},
-			},
-		}), nil
-	case 1:
-		return intents.FromExecutable(intents.ExecutableIntent{
-			Kind: intents.ExecutableIntentKindNavigate,
-			Navigate: &intents.NavigationIntent{
-				Kind: intents.NavigationIntentKindRevealSymbol,
-				RevealSymbol: &intents.RevealSymbolNavigationIntent{
-					Path:       "test.js",
-					SymbolName: "test",
-					SymbolKind: "function",
-				},
-			},
-		}), nil
-	case 2:
-		return intents.FromExecutable(intents.ExecutableIntent{
-			Kind: intents.ExecutableIntentKindEdit,
-			Edit: &intents.EditIntent{
-				Kind: intents.EditIntentKindReplace,
-				Replace: &intents.ReplaceEditIntent{
-					Target: intents.EditTarget{
-						Kind: intents.EditTargetKindSymbolID,
-						SymbolID: &intents.SymbolIDTarget{
-							ID: symbols.BuildSymbolID(symbols.SymbolRef{
-								Name: "test",
-								Path: "test.js",
-								Line: 1,
-								Kind: "function",
-							}),
-						},
-					},
-					NewText: "\n  console.log(\"updated from stub\");\n",
-				},
-			},
-		}), nil
-	case 3:
-		return intents.FromExecutable(intents.ExecutableIntent{
-			Kind:    intents.ExecutableIntentKindCommand,
-			Command: stubEchoRunCommand(),
-		}), nil
-	default:
-		return intents.ControlDoneSummary("stub model completed 4 steps"), nil
+	if len(in.IntentApplyHistory) > 0 {
+		return agent.TurnResult{Kind: agent.TurnFinish, FinishSummary: "stub model acknowledged prior host apply"}, nil
 	}
+
+	active := strings.TrimSpace(in.Editor.ActiveFilePath)
+	if active == "" {
+		active = "test.js"
+	}
+	return agent.TurnResult{
+		Kind: agent.TurnIntents,
+		Intents: []intents.Intent{
+			{
+				Kind: intents.IntentKindNavigate,
+				Navigate: &intents.NavigationIntent{
+					Kind: intents.NavigationIntentKindOpenFile,
+					OpenFile: &intents.OpenFileNavigationIntent{
+						Path: active,
+					},
+				},
+			},
+			{
+				Kind: intents.IntentKindNavigate,
+				Navigate: &intents.NavigationIntent{
+					Kind: intents.NavigationIntentKindRevealSymbol,
+					RevealSymbol: &intents.RevealSymbolNavigationIntent{
+						Path:       active,
+						SymbolName: "test",
+						SymbolKind: "function",
+					},
+				},
+			},
+			{
+				Kind: intents.IntentKindEdit,
+				Edit: &intents.EditIntent{
+					Kind: intents.EditIntentKindReplace,
+					Replace: &intents.ReplaceEditIntent{
+						Target: intents.EditTarget{
+							Kind: intents.EditTargetKindSymbolID,
+							SymbolID: &intents.SymbolIDTarget{
+								ID: symbols.BuildSymbolID(symbols.SymbolRef{
+									Path: "",
+									Line: 0,
+									Kind: "function",
+									Name: "test",
+								}),
+							},
+						},
+						NewText: "\n  console.log(\"updated from stub\");\n",
+					},
+				},
+			},
+			{
+				Kind:    intents.IntentKindCommand,
+				Command: stubEchoRunCommand(),
+			},
+		},
+	}, nil
 }
 
-// stubEchoRunCommand: on Windows, `echo` is a cmd builtin (no echo.exe on PATH);
-// Go's exec needs cmd.exe /c. On Unix, /bin/echo (or PATH) is a real binary.
 func stubEchoRunCommand() *intents.CommandIntent {
 	if runtime.GOOS == "windows" {
 		return &intents.CommandIntent{

@@ -1,11 +1,7 @@
+import type { VoiceTranscriptParams } from "@vocode/protocol";
 import * as vscode from "vscode";
 
 import type { DaemonClient } from "../daemon/client";
-import { applyTranscriptResult } from "../transcript/apply-result";
-import {
-  mergeCarriedTranscriptParams,
-  recordTranscriptApplyCycle,
-} from "../transcript/carry";
 import { FAILED_TO_PROCESS_TRANSCRIPT } from "../transcript/messages";
 import { transcriptWorkspaceRoot } from "../transcript/workspace-root";
 import type { ExtensionServices } from "./services";
@@ -57,36 +53,60 @@ async function sendTranscript(
 
   try {
     services.voiceStatus.setProcessing();
+
     const pos = editor.selection.active;
-    const result = await client.transcript(
-      mergeCarriedTranscriptParams({
-        text: trimmedText,
-        activeFile: activePath,
-        workspaceRoot: transcriptWorkspaceRoot(activePath),
-        cursorPosition: { line: pos.line, character: pos.character },
-        contextSessionId: services.voiceSession.contextSessionId(),
-      }),
-    );
-    const outcomes = await applyTranscriptResult(result, activePath);
-    recordTranscriptApplyCycle(result, outcomes);
-    const firstBad = outcomes.find((o) => !o.ok);
+
+    const vocodeCfg = vscode.workspace.getConfiguration("vocode");
+    const daemonConfig: NonNullable<VoiceTranscriptParams["daemonConfig"]> = {
+      maxPlannerTurns: vocodeCfg.get<number>("maxPlannerTurns", 8),
+      maxIntentsPerBatch: vocodeCfg.get<number>("maxIntentsPerBatch", 16),
+      maxIntentDispatchRetries: vocodeCfg.get<number>(
+        "maxIntentDispatchRetries",
+        2,
+      ),
+      maxContextRounds: vocodeCfg.get<number>("maxContextRounds", 2),
+      maxContextBytes: vocodeCfg.get<number>("maxContextBytes", 12000),
+      maxConsecutiveContextRequests: vocodeCfg.get<number>(
+        "maxConsecutiveContextRequests",
+        3,
+      ),
+      maxTranscriptRepairRpcs: vocodeCfg.get<number>(
+        "maxTranscriptRepairRpcs",
+        8,
+      ),
+      sessionIdleResetMs: vocodeCfg.get<number>("sessionIdleResetMs", 1800000),
+      // Daemon defaults; these caps are not user-configurable today.
+      maxGatheredBytes: 120_000,
+      maxGatheredExcerpts: 12,
+    };
+
+    const baseParams = {
+      text: trimmedText,
+      activeFile: activePath,
+      workspaceRoot: transcriptWorkspaceRoot(activePath),
+      cursorPosition: { line: pos.line, character: pos.character },
+      contextSessionId: services.voiceSession.contextSessionId(),
+      daemonConfig,
+    };
+
+    const result = await client.transcript(baseParams);
     if (!result.success) {
       services.mainPanelStore.recordCompletedTranscript(trimmedText, {
         errorMessage: FAILED_TO_PROCESS_TRANSCRIPT,
       });
-    } else if (firstBad) {
-      const msg =
-        firstBad.message && firstBad.message !== "not attempted"
-          ? firstBad.message
-          : "A directive failed to apply.";
-      services.mainPanelStore.recordCompletedTranscript(trimmedText, {
-        errorMessage: msg,
-      });
-    } else {
-      services.mainPanelStore.recordCompletedTranscript(trimmedText, {
-        summary: result.summary?.trim() || undefined,
-      });
+      return;
     }
+    if ((result.directives?.length ?? 0) > 0) {
+      services.mainPanelStore.recordCompletedTranscript(trimmedText, {
+        errorMessage: "Daemon returned directives unexpectedly.",
+      });
+      return;
+    }
+
+    services.mainPanelStore.recordCompletedTranscript(trimmedText, {
+      summary: result.summary?.trim() || undefined,
+      transcriptOutcome: result.transcriptOutcome,
+    });
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Failed to send transcript.";

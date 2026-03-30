@@ -12,7 +12,7 @@
 ### A — Wire + pending apply batch (daemon authority)
 
 - Result: `applyBatchId` when `success` and `directives.length > 0`; remove `directiveIntentSteps`.
-- Params: `lastBatchApply` (`ok` + optional `message`), `reportApplyBatchId` when reporting.
+- Params: `lastBatchApply` (`status`: `ok` | `failed` | `skipped`, optional `message`), `reportApplyBatchId` when reporting.
 - `TranscriptService` (`transcript` package) holds `VoiceSessionStore`, `executeMu`, and `transcript/executor.Executor`; `Executor` returns a new `DirectiveApplyBatch` when the result includes directives. Session load/save + apply report stripping live in `transcript/voicesession`; env in `transcript/config`.
 - `Executor` collects parallel `[]intents.Intent` for each emitted directive; returns pending payload; rename helper to **source-intent** wording internally.
 - If a prior batch was pending and the next RPC has **no** report, **drop** pending (forward progress; extension should normally report).
@@ -29,6 +29,9 @@
 - Executor options: `MaxAgentTurns` (env `VOCODE_DAEMON_VOICE_MAX_AGENT_TURNS`).
 
 ## Extension
-
-- Persist `lastApplyBatchId` from result; next `mergeCarriedTranscriptParams` sets `reportApplyBatchId` + `lastBatchApply`.
+- Apply directives immediately only when the daemon requests them via `host.applyDirectives`; the daemon owns the retry/repair loop.
+- Committed transcript handlers are serialized so no next user transcript can start until the current apply/repair sequence finishes.
+- The daemon owns the apply + repair loop: it calls `host.applyDirectives`, waits for per-directive outcomes, then continues planning in the same `voice.transcript` RPC.
+- Cap for the daemon-owned apply/repair loop: `VOCODE_DAEMON_VOICE_MAX_REPAIR_RPCS` (configured from `vocode.maxTranscriptRepairRpcs`).
+- Failure messages come from the specific directive dispatcher (command stderr/exit reason, edit/workspace.applyEdit failures, navigation/undo errors) and are surfaced via `lastBatchApply[i].message`.
 - `applyTranscriptResult` pads outcomes to **full directive count** after failure.

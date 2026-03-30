@@ -15,6 +15,7 @@ export interface ApplyEditResultWorkspaceOutcome {
   appliedEdits: AppliedEditLocation[];
   /** One path per successful `workspace.applyEdit` (reverse order for transcript undo). */
   undoStackOrderPaths: string[];
+  message?: string;
 }
 
 function toAbsolutePath(
@@ -98,13 +99,23 @@ export async function dispatchEditResultWorkspaceEdit(
 
     const applied = await vscode.workspace.applyEdit(wsEdit);
     if (!applied) {
-      return { ok: false, appliedEdits, undoStackOrderPaths };
+      return {
+        ok: false,
+        appliedEdits,
+        undoStackOrderPaths,
+        message: "workspace.applyEdit returned false",
+      };
     }
 
     const savedDocument = await vscode.workspace.openTextDocument(actionPath);
     const saved = await savedDocument.save();
     if (!saved) {
-      return { ok: false, appliedEdits, undoStackOrderPaths };
+      return {
+        ok: false,
+        appliedEdits,
+        undoStackOrderPaths,
+        message: "failed to save edited document",
+      };
     }
 
     undoStackOrderPaths.push(actionPath);

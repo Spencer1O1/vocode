@@ -6,13 +6,18 @@ import { dispatchEdit } from "./edit/dispatch";
 import { dispatchNavigation } from "./navigation/dispatch";
 import { dispatchUndo } from "./undo/dispatch";
 
+export type DirectiveDispatchOutcome = {
+  ok: boolean;
+  message?: string;
+};
+
 /**
  * Routes one `VoiceTranscriptDirective` to the matching handler (parallel to daemon dispatch).
  */
 export function dispatchTranscript(
   transcriptDirective: VoiceTranscriptDirective,
   ctx: TranscriptApplyContext,
-): Promise<boolean> {
+): Promise<DirectiveDispatchOutcome> {
   switch (transcriptDirective.kind) {
     case "edit":
       return dispatchEdit(transcriptDirective.editDirective, ctx);

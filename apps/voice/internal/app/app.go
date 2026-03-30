@@ -21,15 +21,25 @@ type App struct {
 	// the transcribe goroutine.
 	stateMu sync.Mutex
 
+	cfgMu sync.RWMutex
+	cfg   SidecarConfig
+
+	// cfgUpdateCh is pinged when config updates are received. The transcribe loop
+	// checks it and applies changes (including internal STT reconnect).
+	cfgUpdateCh chan struct{}
+
 	running bool
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
 }
 
 func New(in io.Reader, out io.Writer) *App {
+	cfg := defaultSidecarConfig()
 	return &App{
 		in:     in,
 		outBuf: bufio.NewWriter(out),
+		cfg:    cfg,
+		cfgUpdateCh: make(chan struct{}, 1),
 	}
 }
 
@@ -71,6 +81,10 @@ func (a *App) Run() error {
 			}
 		case "stop":
 			if err := a.handleStop(); err != nil {
+				return err
+			}
+		case "config":
+			if err := a.handleConfig(req.Config); err != nil {
 				return err
 			}
 		case "shutdown":
@@ -119,4 +133,10 @@ func (a *App) writeTranscript(text string, committed bool) error {
 		Text      string `json:"text"`
 		Committed bool   `json:"committed"`
 	}{Type: "transcript", Text: text, Committed: committed})
+}
+
+func (a *App) getSidecarConfig() SidecarConfig {
+	a.cfgMu.RLock()
+	defer a.cfgMu.RUnlock()
+	return a.cfg
 }

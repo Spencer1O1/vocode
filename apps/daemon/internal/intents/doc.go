@@ -1,21 +1,16 @@
-// Package intents defines agent output (structured intents) validated by the daemon and routed
-// by the intents dispatch layer (control vs executable).
-
+// Package intents defines executable host steps validated by the daemon and routed by dispatch.
+//
 // # Taxonomy
-
-// Intents are either control or executable (see [Intent]).
-
-// Control intents ([ControlIntent]) affect the agent loop only; they do not produce host
-// directives. Payload types:
-//  - [DoneIntent] — optional summary string for the extension UI when stopping ([ControlIntentKindDone]).
-//  - [RequestContextIntent] — symbols, file excerpts, usage notes for gathered context.
-
-// Executable intents ([ExecutableIntent]) map to at most one protocol directive for the extension.
-// Payload types:
-//  - [EditIntent]
-//  - [CommandIntent]
-//  - [NavigationIntent]
-//  - [UndoIntent]
-
-// The "done" control kind may include [DoneIntent] with a human-readable summary.
+//
+// [Intent] is always executable (edit, command, navigate, undo): one top-level "kind" and payload.
+//
+// Turn-level outcomes that are not host directives — irrelevant, finish ("done"), gather context
+// ("request_context" with [agentcontext.GatherContextSpec]) — live on the daemon agent turn result
+// type in package agent, not as [Intent]. Finish summary validation is [agent.ValidateFinishSummary].
+//
+// Payload types on [Intent]:
+//   - [EditIntent]
+//   - [CommandIntent]
+//   - [NavigationIntent]
+//   - [UndoIntent]
 package intents

@@ -71,7 +71,7 @@ export function SettingsPanel(props: { config: PanelConfig | null }) {
       ) : null}
 
       <p className="settings-intro-short">
-        Vocode settings. Use the button below to reload and apply.
+        Vocode configuration. Changes apply automatically.
       </p>
 
       {config ? (
@@ -144,8 +144,8 @@ export function SettingsPanel(props: { config: PanelConfig | null }) {
             />
             <OptionalZeroSliderRow
               label="Commit response timeout"
-              hint="When off, wait indefinitely for a committed transcript after commit:true."
-              toggleLabel="Limit how long to wait for committed transcript"
+              hint="When off, wait indefinitely for a response from the speech-to-text server"
+              toggleLabel="Limit how long to wait for speech-to-text server response"
               value={config.voiceSttCommitResponseTimeoutMs}
               spec={SLIDER_SPECS.voiceSttCommitResponseTimeoutMs}
               disabled={disabled}
@@ -273,56 +273,52 @@ export function SettingsPanel(props: { config: PanelConfig | null }) {
               />
               <SliderRow
                 label="Max agent turns"
-                value={config.daemonVoiceMaxAgentTurns}
-                spec={SLIDER_SPECS.daemonVoiceMaxAgentTurns}
+                value={config.maxPlannerTurns}
+                spec={SLIDER_SPECS.maxPlannerTurns}
                 disabled={disabled}
-                onCommit={(n) => patchConfig({ daemonVoiceMaxAgentTurns: n })}
+                onCommit={(n) => patchConfig({ maxPlannerTurns: n })}
               />
               <SliderRow
                 label="Max intent retries"
-                value={config.daemonVoiceMaxIntentRetries}
-                spec={SLIDER_SPECS.daemonVoiceMaxIntentRetries}
+                value={config.maxIntentDispatchRetries}
+                spec={SLIDER_SPECS.maxIntentDispatchRetries}
                 disabled={disabled}
-                onCommit={(n) =>
-                  patchConfig({ daemonVoiceMaxIntentRetries: n })
-                }
+                onCommit={(n) => patchConfig({ maxIntentDispatchRetries: n })}
               />
               <SliderRow
                 label="Max context rounds"
-                value={config.daemonVoiceMaxContextRounds}
-                spec={SLIDER_SPECS.daemonVoiceMaxContextRounds}
+                value={config.maxContextRounds}
+                spec={SLIDER_SPECS.maxContextRounds}
                 disabled={disabled}
-                onCommit={(n) =>
-                  patchConfig({ daemonVoiceMaxContextRounds: n })
-                }
+                onCommit={(n) => patchConfig({ maxContextRounds: n })}
               />
               <SliderRow
                 label="Max context bytes"
-                value={config.daemonVoiceMaxContextBytes}
-                spec={SLIDER_SPECS.daemonVoiceMaxContextBytes}
+                value={config.maxContextBytes}
+                spec={SLIDER_SPECS.maxContextBytes}
                 disabled={disabled}
-                onCommit={(n) => patchConfig({ daemonVoiceMaxContextBytes: n })}
+                onCommit={(n) => patchConfig({ maxContextBytes: n })}
               />
               <SliderRow
                 label="Max consecutive context requests"
-                value={config.daemonVoiceMaxConsecutiveContextRequests}
-                spec={SLIDER_SPECS.daemonVoiceMaxConsecutiveContextRequests}
+                value={config.maxConsecutiveContextRequests}
+                spec={SLIDER_SPECS.maxConsecutiveContextRequests}
                 disabled={disabled}
                 onCommit={(n) =>
                   patchConfig({
-                    daemonVoiceMaxConsecutiveContextRequests: n,
+                    maxConsecutiveContextRequests: n,
                   })
                 }
               />
               <OptionalZeroSliderRow
                 label="Session idle reset"
-                hint="When off, the daemon does not auto-drop voice session state from this setting (see package default)."
-                toggleLabel="Drop voice session after idle"
-                value={config.daemonSessionIdleResetMs}
-                spec={SLIDER_SPECS.daemonSessionIdleResetMs}
+                hint="When off, voice sessions are not dropped after idle"
+                toggleLabel="Drop voice session after idle timeout"
+                value={config.sessionIdleResetMs}
+                spec={SLIDER_SPECS.sessionIdleResetMs}
                 disabled={disabled}
                 enableDefault={1_800_000}
-                onCommit={(n) => patchConfig({ daemonSessionIdleResetMs: n })}
+                onCommit={(n) => patchConfig({ sessionIdleResetMs: n })}
                 formatDisplay={formatMs}
               />
             </div>
@@ -354,19 +350,6 @@ export function SettingsPanel(props: { config: PanelConfig | null }) {
             />
           </div>
         </section>
-      ) : null}
-
-      {config ? (
-        <div className="settings-apply-row">
-          <button
-            type="button"
-            className="settings-btn settings-btn-primary"
-            disabled={disabled}
-            onClick={() => api?.postMessage({ type: "restartVocodeBackend" })}
-          >
-            Apply changes and restart
-          </button>
-        </div>
       ) : null}
 
       <button

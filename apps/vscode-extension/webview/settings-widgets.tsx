@@ -38,12 +38,12 @@ export const SLIDER_SPECS: Record<
     | "daemonVoiceTranscriptCoalesceMs"
     | "daemonVoiceTranscriptMaxMergeJobs"
     | "daemonVoiceTranscriptMaxMergeChars"
-    | "daemonVoiceMaxAgentTurns"
-    | "daemonVoiceMaxIntentRetries"
-    | "daemonVoiceMaxContextRounds"
-    | "daemonVoiceMaxContextBytes"
-    | "daemonVoiceMaxConsecutiveContextRequests"
-    | "daemonSessionIdleResetMs"
+    | "maxPlannerTurns"
+    | "maxIntentDispatchRetries"
+    | "maxContextRounds"
+    | "maxContextBytes"
+    | "maxConsecutiveContextRequests"
+    | "sessionIdleResetMs"
     | "voiceSttCommitResponseTimeoutMs"
   >,
   SliderSpec
@@ -60,12 +60,12 @@ export const SLIDER_SPECS: Record<
   daemonVoiceTranscriptCoalesceMs: { min: 0, max: 5000, step: 25 },
   daemonVoiceTranscriptMaxMergeJobs: { min: 1, max: 20, step: 1 },
   daemonVoiceTranscriptMaxMergeChars: { min: 500, max: 50_000, step: 100 },
-  daemonVoiceMaxAgentTurns: { min: 1, max: 32, step: 1 },
-  daemonVoiceMaxIntentRetries: { min: 0, max: 10, step: 1 },
-  daemonVoiceMaxContextRounds: { min: 0, max: 10, step: 1 },
-  daemonVoiceMaxContextBytes: { min: 1000, max: 100_000, step: 500 },
-  daemonVoiceMaxConsecutiveContextRequests: { min: 1, max: 20, step: 1 },
-  daemonSessionIdleResetMs: { min: 60_000, max: 14_400_000, step: 60_000 },
+  maxPlannerTurns: { min: 1, max: 32, step: 1 },
+  maxIntentDispatchRetries: { min: 0, max: 10, step: 1 },
+  maxContextRounds: { min: 0, max: 10, step: 1 },
+  maxContextBytes: { min: 1000, max: 100_000, step: 500 },
+  maxConsecutiveContextRequests: { min: 1, max: 20, step: 1 },
+  sessionIdleResetMs: { min: 60_000, max: 14_400_000, step: 60_000 },
   voiceSttCommitResponseTimeoutMs: { min: 1000, max: 120_000, step: 500 },
 };
 

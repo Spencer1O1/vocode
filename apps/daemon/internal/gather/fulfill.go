@@ -1,4 +1,6 @@
-package requestcontext
+// Package gather fulfills turn-level gather-context requests by enriching [agentcontext.Gathered].
+// It is not part of executable [intents.Intent] dispatch (no protocol directive).
+package gather
 
 import (
 	"bufio"
@@ -11,15 +13,12 @@ import (
 	"strings"
 
 	"vocoding.net/vocode/v2/apps/daemon/internal/agentcontext"
-	"vocoding.net/vocode/v2/apps/daemon/internal/intents"
 	"vocoding.net/vocode/v2/apps/daemon/internal/symbols"
 	"vocoding.net/vocode/v2/apps/daemon/internal/workspace"
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
-// Provider fulfills request_context intents by enriching [agentcontext.Gathered]
-// (symbols, file excerpts, usage notes). Used by the transcript executor, not the
-// directive pipeline (no protocol directive is emitted).
+// Provider resolves symbols and reads files for context enrichment.
 type Provider struct {
 	symbols symbols.Resolver
 }
@@ -28,22 +27,23 @@ func NewProvider(symbolResolver symbols.Resolver) *Provider {
 	return &Provider{symbols: symbolResolver}
 }
 
-func Dispatch(
+// FulfillSpec merges the result of spec into in (symbols, excerpts, notes) and returns the updated snapshot.
+func FulfillSpec(
 	p *Provider,
 	params protocol.VoiceTranscriptParams,
 	in agentcontext.Gathered,
-	req *intents.RequestContextIntent,
+	spec *agentcontext.GatherContextSpec,
 ) (agentcontext.Gathered, error) {
 	if p == nil {
-		return in, fmt.Errorf("request_context: provider not configured")
+		return in, fmt.Errorf("gather: provider not configured")
 	}
-	if req == nil {
-		return in, fmt.Errorf("request_context missing payload")
+	if spec == nil {
+		return in, fmt.Errorf("gather: missing spec")
 	}
 	out := in
-	switch req.Kind {
-	case intents.RequestContextKindSymbols:
-		query := strings.TrimSpace(req.Query)
+	switch spec.Kind {
+	case agentcontext.GatherContextKindSymbols:
+		query := strings.TrimSpace(spec.Query)
 		if query == "" {
 			return out, fmt.Errorf("request_symbols requires query")
 		}
@@ -55,7 +55,7 @@ func Dispatch(
 		if err != nil {
 			return out, err
 		}
-		limit := clampContextMax(req.MaxResult, 10)
+		limit := clampContextMax(spec.MaxResult, 10)
 		if out.Symbols == nil {
 			out.Symbols = make([]symbols.SymbolRef, 0, limit)
 		}
@@ -74,8 +74,8 @@ func Dispatch(
 			}
 		}
 		return out, nil
-	case intents.RequestContextKindFileExcerpt:
-		target := strings.TrimSpace(req.Path)
+	case agentcontext.GatherContextKindFileExcerpt:
+		target := strings.TrimSpace(spec.Path)
 		path := workspace.ResolveTargetPath(params.WorkspaceRoot, params.ActiveFile, target)
 		if path == "" {
 			return out, fmt.Errorf("request_file_excerpt requires resolvable path")
@@ -91,12 +91,12 @@ func Dispatch(
 		}
 		out = agentcontext.UpsertGatheredExcerpt(out, filepath.Clean(path), content)
 		return out, nil
-	case intents.RequestContextKindUsages:
-		ref, err := symbols.ParseSymbolID(strings.TrimSpace(req.SymbolID))
+	case agentcontext.GatherContextKindUsages:
+		ref, err := symbols.ParseSymbolID(strings.TrimSpace(spec.SymbolID))
 		if err != nil {
 			return out, fmt.Errorf("request_usages requires valid symbolId: %w", err)
 		}
-		limit := clampContextMax(req.MaxResult, 10)
+		limit := clampContextMax(spec.MaxResult, 10)
 		pattern := `\b` + regexp.QuoteMeta(strings.TrimSpace(ref.Name)) + `\b`
 		searchRoot := workspace.EffectiveWorkspaceRoot(params.WorkspaceRoot, params.ActiveFile)
 		if searchRoot == "" {
@@ -123,7 +123,7 @@ func Dispatch(
 		}
 		return out, nil
 	default:
-		return out, fmt.Errorf("unsupported request_context kind %q", req.Kind)
+		return out, fmt.Errorf("unsupported gather kind %q", spec.Kind)
 	}
 }
 

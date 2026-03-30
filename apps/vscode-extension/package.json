@@ -22,10 +22,6 @@
         "title": "Vocode: Ping Daemon"
       },
       {
-        "command": "vocode.restartBackend",
-        "title": "Vocode: Restart"
-      },
-      {
         "command": "vocode.initWorkspaceVocode",
         "title": "Vocode: Initialize Workspace"
       },
@@ -129,6 +125,36 @@
           "default": 0,
           "description": "Force commit every N ms during one utterance; 0 = off (silence/EOF only)."
         },
+        "vocode.daemonAgentProvider": {
+          "type": "string",
+          "default": "stub",
+          "description": "Daemon transcript model: stub, openai (OPENAI_API_KEY), or anthropic (ANTHROPIC_API_KEY). Sets VOCODE_AGENT_PROVIDER."
+        },
+        "vocode.daemonVoiceLogTranscript": {
+          "type": "number",
+          "default": 0,
+          "description": "Non-zero: log one line per voice.transcript (apply counts, directive count, success). Sets VOCODE_DAEMON_VOICE_LOG_TRANSCRIPT."
+        },
+        "vocode.daemonOpenaiModel": {
+          "type": "string",
+          "default": "gpt-4o-mini",
+          "description": "OpenAI chat model when daemonAgentProvider is openai. Sets VOCODE_OPENAI_MODEL."
+        },
+        "vocode.daemonOpenaiBaseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Optional OpenAI-compatible API base URL (no trailing slash). Empty = https://api.openai.com/v1. Sets VOCODE_OPENAI_BASE_URL."
+        },
+        "vocode.daemonAnthropicModel": {
+          "type": "string",
+          "default": "claude-3-5-haiku-latest",
+          "description": "Anthropic model id when daemonAgentProvider is anthropic. Sets VOCODE_ANTHROPIC_MODEL."
+        },
+        "vocode.daemonAnthropicBaseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Optional Anthropic API base URL (no trailing slash). Empty = https://api.anthropic.com/v1. Sets VOCODE_ANTHROPIC_BASE_URL."
+        },
         "vocode.daemonVoiceTranscriptQueueSize": {
           "type": "number",
           "default": 10,
@@ -149,35 +175,45 @@
           "default": 6000,
           "description": "Max chars when merging transcript lines."
         },
-        "vocode.daemonVoiceMaxAgentTurns": {
+        "vocode.maxPlannerTurns": {
           "type": "number",
           "default": 8,
-          "description": "Max agent planner turns per voice.transcript RPC."
+          "description": "Max agent planner turns per `voice.transcript` RPC."
         },
-        "vocode.daemonVoiceMaxIntentRetries": {
+        "vocode.maxTranscriptRepairRpcs": {
+          "type": "number",
+          "default": 8,
+          "description": "Max internal daemon apply/repair iterations per committed transcript after directive failures."
+        },
+        "vocode.maxIntentsPerBatch": {
+          "type": "number",
+          "default": 16,
+          "description": "Max executable intents per model batch; 0 = no cap."
+        },
+        "vocode.maxIntentDispatchRetries": {
           "type": "number",
           "default": 2,
-          "description": "Max intent retries per turn."
+          "description": "Max dispatch-time intent retries per `voice.transcript` RPC."
         },
-        "vocode.daemonVoiceMaxContextRounds": {
+        "vocode.maxContextRounds": {
           "type": "number",
           "default": 2,
           "description": "Max request_context rounds per transcript."
         },
-        "vocode.daemonVoiceMaxContextBytes": {
+        "vocode.maxContextBytes": {
           "type": "number",
           "default": 12000,
           "description": "Max context payload bytes per round."
         },
-        "vocode.daemonVoiceMaxConsecutiveContextRequests": {
+        "vocode.maxConsecutiveContextRequests": {
           "type": "number",
           "default": 3,
           "description": "Max consecutive context requests without executable progress."
         },
-        "vocode.daemonSessionIdleResetMs": {
+        "vocode.sessionIdleResetMs": {
           "type": "number",
           "default": 1800000,
-          "description": "Drop daemon voice session state after this idle time (ms). 0 = off. Daemon default is 30m when unset at process level."
+          "description": "Drop voice session state after this idle time (ms). 0 = off."
         }
       }
     }

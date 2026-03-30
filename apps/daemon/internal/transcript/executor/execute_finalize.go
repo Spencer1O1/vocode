@@ -1,19 +1,21 @@
 package executor
 
 import (
+	"strings"
+
 	"vocoding.net/vocode/v2/apps/daemon/internal/agentcontext"
 	"vocoding.net/vocode/v2/apps/daemon/internal/intents"
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
-func finalizeExecute(st *agentLoopState, maxLoopIters int) (protocol.VoiceTranscriptResult, agentcontext.Gathered, *agentcontext.DirectiveApplyBatch, bool) {
-	if len(st.completed) >= maxLoopIters {
-		return protocol.VoiceTranscriptResult{Success: false}, st.gathered, nil, true
-	}
+func finalizeExecute(st *agentLoopState) (protocol.VoiceTranscriptResult, agentcontext.Gathered, *agentcontext.DirectiveApplyBatch, bool) {
 	result := protocol.VoiceTranscriptResult{
 		Success:    true,
 		Directives: st.directives,
 		Summary:    st.transcriptSummary,
+	}
+	if strings.TrimSpace(st.transcriptOutcome) == "irrelevant" {
+		result.TranscriptOutcome = "irrelevant"
 	}
 	var pending *agentcontext.DirectiveApplyBatch
 	if len(st.directives) > 0 {

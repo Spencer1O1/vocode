@@ -1,27 +1,84 @@
+import type { VoiceTranscriptParams } from "@vocode/protocol";
 import * as vscode from "vscode";
 
 import type { ExtensionServices } from "../commands/services";
-import { applyTranscriptResult } from "../transcript/apply-result";
-import {
-  mergeCarriedTranscriptParams,
-  recordTranscriptApplyCycle,
-} from "../transcript/carry";
 import { FAILED_TO_PROCESS_TRANSCRIPT } from "../transcript/messages";
 import { transcriptWorkspaceRoot } from "../transcript/workspace-root";
+import type { VoiceSidecarConfigPatch } from "../voice/client";
 
 /**
  * Binds voice sidecar events and transcript → daemon → apply flow to the given
  * client/sidecar pair. Call again only after replacing `services.client` and
  * `services.voiceSidecar` (e.g. backend restart).
  */
-export function attachTranscriptPipeline(services: ExtensionServices): void {
+export function attachTranscriptPipeline(
+  services: ExtensionServices,
+): vscode.Disposable {
   const { client, voiceSidecar, voiceSession, voiceStatus, mainPanelStore } =
     services;
   if (!client || !voiceSidecar) {
-    return;
+    return { dispose: () => {} };
   }
 
   let inFlightTranscripts = 0;
+
+  const buildVoiceSidecarConfigPatch = (): VoiceSidecarConfigPatch => {
+    const vocodeCfg = vscode.workspace.getConfiguration("vocode");
+    return {
+      // Secret stored in SecretStorage; we do not read it here.
+      sttModelId: vocodeCfg.get<string>(
+        "elevenLabsSttModelId",
+        "scribe_v2_realtime",
+      ),
+      sttLanguage: vocodeCfg.get<string>("elevenLabsSttLanguage", "en"),
+      vadDebug: vocodeCfg.get<boolean>("voiceVadDebug", false) === true,
+      vadThresholdMultiplier: vocodeCfg.get<number>(
+        "voiceVadThresholdMultiplier",
+        1.65,
+      ),
+      vadMinEnergyFloor: vocodeCfg.get<number>("voiceVadMinEnergyFloor", 100),
+      vadStartMs: vocodeCfg.get<number>("voiceVadStartMs", 60),
+      vadEndMs: vocodeCfg.get<number>("voiceVadEndMs", 750),
+      vadPrerollMs: vocodeCfg.get<number>("voiceVadPrerollMs", 320),
+      sttCommitResponseTimeoutMs: vocodeCfg.get<number>(
+        "voiceSttCommitResponseTimeoutMs",
+        5000,
+      ),
+      streamMinChunkMs: vocodeCfg.get<number>("voiceStreamMinChunkMs", 200),
+      streamMaxChunkMs: vocodeCfg.get<number>("voiceStreamMaxChunkMs", 500),
+      streamMaxUtteranceMs: vocodeCfg.get<number>(
+        "voiceStreamMaxUtteranceMs",
+        0,
+      ),
+    };
+  };
+
+  // Push initial sidecar tuning, then keep it in sync without restarting `vocode-voiced`.
+  let lastSentSerialized: string | undefined;
+  const sendConfig = (): void => {
+    const patch = buildVoiceSidecarConfigPatch();
+    const serialized = JSON.stringify(patch);
+    if (serialized === lastSentSerialized) {
+      return;
+    }
+    lastSentSerialized = serialized;
+    voiceSidecar.setConfig(patch);
+  };
+
+  sendConfig();
+
+  let configTimeout: NodeJS.Timeout | undefined;
+  const configListener = vscode.workspace.onDidChangeConfiguration((e) => {
+    if (!e.affectsConfiguration("vocode")) {
+      return;
+    }
+    if (configTimeout) {
+      clearTimeout(configTimeout);
+    }
+    configTimeout = setTimeout(() => {
+      sendConfig();
+    }, 200);
+  });
 
   voiceSidecar.onAudioMeter((evt) => {
     mainPanelStore.setAudioMeter(evt.speaking, evt.rms);
@@ -44,6 +101,9 @@ export function attachTranscriptPipeline(services: ExtensionServices): void {
   voiceSidecar.onState((evt) => {
     if (evt.state !== "stopped" && evt.state !== "shutdown") {
       return;
+    }
+    if (evt.state === "shutdown") {
+      configListener.dispose();
     }
     if (!voiceSession.isRunning()) {
       return;
@@ -91,33 +151,60 @@ export function attachTranscriptPipeline(services: ExtensionServices): void {
 
     mainPanelStore.markProcessing(pendingId);
 
+    const pos = editor.selection.active;
+    const vocodeCfg = vscode.workspace.getConfiguration("vocode");
+    const daemonConfig: NonNullable<VoiceTranscriptParams["daemonConfig"]> = {
+      maxPlannerTurns: vocodeCfg.get<number>("maxPlannerTurns", 8),
+      maxIntentsPerBatch: vocodeCfg.get<number>("maxIntentsPerBatch", 16),
+      maxIntentDispatchRetries: vocodeCfg.get<number>(
+        "maxIntentDispatchRetries",
+        2,
+      ),
+      maxContextRounds: vocodeCfg.get<number>("maxContextRounds", 2),
+      maxContextBytes: vocodeCfg.get<number>("maxContextBytes", 12000),
+      maxConsecutiveContextRequests: vocodeCfg.get<number>(
+        "maxConsecutiveContextRequests",
+        3,
+      ),
+      maxTranscriptRepairRpcs: vocodeCfg.get<number>(
+        "maxTranscriptRepairRpcs",
+        8,
+      ),
+      sessionIdleResetMs: vocodeCfg.get<number>("sessionIdleResetMs", 1800000),
+      // Daemon defaults; these caps are not user-configurable today.
+      maxGatheredBytes: 120_000,
+      maxGatheredExcerpts: 12,
+    };
+    const baseParams = {
+      text,
+      activeFile,
+      workspaceRoot: transcriptWorkspaceRoot(activeFile),
+      cursorPosition: { line: pos.line, character: pos.character },
+      contextSessionId: voiceSession.contextSessionId(),
+      daemonConfig,
+    };
+
     void (async () => {
+      mainPanelStore.beginVoiceTranscriptRpc(pendingId);
       try {
-        const pos = editor.selection.active;
-        const result = await client.transcript(
-          mergeCarriedTranscriptParams({
-            text,
-            activeFile,
-            workspaceRoot: transcriptWorkspaceRoot(activeFile),
-            cursorPosition: { line: pos.line, character: pos.character },
-            contextSessionId: voiceSession.contextSessionId(),
-          }),
-        );
-        const outcomes = await applyTranscriptResult(result, activeFile);
-        recordTranscriptApplyCycle(result, outcomes);
-        const firstBad = outcomes.find((o) => !o.ok);
-        if (!result.success || firstBad) {
-          const msg = !result.success
-            ? FAILED_TO_PROCESS_TRANSCRIPT
-            : firstBad?.message && firstBad.message !== "not attempted"
-              ? firstBad.message
-              : "A directive failed to apply.";
-          mainPanelStore.markError(pendingId, msg);
-        } else {
-          mainPanelStore.markHandled(pendingId, {
-            summary: result.summary?.trim() || undefined,
-          });
+        const result = await client.transcript(baseParams);
+
+        if (!result.success) {
+          mainPanelStore.markError(pendingId, FAILED_TO_PROCESS_TRANSCRIPT);
+          return;
         }
+        if ((result.directives?.length ?? 0) > 0) {
+          mainPanelStore.markError(
+            pendingId,
+            "Daemon returned directives unexpectedly.",
+          );
+          return;
+        }
+
+        mainPanelStore.markHandled(pendingId, {
+          summary: result.summary?.trim() || undefined,
+          transcriptOutcome: result.transcriptOutcome,
+        });
       } catch (err) {
         const message =
           err instanceof Error
@@ -125,6 +212,7 @@ export function attachTranscriptPipeline(services: ExtensionServices): void {
             : "Unknown error while running the transcript.";
         mainPanelStore.markError(pendingId, message);
       } finally {
+        mainPanelStore.endVoiceTranscriptRpc(pendingId);
         inFlightTranscripts = Math.max(0, inFlightTranscripts - 1);
         if (voiceSession.isRunning() && inFlightTranscripts === 0) {
           voiceStatus.setListening();
@@ -132,4 +220,17 @@ export function attachTranscriptPipeline(services: ExtensionServices): void {
       }
     })();
   });
+
+  return {
+    dispose: () => {
+      configListener.dispose();
+      if (configTimeout) {
+        clearTimeout(configTimeout);
+      }
+      voiceSidecar.onAudioMeter(() => {});
+      voiceSidecar.onError(() => {});
+      voiceSidecar.onState(() => {});
+      voiceSidecar.onTranscript(() => {});
+    },
+  };
 }

@@ -1,4 +1,9 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import type {
+  HostApplyParams,
+  HostApplyResult,
+  VoiceTranscriptResult,
+} from "@vocode/protocol";
 import * as vscode from "vscode";
 
 import { registerAllCommands } from "./commands";
@@ -6,9 +11,12 @@ import {
   type ExtensionServices,
   VoiceSessionController,
 } from "./commands/services";
+import { ELEVENLABS_API_KEY_SECRET } from "./config/spawn-env";
 import { DaemonClient } from "./daemon/client";
 import { spawnDaemon } from "./daemon/spawn";
 import { attachTranscriptPipeline } from "./extension/transcript-pipeline";
+import { applyTranscriptResult } from "./transcript/apply-result";
+import { directiveApplyLabel } from "./transcript/directive-label";
 import { MainPanelViewProvider, mainPanelViewType } from "./ui/main-panel";
 import { MainPanelStore } from "./ui/main-panel-store";
 import { VoiceStatusIndicator } from "./ui/status-bar";
@@ -41,10 +49,102 @@ async function wireVocodeBackend(
 
     services.client = new DaemonClient(daemon.process);
     services.voiceSidecar = new VoiceSidecarClient(voice.process);
+
+    services.client.registerRequestHandler(
+      "host.applyDirectives",
+      async (unknownParams): Promise<HostApplyResult> => {
+        const params = unknownParams as HostApplyParams;
+        if (
+          !params ||
+          typeof params.applyBatchId !== "string" ||
+          typeof params.activeFile !== "string" ||
+          !Array.isArray(params.directives)
+        ) {
+          throw new Error(
+            "host.applyDirectives: invalid params (expected applyBatchId, activeFile, directives)",
+          );
+        }
+
+        const voiceResult: VoiceTranscriptResult = {
+          success: true,
+          directives: params.directives,
+        };
+
+        const panelStore = services.mainPanelStore;
+        const pendingId = panelStore.activeVoiceTranscriptRpcPendingId();
+        const checklistBase =
+          pendingId !== undefined
+            ? panelStore.directiveApplyChecklistLength(pendingId)
+            : 0;
+        const labels = params.directives.map((d, i) =>
+          directiveApplyLabel(d, checklistBase + i),
+        );
+        if (pendingId !== undefined && labels.length > 0) {
+          panelStore.appendDirectiveApplyChecklist(pendingId, labels);
+        }
+
+        const outcomes = await applyTranscriptResult(
+          voiceResult,
+          params.activeFile,
+          pendingId !== undefined
+            ? {
+                onProgress: (e) => {
+                  const globalIndex = checklistBase + e.index;
+                  if (e.phase === "start") {
+                    panelStore.setDirectiveApplyItemState(
+                      pendingId,
+                      globalIndex,
+                      "running",
+                    );
+                    return;
+                  }
+                  const o = e.outcome;
+                  if (!o) {
+                    return;
+                  }
+                  if (o.status === "ok") {
+                    panelStore.setDirectiveApplyItemState(
+                      pendingId,
+                      globalIndex,
+                      "done",
+                    );
+                  } else if (o.status === "failed") {
+                    panelStore.setDirectiveApplyItemState(
+                      pendingId,
+                      globalIndex,
+                      "failed",
+                      o.message,
+                    );
+                  } else {
+                    panelStore.setDirectiveApplyItemState(
+                      pendingId,
+                      globalIndex,
+                      "skipped",
+                      o.message,
+                    );
+                  }
+                },
+              }
+            : undefined,
+        );
+
+        return {
+          items: outcomes.map((o) => ({
+            status: o.status,
+            ...(o.message !== undefined && o.message !== ""
+              ? { message: o.message }
+              : {}),
+          })),
+        };
+      },
+    );
+
     daemonProcRef.current = daemon.process;
     voiceProcRef.current = voice.process;
 
-    attachTranscriptPipeline(services);
+    services.disposeTranscriptPipeline?.();
+    services.disposeTranscriptPipeline =
+      attachTranscriptPipeline(services).dispose;
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unknown daemon startup error";
@@ -112,6 +212,8 @@ export async function activate(context: vscode.ExtensionContext) {
       voiceProcRef.current = null;
       services.client = null;
       services.voiceSidecar = null;
+      services.disposeTranscriptPipeline?.();
+      services.disposeTranscriptPipeline = undefined;
 
       await wireVocodeBackend(context, services, daemonProcRef, voiceProcRef);
 
@@ -125,7 +227,51 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   };
 
+  let voiceRestartInFlight = false;
+  services.restartVoiceSidecar = async () => {
+    if (voiceRestartInFlight) {
+      return;
+    }
+    voiceRestartInFlight = true;
+    try {
+      // If voice is active, stop listening before swapping the process.
+      voiceSession.stop();
+      services.voiceSidecar?.stop();
+      mainPanelStore.setVoiceListening(false);
+      voiceStatus.setIdle();
+
+      services.voiceSidecar?.dispose();
+      safeKillProcess(voiceProcRef.current);
+      voiceProcRef.current = null;
+      services.voiceSidecar = null;
+
+      const voice = await spawnVoiceSidecar(context);
+      console.log(`Vocode voice sidecar restarted from ${voice.binaryPath}`);
+
+      voiceProcRef.current = voice.process;
+      services.voiceSidecar = new VoiceSidecarClient(voice.process);
+
+      services.disposeTranscriptPipeline?.();
+      services.disposeTranscriptPipeline =
+        attachTranscriptPipeline(services).dispose;
+    } finally {
+      voiceRestartInFlight = false;
+    }
+  };
+
   await wireVocodeBackend(context, services, daemonProcRef, voiceProcRef);
+
+  // Secrets apply immediately: restart the backend when the ElevenLabs key changes
+  // so the running sidecar/daemon always see the latest configuration.
+  context.subscriptions.push(
+    context.secrets.onDidChange((e) => {
+      if (e.key !== ELEVENLABS_API_KEY_SECRET) {
+        return;
+      }
+      // Only the voice sidecar consumes ELEVENLABS_API_KEY.
+      void services.restartVoiceSidecar?.();
+    }),
+  );
 
   context.subscriptions.push(voiceStatus, ...registerAllCommands(services), {
     dispose: () => {

@@ -5,17 +5,30 @@ import {
   beginTranscriptUndoSession,
   finalizeTranscriptUndoSessionIfEditsApplied,
 } from "../directives/undo/transcript-undo-ledger";
-import type { DirectiveApplyOutcome } from "./carry";
 import type { TranscriptApplyContext } from "./context";
+
+export type DirectiveApplyOutcome = {
+  status: "ok" | "failed" | "skipped";
+  message?: string;
+};
 
 /**
  * Applies a daemon `VoiceTranscriptResult` to the workspace (edits, commands, navigation, undo).
  * Used by voice and by the manual “send transcript” command — not command-specific.
  * Returns one outcome per directive (stops after the first failure).
  */
+export type ApplyTranscriptProgressEvent = {
+  index: number;
+  phase: "start" | "complete";
+  outcome?: DirectiveApplyOutcome;
+};
+
 export async function applyTranscriptResult(
   result: VoiceTranscriptResult,
   activeDocumentPath: string,
+  options?: {
+    onProgress?: (event: ApplyTranscriptProgressEvent) => void;
+  },
 ): Promise<DirectiveApplyOutcome[]> {
   if (!result.success) {
     return [];
@@ -32,17 +45,28 @@ export async function applyTranscriptResult(
   try {
     for (let i = 0; i < dirs.length; i++) {
       const directive = dirs[i];
-      if (!(await dispatchTranscript(directive, ctx))) {
-        outcomes.push({
-          ok: false,
-          message: "Directive failed to apply.",
-        });
+      options?.onProgress?.({ index: i, phase: "start" });
+      const dispatchOutcome = await dispatchTranscript(directive, ctx);
+      if (!dispatchOutcome.ok) {
+        const failed: DirectiveApplyOutcome = {
+          status: "failed",
+          message: dispatchOutcome.message ?? "Directive failed to apply.",
+        };
+        outcomes.push(failed);
+        options?.onProgress?.({ index: i, phase: "complete", outcome: failed });
         for (let j = i + 1; j < dirs.length; j++) {
-          outcomes.push({ ok: false, message: "not attempted" });
+          const skipped: DirectiveApplyOutcome = {
+            status: "skipped",
+            message: "not attempted",
+          };
+          outcomes.push(skipped);
+          options?.onProgress?.({ index: j, phase: "complete", outcome: skipped });
         }
         return outcomes;
       }
-      outcomes.push({ ok: true });
+      const ok: DirectiveApplyOutcome = { status: "ok" };
+      outcomes.push(ok);
+      options?.onProgress?.({ index: i, phase: "complete", outcome: ok });
     }
   } finally {
     finalizeTranscriptUndoSessionIfEditsApplied();

@@ -18,10 +18,10 @@ export type VocodePanelConfig = {
   daemonVoiceTranscriptCoalesceMs: number;
   daemonVoiceTranscriptMaxMergeJobs: number;
   daemonVoiceTranscriptMaxMergeChars: number;
-  daemonVoiceMaxAgentTurns: number;
-  daemonVoiceMaxIntentRetries: number;
-  daemonVoiceMaxContextRounds: number;
-  daemonVoiceMaxContextBytes: number;
-  daemonVoiceMaxConsecutiveContextRequests: number;
-  daemonSessionIdleResetMs: number;
+  maxPlannerTurns: number;
+  maxIntentDispatchRetries: number;
+  maxContextRounds: number;
+  maxContextBytes: number;
+  maxConsecutiveContextRequests: number;
+  sessionIdleResetMs: number;
 };
