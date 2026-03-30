@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "build": "node ../../scripts/dev/build-voice.mjs",
-    "dev": "go run ./cmd/vocode-voiced",
+    "dev": "node ../../scripts/dev/dev-voice.mjs",
     "setup-portaudio:win": "pwsh -NoProfile -ExecutionPolicy Bypass -File ../../scripts/dev/setup-portaudio.pnpm.ps1",
     "test": "node ../../scripts/dev/go-test.mjs --force-cgo",
     "lint": "golangci-lint run",

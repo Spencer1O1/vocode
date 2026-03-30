@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "build": "node ../../scripts/dev/build-daemon.mjs",
-    "dev": "go run ./cmd/vocoded",
+    "dev": "node ../../scripts/dev/dev-daemon.mjs",
     "test": "node ../../scripts/dev/go-test.mjs",
     "lint": "golangci-lint run",
     "typecheck": "node ../../scripts/dev/go-test.mjs"
