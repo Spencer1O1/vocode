@@ -31,20 +31,37 @@ export function highlightEditedLines(locations: AppliedEditLocation[]): void {
 
   const decoration = getDecorationType();
   for (const editor of vscode.window.visibleTextEditors) {
-    const filePath = editor.document.uri.fsPath;
+    const document = editor.document;
+    const filePath = document.uri.fsPath;
     const fileRanges = groupedRanges.filter((range) => range.path === filePath);
     if (fileRanges.length === 0) {
       continue;
     }
 
+    const lastLineIndex = Math.max(0, document.lineCount - 1);
+
     editor.setDecorations(
       decoration,
       fileRanges.map((range) => {
-        const line = editor.document.lineAt(range.endLine);
+        // Clamp start/end lines to the current document to avoid stale indices.
+        let startLine = Math.min(
+          Math.max(range.startLine, 0),
+          lastLineIndex,
+        );
+        let endLine = Math.min(
+          Math.max(range.endLine, 0),
+          lastLineIndex,
+        );
+
+        if (endLine < startLine) {
+          startLine = endLine;
+        }
+
+        const line = document.lineAt(endLine);
         return new vscode.Range(
-          range.startLine,
+          startLine,
           0,
-          range.endLine,
+          endLine,
           line.range.end.character,
         );
       }),
