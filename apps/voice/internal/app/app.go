@@ -15,7 +15,11 @@ type App struct {
 	// Buffered so each JSON line is flushed promptly to the extension (line-oriented protocol).
 	outBuf *bufio.Writer
 
-	mu sync.Mutex
+	// writeMu serializes JSON writes to stdout.
+	writeMu sync.Mutex
+	// stateMu protects lifecycle state shared between stdin command handlers and
+	// the transcribe goroutine.
+	stateMu sync.Mutex
 
 	cfgMu sync.RWMutex
 	cfg   SidecarConfig
@@ -109,8 +113,8 @@ func (a *App) write(evt Event) error {
 }
 
 func (a *App) writeJSON(v any) error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	a.writeMu.Lock()
+	defer a.writeMu.Unlock()
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
