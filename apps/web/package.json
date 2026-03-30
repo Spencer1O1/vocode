@@ -1,5 +1,5 @@
 {
-  "name": "vocode-site",
+  "name": "@vocode/web",
   "private": true,
   "version": "0.0.0",
   "type": "module",

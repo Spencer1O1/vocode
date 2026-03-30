@@ -47,6 +47,9 @@ jobs:
       - name: Lint TypeScript/JSON/CSS with Biome
         run: pnpm lint
 
+      - name: Build web app
+        run: pnpm --filter @vocode/web build
+
       - name: Build VS Code extension
         run: pnpm --filter @vocode/vscode-extension build
 
