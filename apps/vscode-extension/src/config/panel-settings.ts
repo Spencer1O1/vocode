@@ -26,12 +26,13 @@ export type VocodePanelConfigMessage = {
   daemonVoiceTranscriptCoalesceMs: number;
   daemonVoiceTranscriptMaxMergeJobs: number;
   daemonVoiceTranscriptMaxMergeChars: number;
-  daemonVoiceMaxAgentTurns: number;
-  daemonVoiceMaxIntentRetries: number;
-  daemonVoiceMaxContextRounds: number;
-  daemonVoiceMaxContextBytes: number;
-  daemonVoiceMaxConsecutiveContextRequests: number;
-  daemonSessionIdleResetMs: number;
+  maxPlannerTurns: number;
+  maxTranscriptRepairRpcs: number;
+  maxIntentDispatchRetries: number;
+  maxContextRounds: number;
+  maxContextBytes: number;
+  maxConsecutiveContextRequests: number;
+  sessionIdleResetMs: number;
 };
 
 const STRING_KEYS = new Set<string>([
@@ -96,27 +97,16 @@ export async function buildVocodePanelConfigMessage(
       "daemonVoiceTranscriptMaxMergeChars",
       6000,
     ),
-    daemonVoiceMaxAgentTurns: c.get<number>("daemonVoiceMaxAgentTurns", 8),
-    daemonVoiceMaxIntentRetries: c.get<number>(
-      "daemonVoiceMaxIntentRetries",
-      2,
-    ),
-    daemonVoiceMaxContextRounds: c.get<number>(
-      "daemonVoiceMaxContextRounds",
-      2,
-    ),
-    daemonVoiceMaxContextBytes: c.get<number>(
-      "daemonVoiceMaxContextBytes",
-      12000,
-    ),
-    daemonVoiceMaxConsecutiveContextRequests: c.get<number>(
-      "daemonVoiceMaxConsecutiveContextRequests",
+    maxPlannerTurns: c.get<number>("maxPlannerTurns", 8),
+    maxTranscriptRepairRpcs: c.get<number>("maxTranscriptRepairRpcs", 8),
+    maxIntentDispatchRetries: c.get<number>("maxIntentDispatchRetries", 2),
+    maxContextRounds: c.get<number>("maxContextRounds", 2),
+    maxContextBytes: c.get<number>("maxContextBytes", 12000),
+    maxConsecutiveContextRequests: c.get<number>(
+      "maxConsecutiveContextRequests",
       3,
     ),
-    daemonSessionIdleResetMs: c.get<number>(
-      "daemonSessionIdleResetMs",
-      1800000,
-    ),
+    sessionIdleResetMs: c.get<number>("sessionIdleResetMs", 1800000),
   };
 }
 

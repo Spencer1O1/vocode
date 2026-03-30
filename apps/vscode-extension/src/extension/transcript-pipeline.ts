@@ -1,12 +1,8 @@
 import * as vscode from "vscode";
 
 import type { ExtensionServices } from "../commands/services";
-import { applyTranscriptResult } from "../transcript/apply-result";
-import {
-  mergeCarriedTranscriptParams,
-  recordTranscriptApplyCycle,
-} from "../transcript/carry";
 import { FAILED_TO_PROCESS_TRANSCRIPT } from "../transcript/messages";
+import { runRepairChainQueued } from "../transcript/repair-chain";
 import { transcriptWorkspaceRoot } from "../transcript/workspace-root";
 
 /**
@@ -91,33 +87,56 @@ export function attachTranscriptPipeline(services: ExtensionServices): void {
 
     mainPanelStore.markProcessing(pendingId);
 
+    const pos = editor.selection.active;
+    const baseParams = {
+      text,
+      activeFile,
+      workspaceRoot: transcriptWorkspaceRoot(activeFile),
+      cursorPosition: { line: pos.line, character: pos.character },
+      contextSessionId: voiceSession.contextSessionId(),
+    };
+
+    const maxAutoRepairRpcs = Math.max(
+      1,
+      vscode.workspace
+        .getConfiguration("vocode")
+        .get<number>("maxTranscriptRepairRpcs", 8),
+    );
+
     void (async () => {
       try {
-        const pos = editor.selection.active;
-        const result = await client.transcript(
-          mergeCarriedTranscriptParams({
-            text,
+        const { lastResult, lastOutcomes, reachedLimit } =
+          await runRepairChainQueued({
+            client,
+            baseParams,
             activeFile,
-            workspaceRoot: transcriptWorkspaceRoot(activeFile),
-            cursorPosition: { line: pos.line, character: pos.character },
-            contextSessionId: voiceSession.contextSessionId(),
-          }),
-        );
-        const outcomes = await applyTranscriptResult(result, activeFile);
-        recordTranscriptApplyCycle(result, outcomes);
-        const firstFailed = outcomes.find((o) => o.status === "failed");
-        if (!result.success || firstFailed) {
-          const msg = !result.success
-            ? FAILED_TO_PROCESS_TRANSCRIPT
-            : firstFailed?.message && firstFailed.message !== "not attempted"
+            maxRepairRpcs: maxAutoRepairRpcs,
+          });
+
+        const firstFailed = lastOutcomes.find((o) => o.status === "failed");
+
+        if (!lastResult.success) {
+          mainPanelStore.markError(pendingId, FAILED_TO_PROCESS_TRANSCRIPT);
+          return;
+        }
+
+        if (reachedLimit) {
+          mainPanelStore.markError(pendingId, "Auto-repair limit reached.");
+          return;
+        }
+
+        if (firstFailed) {
+          const msg =
+            firstFailed.message && firstFailed.message !== "not attempted"
               ? firstFailed.message
               : "A directive failed to apply.";
           mainPanelStore.markError(pendingId, msg);
-        } else {
-          mainPanelStore.markHandled(pendingId, {
-            summary: result.summary?.trim() || undefined,
-          });
+          return;
         }
+
+        mainPanelStore.markHandled(pendingId, {
+          summary: lastResult.summary?.trim() || undefined,
+        });
       } catch (err) {
         const message =
           err instanceof Error

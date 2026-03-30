@@ -13,9 +13,9 @@ func TestConsumeHostApplyReportSplitsStatuses(t *testing.T) {
 	b := &DirectiveApplyBatch{
 		ID: "batch-1",
 		SourceIntents: []intents.Intent{
-			intents.ControlDone(),
-			intents.ControlDone(),
-			intents.ControlDone(),
+			{Kind: intents.IntentKindCommand, Command: &intents.CommandIntent{Command: "echo", Args: []string{"1"}}},
+			{Kind: intents.IntentKindCommand, Command: &intents.CommandIntent{Command: "echo", Args: []string{"2"}}},
+			{Kind: intents.IntentKindCommand, Command: &intents.CommandIntent{Command: "echo", Args: []string{"3"}}},
 		},
 	}
 	items := []protocol.VoiceTranscriptDirectiveApplyItem{

@@ -56,19 +56,19 @@ func resolveHostCursorSymbol(r symbols.Resolver, params protocol.VoiceTranscript
 	return &agentcontext.CursorSymbol{ID: ref.ID, Name: ref.Name, Kind: ref.Kind}
 }
 
-func buildEditExecutionContext(params protocol.VoiceTranscriptParams, ex *intents.ExecutableIntent) (edit.EditExecutionContext, string) {
+func buildEditExecutionContext(params protocol.VoiceTranscriptParams, ex *intents.Intent) (edit.EditExecutionContext, string) {
 	if ex == nil {
-		return edit.EditExecutionContext{}, "missing executable intent"
+		return edit.EditExecutionContext{}, "missing intent"
 	}
-	if ex.Kind == intents.ExecutableIntentKindUndo {
+	if ex.Kind == intents.IntentKindUndo {
 		return edit.EditExecutionContext{}, ""
 	}
 	active := strings.TrimSpace(params.ActiveFile)
 	workspaceRoot := workspace.EffectiveWorkspaceRoot(params.WorkspaceRoot, active)
-	if ex.Kind == intents.ExecutableIntentKindEdit && active == "" {
+	if ex.Kind == intents.IntentKindEdit && active == "" {
 		return edit.EditExecutionContext{}, "activeFile is required when the next intent is an edit"
 	}
-	if ex.Kind == intents.ExecutableIntentKindEdit && workspaceRoot == "" {
+	if ex.Kind == intents.IntentKindEdit && workspaceRoot == "" {
 		return edit.EditExecutionContext{}, "workspaceRoot is required when the next intent is an edit"
 	}
 	fileText := ""

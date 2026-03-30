@@ -30,5 +30,9 @@
 
 ## Extension
 
-- Persist `lastApplyBatchId` from result; next `mergeCarriedTranscriptParams` sets `reportApplyBatchId` + `lastBatchApply`.
+- Apply directives immediately; if any directive fails, the extension runs an automatic repair chain by re-calling `voice.transcript` (for the same committed transcript) until the daemon returns `success: true` with zero directives.
+- Committed transcript handlers are serialized so no next user transcript can start until the current repair chain finishes.
+- Within that repair chain, the extension uses the `apply-report-carry` module to pass `applyBatchId` + per-directive `{status, message}` into the next internal RPC via `reportApplyBatchId` + `lastBatchApply`.
+- Cap for the repair-chain RPC loop: `vocode.maxTranscriptRepairRpcs`.
+- Failure messages come from the specific directive dispatcher (command stderr/exit reason, edit/workspace.applyEdit failures, navigation/undo errors) and are surfaced via `lastBatchApply[i].message`.
 - `applyTranscriptResult` pads outcomes to **full directive count** after failure.

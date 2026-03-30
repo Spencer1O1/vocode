@@ -1,12 +1,14 @@
 package transcript
 
 import (
+	"log"
 	"strings"
 	"sync"
 	"time"
 
 	"vocoding.net/vocode/v2/apps/daemon/internal/agent"
 	"vocoding.net/vocode/v2/apps/daemon/internal/agentcontext"
+	"vocoding.net/vocode/v2/apps/daemon/internal/gather"
 	"vocoding.net/vocode/v2/apps/daemon/internal/intents/dispatch"
 	"vocoding.net/vocode/v2/apps/daemon/internal/symbols"
 	"vocoding.net/vocode/v2/apps/daemon/internal/transcript/config"
@@ -18,6 +20,7 @@ import (
 // transcript executor (structured directives for the extension to apply).
 type TranscriptService struct {
 	executor *executor.Executor
+	logger   *log.Logger
 
 	sessions *agentcontext.VoiceSessionStore
 	// When contextSessionId is empty, full session (gathered, apply history, pending batch) is kept here.
@@ -46,7 +49,9 @@ type transcriptAcceptResp struct {
 func NewService(
 	agentRuntime *agent.Agent,
 	intentHandler *dispatch.Handler,
+	gatherProvider *gather.Provider,
 	symbolResolver symbols.Resolver,
+	logger *log.Logger,
 ) *TranscriptService {
 	queueSize := config.Int("VOCODE_DAEMON_VOICE_TRANSCRIPT_QUEUE_SIZE", 10)
 	coalesceMs := config.Int("VOCODE_DAEMON_VOICE_TRANSCRIPT_COALESCE_MS", 750)
@@ -59,7 +64,7 @@ func NewService(
 	maxConsecutiveContextReq := config.Int("VOCODE_DAEMON_VOICE_MAX_CONSECUTIVE_CONTEXT_REQUESTS", 3)
 	maxIntentsPerBatch := config.Int("VOCODE_DAEMON_VOICE_MAX_INTENTS_PER_BATCH", 16)
 
-	exec := executor.New(agentRuntime, intentHandler, executor.Options{
+	exec := executor.New(agentRuntime, intentHandler, gatherProvider, executor.Options{
 		MaxAgentTurns:            maxAgentTurns,
 		MaxIntentRetries:         maxIntentRetries,
 		MaxContextRounds:         maxContextRounds,
@@ -71,6 +76,7 @@ func NewService(
 
 	s := &TranscriptService{
 		executor:       exec,
+		logger:         logger,
 		sessions:       agentcontext.NewVoiceSessionStore(),
 		coalesceWindow: time.Duration(coalesceMs) * time.Millisecond,
 		maxMergeJobs:   maxMergeJobs,

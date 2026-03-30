@@ -114,3 +114,43 @@ test("isVoiceTranscriptResult accepts undo directive", () => {
     true,
   );
 });
+
+test("isVoiceTranscriptResult accepts multi-directive batch with shared applyBatchId", () => {
+  assert.equal(
+    isVoiceTranscriptResult({
+      success: true,
+      directives: [
+        {
+          kind: "command",
+          commandDirective: { command: "echo", args: ["a"] },
+        },
+        {
+          kind: "command",
+          commandDirective: { command: "echo", args: ["b"] },
+        },
+        {
+          kind: "command",
+          commandDirective: { command: "echo", args: ["c"] },
+        },
+      ],
+      applyBatchId: "multi-batch-1",
+    }),
+    true,
+  );
+});
+
+/** Mirrors batch-intents Phase 6: large batch still validates with one applyBatchId. */
+test("isVoiceTranscriptResult accepts seven-directive command batch with shared applyBatchId", () => {
+  const directives = Array.from({ length: 7 }, (_, i) => ({
+    kind: "command" as const,
+    commandDirective: { command: "echo", args: [String(i)] },
+  }));
+  assert.equal(
+    isVoiceTranscriptResult({
+      success: true,
+      directives,
+      applyBatchId: "phase6-seven",
+    }),
+    true,
+  );
+});

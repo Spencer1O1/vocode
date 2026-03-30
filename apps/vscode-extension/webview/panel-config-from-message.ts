@@ -37,13 +37,15 @@ export function vocodePanelConfigFromMessage(
     daemonVoiceTranscriptMaxMergeChars: Number(
       msg.daemonVoiceTranscriptMaxMergeChars ?? 6000,
     ),
-    daemonVoiceMaxAgentTurns: Number(msg.daemonVoiceMaxAgentTurns ?? 8),
-    daemonVoiceMaxIntentRetries: Number(msg.daemonVoiceMaxIntentRetries ?? 2),
-    daemonVoiceMaxContextRounds: Number(msg.daemonVoiceMaxContextRounds ?? 2),
-    daemonVoiceMaxContextBytes: Number(msg.daemonVoiceMaxContextBytes ?? 12000),
-    daemonVoiceMaxConsecutiveContextRequests: Number(
-      msg.daemonVoiceMaxConsecutiveContextRequests ?? 3,
+    maxPlannerTurns: Number(msg.maxPlannerTurns ?? 8),
+    maxIntentDispatchRetries: Number(
+      msg.maxIntentDispatchRetries ?? 2,
     ),
-    daemonSessionIdleResetMs: Number(msg.daemonSessionIdleResetMs ?? 1800000),
+    maxContextRounds: Number(msg.maxContextRounds ?? 2),
+    maxContextBytes: Number(msg.maxContextBytes ?? 12000),
+    maxConsecutiveContextRequests: Number(
+      msg.maxConsecutiveContextRequests ?? 3,
+    ),
+    sessionIdleResetMs: Number(msg.sessionIdleResetMs ?? 1800000),
   };
 }

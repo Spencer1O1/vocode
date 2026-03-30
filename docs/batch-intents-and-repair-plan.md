@@ -4,7 +4,7 @@ This document is the **exact checklist** for implementing: (1) **multiple intent
 
 It complements [`transcript-architecture-plan.md`](./transcript-architecture-plan.md) (wire, session, gathered).
 
-**Implemented in tree:** Phase 1 (apply `status`), cumulative `IntentApplyHistory` + ephemeral full-session persistence, `TurnContext` fields, `ModelClient.NextTurn` / `TurnResult`, executor batch dispatch, stub batch of four intents, `VOCODE_DAEMON_VOICE_MAX_INTENTS_PER_BATCH` (unset → 16; **0 → no cap**). Remaining: real model JSON for `TurnResult`, prompt/schema work, optional protocol field for irrelevant summary vs `VoiceTranscriptResult.summary`.
+**Implemented in tree:** Phase 1–5 core, executor **batch advance** fix (`advanceBatchIntentDone` so multi-item `TurnIntents` runs all items), executor **tests**, **Anthropic** Messages client, **OpenAI** client (strict **`json_schema`** turn envelope), `VOCODE_DAEMON_VOICE_LOG_TRANSCRIPT` + daemon logger line, VS Code `vocode.daemonVoiceLogTranscript` / Anthropic model+base URL settings, plus an extension-side **automatic repair loop** that repeatedly calls `voice.transcript` (queued; cap: `vocode.maxTranscriptRepairRpcs`) and feeds `lastBatchApply` until directives are empty. Caps: `VOCODE_DAEMON_VOICE_MAX_INTENTS_PER_BATCH` (unset → 16; **0 → no cap**). **Remaining:** optional `VoiceTranscriptResult` field for irrelevant vs summary, full extension UI E2E, prompt tuning from real transcripts.
 
 ---
 
@@ -29,9 +29,9 @@ It complements [`transcript-architecture-plan.md`](./transcript-architecture-pla
 ## Phase 0 — Decisions & invariants
 
 - [x] **Max intents per batch:** `VOCODE_DAEMON_VOICE_MAX_INTENTS_PER_BATCH`; unset → 16; **0 → no cap** (VS Code `vocode.daemonVoiceMaxIntentsPerBatch`).
-- [ ] Define **boundary for “cumulative history”**: same `contextSessionId` + same logical user transcript vs. reset rules (align with idle reset / new utterance).
-- [ ] Confirm **irrelevant** maps to: `success: true`, **zero directives**, optional user-visible reason via existing `summary` (or a future optional field).
-- [ ] Document for prompts: **request_context** may precede **intents[]** in the same RPC via the existing inner loop pattern.
+- [x] **Cumulative history boundary:** same `contextSessionId` (or ephemeral session) until idle reset; history appends on each host `lastBatchApply` consume.
+- [x] **Irrelevant →** `success: true`, zero directives, reason → `VoiceTranscriptResult.summary` (executor).
+- [x] **request_context** before **intents[]**: same RPC via executor loop (documented in `prompt.System()`).
 
 ---
 
@@ -39,14 +39,9 @@ It complements [`transcript-architecture-plan.md`](./transcript-architecture-pla
 
 **Problem today:** `ok: false` + message `"not attempted"` is indistinguishable from a **real** apply failure in `ConsumeHostApplyReport` — both become `FailedIntent`. Repair needs **succeeded / failed (attempted) / skipped (not attempted)**.
 
-- [ ] **Schema** (`packages/protocol/schema/voice-transcript.directive-apply-item.schema.json`): add an explicit discriminator, e.g. `status: "ok" | "failed" | "skipped"` **or** `attempted: boolean` with clear semantics; avoid inferring skipped state only from free-text `message`.
-- [ ] Run **`pnpm codegen`**; update TS validators if applicable.
-- [ ] **Extension** (`apps/vscode-extension/src/transcript/apply-result.ts`): for indices after the first failure, set **`skipped`** (not `failed`).
-- [ ] **Daemon** (`apps/daemon/internal/agentcontext/directive_apply_batch.go` — or successor): parse three outcomes; build:
-  - [ ] `extSucc []Intent` — host applied successfully
-  - [ ] `extFailed []FailedIntent` — **attempted** and failed (`PhaseExtension`, real message)
-  - [ ] `extSkipped []Intent` — **not attempted** (not `FailedIntent`)
-- [ ] **Tests:** consume report with mixed ok / failed / skipped; length mismatch / batch id mismatch still errors.
+- [x] **Schema:** `status: "ok" | "failed" | "skipped"` on directive apply items; `pnpm codegen`.
+- [x] **Extension:** tail outcomes use **`skipped`**.
+- [x] **Daemon:** `ConsumeHostApplyReport` → `extSucc` / `extFail` / `extSkipped`; tests in `directive_apply_batch_test.go`.
 
 ---
 
@@ -54,13 +49,10 @@ It complements [`transcript-architecture-plan.md`](./transcript-architecture-pla
 
 **Goal:** The model always sees an **ordered, auditable list** of every intent from the first batch through the latest apply, with correct status — not only flat `SucceededIntents` / `FailedIntents` that lose batch structure.
 
-- [ ] Add a structured type, e.g. `IntentRunRecord` / `ApplyHistoryEntry`: stable **index or id**, **intent JSON** (or canonical form), **status** (`applied_ok` | `apply_failed` | `skipped`), **optional message**, optional **batch ordinal** (1st host batch, 2nd host batch, …).
-- [ ] **Session / executor:** append to this history when:
-  - [ ] Daemon emits a batch (`SourceIntents` + `applyBatchId`).
-  - [ ] Host reports `lastBatchApply` (merge statuses for that batch’s indices).
-- [ ] **Persistence:** history lives in `VoiceSession` (or equivalent) for the same `contextSessionId` until idle reset or explicit clear policy.
-- [ ] **`ComposeTurnContext`** (`apps/daemon/internal/agentcontext/build.go`): pass **full cumulative history** into `TurnContext` for the model (plus transcript text, editor snapshot, gathered, notes).
-- [ ] **Docs:** `agentcontext` package doc comment describes the new field(s).
+- [x] **`IntentApplyRecord`** + **`IntentApplyHistory`** on `VoiceSession`; append on host report consume (`AppendIntentApplyHistory`).
+- [x] **Persistence:** keyed store + full ephemeral `VoiceSession` clone between RPCs.
+- [x] **`ComposeTurnContext`:** passes `IntentApplyHistory` and `SkippedIntents` into `TurnContext`.
+- [x] **`agentcontext` doc** updated for `TurnContext`.
 
 ---
 
@@ -68,52 +60,44 @@ It complements [`transcript-architecture-plan.md`](./transcript-architecture-pla
 
 **Goal:** One parsed model response = **one** of irrelevant | done | request_context | intents[]; **no** extra host RPC for relevance alone.
 
-- [ ] Introduce `TurnResult` (name TBD) in `apps/daemon/internal/agent` (or adjacent), e.g.:
-  - `Irrelevant { Reason string }`
-  - `Done { Summary string }`
-  - `RequestContext *RequestContextIntent` (reuse intents type)
-  - `Intents []Intent` (non-empty, max cap)
-- [ ] Extend **`ModelClient`** (`model_client.go`): e.g. `NextTurn(ctx, TurnContext) (TurnResult, error)` **or** extend `NextIntent` to return `TurnResult` (migrate callers).
-- [ ] **Stub** (`apps/daemon/internal/agent/stub/client.go`): emit batches, irrelevant, done, request_context for tests.
-- [ ] **Real providers** (OpenAI / Anthropic): JSON schema / tool output matches union (when implemented).
+- [x] **`TurnResult`** + **`ModelClient.NextTurn`** in `apps/daemon/internal/agent`.
+- [x] **Stub** batch + post-apply `done`.
+- [x] **OpenAI:** Chat Completions + JSON object + `turnjson.ParseTurn`.
+- [x] **Anthropic:** Messages API + assistant text → `turnjson.ParseTurn`.
 
 ---
 
 ## Phase 4 — Executor refactor (`apps/daemon/internal/transcript/executor`)
 
-- [ ] Replace “one intent per model call” happy path with:
-  - [ ] Call model → `TurnResult`.
-  - [ ] **irrelevant** → finalize: success, zero directives, summary from reason.
-  - [ ] **done** → finalize: same as today’s done path (summary).
-  - [ ] **request_context** → fulfill, update gathered, append to completed/history as today, **continue** inner loop (counts toward context caps).
-  - [ ] **intents[]** → **validate all** before emitting any directive; on validation failure use existing retry/gathered-note policy or fail closed.
-  - [ ] For each valid intent, **dispatch in order**, append directive + parallel `SourceIntents` entry (reuse `applyHandleOutcome` logic in an inner loop for one model step).
-- [ ] **Single** `VoiceTranscriptResult` per RPC still has **N directives** and **N source intents** for that batch (outstanding-only batch).
-- [ ] Revisit **`maxAgentTurns`**: primarily `request_context` rounds + validation retries, not one turn per intent in the happy path; document env tuning.
-- [ ] **Tests:** full batch success; irrelevant; done after batch; mixed validation failure; request_context then batch.
+- [x] Executor: `NextTurn` → switch `TurnResult`; **irrelevant** / **done** / **request_context** / batched **intents[]** with ordered dispatch; loop-cap vs `advanceBreakLoop` fix in finalize.
+- [x] One result batch ↔ N directives + `SourceIntents`; inner batch loop uses `advanceBatchIntentDone` vs model-retry `advanceContinue`.
+- [x] **Executor tests:** irrelevant, done, request_context→command, dispatch retry→command, multi-intent batch.
 
 ---
 
 ## Phase 5 — Prompts & model schema
 
-- [ ] System/developer text: output **only outstanding intents** after partial apply; never repeat succeeded steps as new directives.
-- [ ] System/developer text: input includes **full cumulative intent history** with per-intent status (Phase 2).
-- [ ] Strict JSON / tool schema for the union; document **cap** on `intents.length`.
+- [x] **`prompt.System()`** documents union JSON, outstanding-only rule, and `attemptHistory`.
+- [x] **`prompt.UserJSON`** includes transcript, editor, unified `attemptHistory` (dispatch failures + host apply outcomes), gathered (truncated excerpts).
+- [x] OpenAI `json_schema` **strict** turn envelope (daemon-side; always enabled).
+- [ ] Optional: prompt tuning from real transcripts.
 
 ---
 
 ## Phase 6 — Extension & protocol integration checks
 
-- [ ] E2E shape: result with 7 directives → host fails at 4 → next params carry `reportApplyBatchId` + `lastBatchApply` with **failed** vs **skipped** correct.
-- [ ] Confirm **`VoiceTranscriptResult.Validate`** still holds for multi-directive batches.
-- [ ] Optional UI: show irrelevant reason / done summary (already on result if mapped to `summary`).
+- [x] Apply-report carry shape: extension **`apply-report-carry`** tests — 7 directives, fail at index 3, tail **skipped**; next merged params carry `reportApplyBatchId` + `lastBatchApply` statuses (integration-style unit test).
+- [x] **`VoiceTranscriptResult` validator:** protocol test for **seven-directive** batch + shared `applyBatchId`.
+- [x] Directive dispatch failures propagate richer `lastBatchApply[i].message` (edit/command/navigation/undo) instead of a generic string.
+- [x] Extension-side automatic repair chain is **queued** and capped (`vocode.maxTranscriptRepairRpcs`) until directives are empty.
+- [ ] Optional UI: **irrelevant** — *current thinking (not final):* grayed out in a **collapsed** section, using `VoiceTranscriptResult.summary` for the reason; **later:** optional **force-apply** / re-run path if something was misclassified. **Done:** show summary (same `summary` field); layout TBD.
 
 ---
 
 ## Phase 7 — Observability & limits
 
-- [ ] Env caps documented next to `VOCODE_DAEMON_VOICE_MAX_AGENT_TURNS` in `spawn-env` / daemon config docs as needed.
-- [ ] Structured log fields: batch size, repair RPC, counts of ok / failed / skipped.
+- [x] **`VOCODE_DAEMON_VOICE_LOG_TRANSCRIPT`:** one log line per RPC (apply ok/fail/skip counts, directive count, success, session flag, history length); VS Code `vocode.daemonVoiceLogTranscript`; requires non-nil daemon logger from `app.New`.
+- [x] Caps documented in `AGENTS.md` / `spawn-env` / `package.json` for agent + voice env vars.
 
 ---
 

@@ -23,22 +23,22 @@ func New() *Client {
 func (*Client) NextTurn(ctx context.Context, in agentcontext.TurnContext) (agent.TurnResult, error) {
 	_ = ctx
 	if len(in.IntentApplyHistory) > 0 {
-		return agent.TurnResult{Kind: agent.TurnDone, DoneSummary: "stub model acknowledged prior host apply"}, nil
+		return agent.TurnResult{Kind: agent.TurnFinish, FinishSummary: "stub model acknowledged prior host apply"}, nil
 	}
 	return agent.TurnResult{
 		Kind: agent.TurnIntents,
 		Intents: []intents.Intent{
-			intents.FromExecutable(intents.ExecutableIntent{
-				Kind: intents.ExecutableIntentKindNavigate,
+			{
+				Kind: intents.IntentKindNavigate,
 				Navigate: &intents.NavigationIntent{
 					Kind: intents.NavigationIntentKindOpenFile,
 					OpenFile: &intents.OpenFileNavigationIntent{
 						Path: "test.js",
 					},
 				},
-			}),
-			intents.FromExecutable(intents.ExecutableIntent{
-				Kind: intents.ExecutableIntentKindNavigate,
+			},
+			{
+				Kind: intents.IntentKindNavigate,
 				Navigate: &intents.NavigationIntent{
 					Kind: intents.NavigationIntentKindRevealSymbol,
 					RevealSymbol: &intents.RevealSymbolNavigationIntent{
@@ -47,9 +47,9 @@ func (*Client) NextTurn(ctx context.Context, in agentcontext.TurnContext) (agent
 						SymbolKind: "function",
 					},
 				},
-			}),
-			intents.FromExecutable(intents.ExecutableIntent{
-				Kind: intents.ExecutableIntentKindEdit,
+			},
+			{
+				Kind: intents.IntentKindEdit,
 				Edit: &intents.EditIntent{
 					Kind: intents.EditIntentKindReplace,
 					Replace: &intents.ReplaceEditIntent{
@@ -67,11 +67,11 @@ func (*Client) NextTurn(ctx context.Context, in agentcontext.TurnContext) (agent
 						NewText: "\n  console.log(\"updated from stub\");\n",
 					},
 				},
-			}),
-			intents.FromExecutable(intents.ExecutableIntent{
-				Kind:    intents.ExecutableIntentKindCommand,
+			},
+			{
+				Kind:    intents.IntentKindCommand,
 				Command: stubEchoRunCommand(),
-			}),
+			},
 		},
 	}, nil
 }

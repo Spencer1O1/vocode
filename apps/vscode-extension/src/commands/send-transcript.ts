@@ -1,12 +1,8 @@
 import * as vscode from "vscode";
 
 import type { DaemonClient } from "../daemon/client";
-import { applyTranscriptResult } from "../transcript/apply-result";
-import {
-  mergeCarriedTranscriptParams,
-  recordTranscriptApplyCycle,
-} from "../transcript/carry";
 import { FAILED_TO_PROCESS_TRANSCRIPT } from "../transcript/messages";
+import { runRepairChainQueued } from "../transcript/repair-chain";
 import { transcriptWorkspaceRoot } from "../transcript/workspace-root";
 import type { ExtensionServices } from "./services";
 import type { CommandDefinition } from "./types";
@@ -57,24 +53,50 @@ async function sendTranscript(
 
   try {
     services.voiceStatus.setProcessing();
-    const pos = editor.selection.active;
-    const result = await client.transcript(
-      mergeCarriedTranscriptParams({
-        text: trimmedText,
-        activeFile: activePath,
-        workspaceRoot: transcriptWorkspaceRoot(activePath),
-        cursorPosition: { line: pos.line, character: pos.character },
-        contextSessionId: services.voiceSession.contextSessionId(),
-      }),
+
+    // One manually sent transcript runs a full daemon "repair chain":
+    // keep calling `client.transcript(...)` until the daemon returns
+    // `success: true` with zero directives (or an unrecoverable error).
+    const MAX_AUTO_REPAIR_RPCS = Math.max(
+      1,
+      vscode.workspace
+        .getConfiguration("vocode")
+        .get<number>("maxTranscriptRepairRpcs", 8),
     );
-    const outcomes = await applyTranscriptResult(result, activePath);
-    recordTranscriptApplyCycle(result, outcomes);
-    const firstFailed = outcomes.find((o) => o.status === "failed");
-    if (!result.success) {
+
+    const pos = editor.selection.active;
+    const baseParams = {
+      text: trimmedText,
+      activeFile: activePath,
+      workspaceRoot: transcriptWorkspaceRoot(activePath),
+      cursorPosition: { line: pos.line, character: pos.character },
+      contextSessionId: services.voiceSession.contextSessionId(),
+    };
+    const { lastResult, lastOutcomes, reachedLimit } =
+      await runRepairChainQueued({
+        client,
+        baseParams,
+        activeFile: activePath,
+        maxRepairRpcs: MAX_AUTO_REPAIR_RPCS,
+      });
+
+    const firstFailed = lastOutcomes.find((o) => o.status === "failed");
+
+    if (!lastResult.success) {
       services.mainPanelStore.recordCompletedTranscript(trimmedText, {
         errorMessage: FAILED_TO_PROCESS_TRANSCRIPT,
       });
-    } else if (firstFailed) {
+      return;
+    }
+
+    if (reachedLimit) {
+      services.mainPanelStore.recordCompletedTranscript(trimmedText, {
+        errorMessage: "Auto-repair limit reached.",
+      });
+      return;
+    }
+
+    if (firstFailed) {
       const msg =
         firstFailed.message && firstFailed.message !== "not attempted"
           ? firstFailed.message
@@ -82,11 +104,12 @@ async function sendTranscript(
       services.mainPanelStore.recordCompletedTranscript(trimmedText, {
         errorMessage: msg,
       });
-    } else {
-      services.mainPanelStore.recordCompletedTranscript(trimmedText, {
-        summary: result.summary?.trim() || undefined,
-      });
+      return;
     }
+
+    services.mainPanelStore.recordCompletedTranscript(trimmedText, {
+      summary: lastResult.summary?.trim() || undefined,
+    });
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Failed to send transcript.";

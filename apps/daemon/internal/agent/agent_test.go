@@ -34,7 +34,7 @@ func TestStubBatchTurn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
-	if turn2.Kind != agent.TurnDone {
-		t.Fatalf("expected TurnDone after apply history, got %q", turn2.Kind)
+	if turn2.Kind != agent.TurnFinish {
+		t.Fatalf("expected TurnFinish after apply history, got %q", turn2.Kind)
 	}
 }

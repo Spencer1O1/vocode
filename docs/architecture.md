@@ -16,10 +16,12 @@ Expected daemon flow:
 `cmd/vocoded/main.go`  
 → `internal/app` (composition root)  
 → `internal/rpc` (transport/routing only)  
-→ `internal/transcript` — `Executor` runs one `voice.transcript`: calls `agent.NextIntent`, applies caps, then `intents/dispatch.Handler.Handle` (control vs executable in one place)
-→ `internal/agent` — iterative agent adapter (`Agent.NextIntent` → `intents.Intent` per turn)
-→ `internal/intents` — intent union (`package intents`: `Intent` = `ControlIntent` | `ExecutableIntent`, `Intent.Validate`, JSON `kind` + payloads, types like `EditIntent`)
-→ `internal/intents/dispatch` — `Handler.Handle` switches on the union: `ControlIntent` (`done`, `request_context` via `requestcontext.Provider.Fulfill`) vs `ExecutableIntent` → protocol directives (`intents/dispatch/edit.Engine.DispatchEdit`, `command|navigation|undo`)
+→ `internal/transcript` — `Executor` runs one `voice.transcript`: `agent.NextTurn` → `TurnResult`, gather-context via `internal/gather`, executable steps via `intents/dispatch.Handler.Handle`
+→ `internal/agent` — model adapter (`NextTurn`, `TurnResult`, `turnjson`, finish-summary limits)
+→ `internal/agentcontext` — per-turn gathered IDE state (`Gathered`, `GatherContextSpec`, sessions, apply history)
+→ `internal/gather` — fulfills `GatherContextSpec` (symbols, excerpts, usages); not executable `Intent` dispatch
+→ `internal/intents` — executable `Intent` only (edit / command / navigate / undo, `Intent.Validate`, JSON `kind` + payloads)
+→ `internal/intents/dispatch` — `Handler.Handle` maps executable `Intent` → protocol directives only (`edit.Engine.DispatchEdit`, `command|navigation|undo`)
 → `internal/intents/dispatch/edit` — `Engine` (`BuildActions`, `DispatchEdit` → protocol edit results; not an RPC)
 
 ### Extension (`apps/vscode-extension`)

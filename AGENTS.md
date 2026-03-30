@@ -16,8 +16,8 @@ One “turn” starts when the extension calls the daemon RPC:
 
 ### What the daemon guarantees
 
-1. The daemon runs an iterative agent loop (`Agent.NextIntent` per turn; each step yields an `intents.Intent` validated with `Intent.Validate`).
-2. Each turn is handled by `intents/dispatch.Handler.Handle` (control intents vs executable intents in one switch).
+1. The daemon runs an iterative agent loop (`Agent.NextTurn` → `TurnResult`: irrelevant / finish / gather-context / `intents[]`).
+2. Executable items in `intents[]` are dispatched with `intents/dispatch.Handler.Handle`. Gather-context turns call `internal/gather` from the transcript executor, not dispatch.
 3. The daemon returns a `VoiceTranscriptResult` with ordered `directives` and, when `directives` is non-empty, an `applyBatchId` that correlates the next host apply report. The daemon holds at most one open `DirectiveApplyBatch` per `VoiceSession` (`SourceIntents` parallel to `directives`) until the host reports via `lastBatchApply` / `reportApplyBatchId`. Per-`contextSessionId` state lives in `VoiceSessionStore`, subject to idle reset (`VOCODE_DAEMON_SESSION_IDLE_RESET_MS`: unset → 30m default, `0` → off) and a rolling byte/excerpt cap (active-file excerpt is retained).
 4. Each directive is exactly one of:
    - `kind: "edit"` with an `editDirective` (a single explicit variant of `EditDirective`)
@@ -93,11 +93,11 @@ One rule should have one owner. Duplicating ownership is a regression risk.
 
 ### Daemon
 
-- Agent/runtime: `apps/daemon/internal/agent` (`ModelClient` / `Agent.NextTurn` take `agentcontext.TurnContext` from `model_client.go`). Model turn input types: `apps/daemon/internal/agentcontext` (`TurnContext`, `EditorSnapshot`, `Gathered`, `VoiceSessionStore`, `FailedIntent`, `ComposeTurnContext`). Tree-sitter tag parsing + cursor containment: `apps/daemon/internal/symbols/tags`
+- Agent/runtime: `apps/daemon/internal/agent` (`ModelClient` / `Agent.NextTurn` take `agentcontext.TurnContext` from `model_client.go`). JSON parsing: `apps/daemon/internal/agent/turnjson`; prompts: `apps/daemon/internal/agent/prompt`. Providers: `openai` (`VOCODE_AGENT_PROVIDER=openai`, `OPENAI_API_KEY`, optional `VOCODE_OPENAI_MODEL` / `VOCODE_OPENAI_BASE_URL`); `anthropic` (`VOCODE_AGENT_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, optional `VOCODE_ANTHROPIC_MODEL` / `VOCODE_ANTHROPIC_BASE_URL`). Transcript debug log line: `VOCODE_DAEMON_VOICE_LOG_TRANSCRIPT=1` (needs daemon logger). Model turn input types: `apps/daemon/internal/agentcontext` (`TurnContext`, `EditorSnapshot`, `Gathered`, `GatherContextSpec`, `VoiceSessionStore`, `FailedIntent`, `ComposeTurnContext`). Turn-level gather fulfillment: `apps/daemon/internal/gather` (`Provider`, `FulfillSpec`). Tree-sitter tag parsing + cursor containment: `apps/daemon/internal/symbols/tags`
 - Intent types + validation: `apps/daemon/internal/intents`
 - Voice transcript (`apps/daemon/internal/transcript/`): root `service*.go` (RPC, run path, coalesce worker); subpackages `transcript/executor` (agent loop → `intents/dispatch`), `transcript/voicesession` (session + apply report), `transcript/config` (env); see `transcript/doc.go`
-- Intent model + validation: `apps/daemon/internal/intents/` (`package intents` — `Intent` union: `ControlIntent` | `ExecutableIntent`, `Validate`, JSON round-trip on `kind` + payloads)
-- Intent dispatch (`apps/daemon/internal/intents/dispatch/`): `dispatch.go` defines `Handler` + `Handle` (switches control vs executable). `dispatch/requestcontext` implements `request_context` fulfillment. `dispatch/command|navigation|undo|edit/` mirror extension `src/directives/`. `command`, `navigation`, and `undo` expose `Dispatch` in each `dispatch.go`; `edit` uses `Engine` + `DispatchEdit` in `engine.go` / `edit/dispatch.go` (stateful builder)
+- Intent model + validation: `apps/daemon/internal/intents/` (`package intents` — `Intent` is **executable-only** (edit / command / navigate / undo); turn-level `irrelevant` / `done` / `request_context` live on `agent.TurnResult`, not `Intent`)
+- Intent dispatch (`apps/daemon/internal/intents/dispatch/`): `dispatch.go` defines `Handler` + `Handle` (executable `Intent` → directives only). Turn-level gather-context runs in `transcript/executor` via `internal/gather`, not dispatch. `dispatch/command|navigation|undo|edit/` mirror extension `src/directives/`. `command`, `navigation`, and `undo` expose `Dispatch` in each `dispatch.go`; `edit` uses `Engine` + `DispatchEdit` in `engine.go` / `edit/dispatch.go` (stateful builder)
 
 ### Extension
 
@@ -107,7 +107,7 @@ One rule should have one owner. Duplicating ownership is a regression risk.
 - Directive host layer (`apps/vscode-extension/src/directives/`): `command`, `edits`, `navigation`, `undo` (each has `dispatch.ts` exporting `dispatchCommand` / `dispatchEdit` / `dispatchNavigation` / `dispatchUndo`), plus root `dispatch.ts` (`dispatchTranscript`)
 - Daemon client: `apps/vscode-extension/src/daemon/client.ts`
 - Voice sidecar spawn/client: `apps/vscode-extension/src/voice` (`client`, `spawn`, `paths`)
-- Spawned daemon/voice env: `apps/vscode-extension/src/config/spawn-env.ts` — `package.json` configuration defaults + effective VS Code `vocode.*` settings + ElevenLabs key from SecretStorage (no workspace `.env`). For `go run` / shell workflows, export vars yourself; default numbers/strings match `package.json` where applicable.
+- Spawned daemon/voice env: `apps/vscode-extension/src/config/spawn-env.ts` — `package.json` configuration defaults + effective VS Code `vocode.*` settings + ElevenLabs key from SecretStorage (no workspace `.env`). **API keys** for cloud models are **not** in settings: set `OPENAI_API_KEY` and/or `ANTHROPIC_API_KEY` in your environment when using `vocode.daemonAgentProvider` `openai` or `anthropic`. For `go run` / shell workflows, export vars yourself; default numbers/strings match `package.json` where applicable.
 
 ### Voice sidecar
 

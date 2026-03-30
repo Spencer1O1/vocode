@@ -50,5 +50,11 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 		voicesession.SaveKeyed(s.sessions, key, vs)
 	}
 
+	if config.Int("VOCODE_DAEMON_VOICE_LOG_TRANSCRIPT", 0) != 0 && s.logger != nil {
+		s.logger.Printf(
+			"vocode transcript: applyReport ok=%d failed=%d skipped=%d directives=%d success=%v contextSession=%v historyEntries=%d",
+			len(extSucc), len(extFail), len(extSkipped), len(res.Directives), res.Success, key != "", len(vs.IntentApplyHistory))
+	}
+
 	return res, ok
 }

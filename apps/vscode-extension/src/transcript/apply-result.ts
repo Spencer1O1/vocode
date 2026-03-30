@@ -5,7 +5,7 @@ import {
   beginTranscriptUndoSession,
   finalizeTranscriptUndoSessionIfEditsApplied,
 } from "../directives/undo/transcript-undo-ledger";
-import type { DirectiveApplyOutcome } from "./carry";
+import type { DirectiveApplyOutcome } from "./apply-report-carry";
 import type { TranscriptApplyContext } from "./context";
 
 /**
@@ -32,10 +32,11 @@ export async function applyTranscriptResult(
   try {
     for (let i = 0; i < dirs.length; i++) {
       const directive = dirs[i];
-      if (!(await dispatchTranscript(directive, ctx))) {
+      const dispatchOutcome = await dispatchTranscript(directive, ctx);
+      if (!dispatchOutcome.ok) {
         outcomes.push({
           status: "failed",
-          message: "Directive failed to apply.",
+          message: dispatchOutcome.message ?? "Directive failed to apply.",
         });
         for (let j = i + 1; j < dirs.length; j++) {
           outcomes.push({ status: "skipped", message: "not attempted" });
