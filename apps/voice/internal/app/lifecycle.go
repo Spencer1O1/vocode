@@ -90,5 +90,14 @@ func (a *App) markTranscribeFinished() {
 	if cancel != nil {
 		cancel()
 	}
+
+	// Re-check state under the lock before emitting "stopped" to avoid sending a stale
+	// stopped event if a new session has already started.
+	a.stateMu.Lock()
+	stillStopped := !a.running && a.cancel == nil
+	a.stateMu.Unlock()
+	if !stillStopped {
+		return
+	}
 	_ = a.write(Event{Type: "state", State: "stopped"})
 }
