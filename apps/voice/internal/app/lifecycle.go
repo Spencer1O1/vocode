@@ -13,10 +13,13 @@ func (a *App) handleStart() error {
 	if err := a.write(Event{Type: "state", State: "starting"}); err != nil {
 		return err
 	}
+	a.stateMu.Lock()
 	if a.running {
+		a.stateMu.Unlock()
 		// Already running; treat as idempotent.
 		return nil
 	}
+	a.stateMu.Unlock()
 
 	apiKey := strings.TrimSpace(os.Getenv("ELEVENLABS_API_KEY"))
 	if apiKey == "" {
@@ -30,8 +33,10 @@ func (a *App) handleStart() error {
 		return a.write(Event{Type: "error", Message: fmt.Sprintf("failed to start microphone recorder: %v", err)})
 	}
 
+	a.stateMu.Lock()
 	a.running = true
 	a.cancel = cancel
+	a.stateMu.Unlock()
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
@@ -56,27 +61,36 @@ func (a *App) handleShutdown() (bool, error) {
 }
 
 func (a *App) stopIfRunning() {
-	if a.running {
-		a.running = false
-		if a.cancel != nil {
-			a.cancel()
-			a.cancel = nil
-		}
-		a.wg.Wait()
+	a.stateMu.Lock()
+	if !a.running {
+		a.stateMu.Unlock()
+		return
 	}
+	a.running = false
+	cancel := a.cancel
+	a.cancel = nil
+	a.stateMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	a.wg.Wait()
 }
 
 // markTranscribeFinished runs when the transcribe goroutine exits. If the session was still marked
 // running (e.g. STT WebSocket closed without handleStop), clear flags and emit stopped so clients
 // can restart and the extension is not stuck thinking the session is active.
 func (a *App) markTranscribeFinished() {
+	a.stateMu.Lock()
 	if !a.running {
+		a.stateMu.Unlock()
 		return
 	}
 	a.running = false
-	if a.cancel != nil {
-		a.cancel()
-		a.cancel = nil
+	cancel := a.cancel
+	a.cancel = nil
+	a.stateMu.Unlock()
+	if cancel != nil {
+		cancel()
 	}
 	_ = a.write(Event{Type: "state", State: "stopped"})
 }
