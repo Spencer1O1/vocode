@@ -39,7 +39,8 @@
   color: #888;
 }
 
-.button:hover, .button:active {
-    text-decoration: underline;
-    font-weight: bold;
+.button:hover,
+.button:active {
+  text-decoration: underline;
+  font-weight: bold;
 }
