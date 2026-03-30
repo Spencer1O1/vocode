@@ -5,7 +5,16 @@ import { test } from "node:test";
 
 import { RpcTransport } from "./rpc-transport";
 
-function makeFakeProcess() {
+type FakeProc = {
+  stdout: PassThrough;
+  stdin: PassThrough;
+  on: (
+    event: "error" | "exit",
+    listener: (...args: unknown[]) => void,
+  ) => unknown;
+};
+
+function makeFakeProcess(): FakeProc {
   class FakeProcess extends EventEmitter {
     public stdout = new PassThrough();
     public stdin = new PassThrough();
@@ -13,10 +22,7 @@ function makeFakeProcess() {
   return new FakeProcess();
 }
 
-async function waitFor(
-  fn: () => boolean,
-  timeoutMs = 1000,
-): Promise<void> {
+async function waitFor(fn: () => boolean, timeoutMs = 1000): Promise<void> {
   const start = Date.now();
   // eslint-disable-next-line no-constant-condition
   while (true) {
@@ -29,10 +35,10 @@ async function waitFor(
 }
 
 test("rpc-transport: handles incoming requests and returns responses", async () => {
-  const proc = makeFakeProcess() as any;
+  const proc = makeFakeProcess();
   const transport = new RpcTransport(proc);
 
-  transport.registerRequestHandler("host.applyDirectives", async () => {
+  transport.registerRequestHandler("host.applyDirectives", () => {
     return { items: [{ status: "ok" }] };
   });
 
@@ -42,7 +48,7 @@ test("rpc-transport: handles incoming requests and returns responses", async () 
   });
 
   proc.stdout.write(
-    JSON.stringify({
+    `${JSON.stringify({
       jsonrpc: "2.0",
       id: 123,
       method: "host.applyDirectives",
@@ -51,13 +57,17 @@ test("rpc-transport: handles incoming requests and returns responses", async () 
         activeFile: "test.js",
         directives: [],
       },
-    }) + "\n",
+    })}\n`,
   );
 
   await waitFor(() => output.includes("\n"), 1000);
 
   const line = output.trim().split("\n")[0];
-  const parsed = JSON.parse(line) as any;
+  const parsed = JSON.parse(line) as unknown as {
+    jsonrpc: string;
+    id: number;
+    result?: unknown;
+  };
 
   assert.equal(parsed.jsonrpc, "2.0");
   assert.equal(parsed.id, 123);
@@ -65,8 +75,8 @@ test("rpc-transport: handles incoming requests and returns responses", async () 
 });
 
 test("rpc-transport: responds with method-not-found for unknown requests", async () => {
-  const proc = makeFakeProcess() as any;
-  const transport = new RpcTransport(proc);
+  const proc = makeFakeProcess();
+  const _transport = new RpcTransport(proc);
 
   let output = "";
   proc.stdin.on("data", (chunk: Buffer) => {
@@ -74,18 +84,22 @@ test("rpc-transport: responds with method-not-found for unknown requests", async
   });
 
   proc.stdout.write(
-    JSON.stringify({
+    `${JSON.stringify({
       jsonrpc: "2.0",
       id: 7,
       method: "unknown.method",
       params: {},
-    }) + "\n",
+    })}\n`,
   );
 
   await waitFor(() => output.includes("\n"), 1000);
 
   const line = output.trim().split("\n")[0];
-  const parsed = JSON.parse(line) as any;
+  const parsed = JSON.parse(line) as unknown as {
+    jsonrpc: string;
+    id: number;
+    error?: { code: number; message: string };
+  };
 
   assert.equal(parsed.jsonrpc, "2.0");
   assert.equal(parsed.id, 7);
@@ -93,4 +107,3 @@ test("rpc-transport: responds with method-not-found for unknown requests", async
   assert.equal(parsed.error.code, -32601);
   assert.equal(parsed.error.message, "Method not found");
 });
-

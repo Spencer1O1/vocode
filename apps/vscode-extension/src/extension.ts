@@ -1,4 +1,9 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import type {
+  HostApplyParams,
+  HostApplyResult,
+  VoiceTranscriptResult,
+} from "@vocode/protocol";
 import * as vscode from "vscode";
 
 import { registerAllCommands } from "./commands";
@@ -6,21 +11,16 @@ import {
   type ExtensionServices,
   VoiceSessionController,
 } from "./commands/services";
+import { ELEVENLABS_API_KEY_SECRET } from "./config/spawn-env";
 import { DaemonClient } from "./daemon/client";
 import { spawnDaemon } from "./daemon/spawn";
 import { attachTranscriptPipeline } from "./extension/transcript-pipeline";
+import { applyTranscriptResult } from "./transcript/apply-result";
 import { MainPanelViewProvider, mainPanelViewType } from "./ui/main-panel";
 import { MainPanelStore } from "./ui/main-panel-store";
 import { VoiceStatusIndicator } from "./ui/status-bar";
 import { VoiceSidecarClient } from "./voice/client";
 import { spawnVoiceSidecar } from "./voice/spawn";
-import { applyTranscriptResult } from "./transcript/apply-result";
-import { ELEVENLABS_API_KEY_SECRET } from "./config/spawn-env";
-import type {
-  HostApplyParams,
-  HostApplyResult,
-  VoiceTranscriptResult,
-} from "@vocode/protocol";
 
 function safeKillProcess(proc: ChildProcessWithoutNullStreams | null): void {
   if (!proc || proc.killed) {
@@ -88,7 +88,8 @@ async function wireVocodeBackend(
     voiceProcRef.current = voice.process;
 
     services.disposeTranscriptPipeline?.();
-    services.disposeTranscriptPipeline = attachTranscriptPipeline(services).dispose;
+    services.disposeTranscriptPipeline =
+      attachTranscriptPipeline(services).dispose;
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unknown daemon startup error";
@@ -196,7 +197,8 @@ export async function activate(context: vscode.ExtensionContext) {
       services.voiceSidecar = new VoiceSidecarClient(voice.process);
 
       services.disposeTranscriptPipeline?.();
-      services.disposeTranscriptPipeline = attachTranscriptPipeline(services).dispose;
+      services.disposeTranscriptPipeline =
+        attachTranscriptPipeline(services).dispose;
     } finally {
       voiceRestartInFlight = false;
     }

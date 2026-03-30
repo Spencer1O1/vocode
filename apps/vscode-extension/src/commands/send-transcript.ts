@@ -1,7 +1,7 @@
+import type { VoiceTranscriptParams } from "@vocode/protocol";
 import * as vscode from "vscode";
 
 import type { DaemonClient } from "../daemon/client";
-import type { VoiceTranscriptParams } from "@vocode/protocol";
 import { FAILED_TO_PROCESS_TRANSCRIPT } from "../transcript/messages";
 import { transcriptWorkspaceRoot } from "../transcript/workspace-root";
 import type { ExtensionServices } from "./services";
@@ -57,9 +57,7 @@ async function sendTranscript(
     const pos = editor.selection.active;
 
     const vocodeCfg = vscode.workspace.getConfiguration("vocode");
-    const daemonConfig: NonNullable<
-      VoiceTranscriptParams["daemonConfig"]
-    > = {
+    const daemonConfig: NonNullable<VoiceTranscriptParams["daemonConfig"]> = {
       maxPlannerTurns: vocodeCfg.get<number>("maxPlannerTurns", 8),
       maxIntentsPerBatch: vocodeCfg.get<number>("maxIntentsPerBatch", 16),
       maxIntentDispatchRetries: vocodeCfg.get<number>(

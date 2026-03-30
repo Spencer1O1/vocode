@@ -38,9 +38,7 @@ export function vocodePanelConfigFromMessage(
       msg.daemonVoiceTranscriptMaxMergeChars ?? 6000,
     ),
     maxPlannerTurns: Number(msg.maxPlannerTurns ?? 8),
-    maxIntentDispatchRetries: Number(
-      msg.maxIntentDispatchRetries ?? 2,
-    ),
+    maxIntentDispatchRetries: Number(msg.maxIntentDispatchRetries ?? 2),
     maxContextRounds: Number(msg.maxContextRounds ?? 2),
     maxContextBytes: Number(msg.maxContextBytes ?? 12000),
     maxConsecutiveContextRequests: Number(

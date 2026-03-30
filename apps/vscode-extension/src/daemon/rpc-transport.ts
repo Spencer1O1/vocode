@@ -1,5 +1,14 @@
-import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
+import type { Writable } from "node:stream";
+
+type RpcProcessLike = {
+  stdout: NodeJS.ReadableStream;
+  stdin: Writable;
+  on: (
+    event: "error" | "exit",
+    listener: (...args: unknown[]) => void,
+  ) => unknown;
+};
 
 interface JsonRpcRequest {
   jsonrpc: "2.0";
@@ -7,30 +16,6 @@ interface JsonRpcRequest {
   method: string;
   params: unknown;
 }
-
-interface JsonRpcSuccess {
-  jsonrpc: "2.0";
-  id: number;
-  result: unknown;
-}
-
-interface JsonRpcSuccessWithNullId {
-  jsonrpc: "2.0";
-  id: number | null;
-  result: unknown;
-}
-
-interface JsonRpcError {
-  jsonrpc: "2.0";
-  id: number | null;
-  error: {
-    code: number;
-    message: string;
-    data?: unknown;
-  };
-}
-
-type JsonRpcResponse = JsonRpcSuccess | JsonRpcSuccessWithNullId | JsonRpcError;
 
 interface JsonRpcRequestDispatch {
   handler: (params: unknown) => Promise<unknown> | unknown;
@@ -42,14 +27,14 @@ interface PendingRequest {
 }
 
 export class RpcTransport {
-  private readonly process: ChildProcessWithoutNullStreams;
+  private readonly process: RpcProcessLike;
   private readonly pending = new Map<number, PendingRequest>();
   private readonly requestHandlers = new Map<string, JsonRpcRequestDispatch>();
   private nextId = 1;
   private disposed = false;
   private writeChain: Promise<void> = Promise.resolve();
 
-  constructor(process: ChildProcessWithoutNullStreams) {
+  constructor(process: RpcProcessLike) {
     this.process = process;
 
     const rl = createInterface({
@@ -72,11 +57,11 @@ export class RpcTransport {
       }
     });
 
-    this.process.on("error", (error) => {
+    this.process.on("error", (error: unknown) => {
       this.rejectAll(error);
     });
 
-    this.process.on("exit", (code, signal) => {
+    this.process.on("exit", (code: unknown, signal: unknown) => {
       this.rejectAll(
         new Error(
           `Daemon exited before response. code=${code} signal=${signal}`,
@@ -205,11 +190,7 @@ export class RpcTransport {
     this.enqueueWrite(`${JSON.stringify(payload)}\n`);
   }
 
-  private sendErrorResponse(
-    id: number,
-    code: number,
-    message: string,
-  ): void {
+  private sendErrorResponse(id: number, code: number, message: string): void {
     const payload = {
       jsonrpc: "2.0",
       id,

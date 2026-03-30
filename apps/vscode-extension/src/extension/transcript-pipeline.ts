@@ -1,6 +1,5 @@
-import * as vscode from "vscode";
-
 import type { VoiceTranscriptParams } from "@vocode/protocol";
+import * as vscode from "vscode";
 
 import type { ExtensionServices } from "../commands/services";
 import { FAILED_TO_PROCESS_TRANSCRIPT } from "../transcript/messages";
@@ -12,7 +11,9 @@ import type { VoiceSidecarConfigPatch } from "../voice/client";
  * client/sidecar pair. Call again only after replacing `services.client` and
  * `services.voiceSidecar` (e.g. backend restart).
  */
-export function attachTranscriptPipeline(services: ExtensionServices): vscode.Disposable {
+export function attachTranscriptPipeline(
+  services: ExtensionServices,
+): vscode.Disposable {
   const { client, voiceSidecar, voiceSession, voiceStatus, mainPanelStore } =
     services;
   if (!client || !voiceSidecar) {
@@ -25,7 +26,10 @@ export function attachTranscriptPipeline(services: ExtensionServices): vscode.Di
     const vocodeCfg = vscode.workspace.getConfiguration("vocode");
     return {
       // Secret stored in SecretStorage; we do not read it here.
-      sttModelId: vocodeCfg.get<string>("elevenLabsSttModelId", "scribe_v2_realtime"),
+      sttModelId: vocodeCfg.get<string>(
+        "elevenLabsSttModelId",
+        "scribe_v2_realtime",
+      ),
       sttLanguage: vocodeCfg.get<string>("elevenLabsSttLanguage", "en"),
       vadDebug: vocodeCfg.get<boolean>("voiceVadDebug", false) === true,
       vadThresholdMultiplier: vocodeCfg.get<number>(
@@ -42,7 +46,10 @@ export function attachTranscriptPipeline(services: ExtensionServices): vscode.Di
       ),
       streamMinChunkMs: vocodeCfg.get<number>("voiceStreamMinChunkMs", 200),
       streamMaxChunkMs: vocodeCfg.get<number>("voiceStreamMaxChunkMs", 500),
-      streamMaxUtteranceMs: vocodeCfg.get<number>("voiceStreamMaxUtteranceMs", 0),
+      streamMaxUtteranceMs: vocodeCfg.get<number>(
+        "voiceStreamMaxUtteranceMs",
+        0,
+      ),
     };
   };
 
@@ -146,9 +153,7 @@ export function attachTranscriptPipeline(services: ExtensionServices): vscode.Di
 
     const pos = editor.selection.active;
     const vocodeCfg = vscode.workspace.getConfiguration("vocode");
-    const daemonConfig: NonNullable<
-      VoiceTranscriptParams["daemonConfig"]
-    > = {
+    const daemonConfig: NonNullable<VoiceTranscriptParams["daemonConfig"]> = {
       maxPlannerTurns: vocodeCfg.get<number>("maxPlannerTurns", 8),
       maxIntentsPerBatch: vocodeCfg.get<number>("maxIntentsPerBatch", 16),
       maxIntentDispatchRetries: vocodeCfg.get<number>(
