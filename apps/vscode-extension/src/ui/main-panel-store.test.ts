@@ -42,12 +42,57 @@ test("tracks pending through processing to handled", () => {
   assert.equal(store.getSnapshot().recentHandled[0]?.text, "run tests");
 });
 
+test("voice transcript RPC queue exposes active pending id", () => {
+  const store = new MainPanelStore();
+  const id = store.enqueueCommitted("line") as number;
+  store.markProcessing(id);
+  store.beginVoiceTranscriptRpc(id);
+  assert.equal(store.activeVoiceTranscriptRpcPendingId(), id);
+  store.endVoiceTranscriptRpc(id);
+  assert.equal(store.activeVoiceTranscriptRpcPendingId(), undefined);
+});
+
+test("directive apply checklist rows get stable ids and update state", () => {
+  const store = new MainPanelStore();
+  const id = store.enqueueCommitted("edit file") as number;
+  store.appendDirectiveApplyChecklist(id, ["1. Edit foo.go", "2. Command: go test"]);
+  const row = store.getSnapshot().pending[0];
+  assert.equal(row?.applyChecklist?.length, 2);
+  assert.ok(
+    row?.applyChecklist?.every((c) => typeof c.id === "string" && c.id.length > 0),
+  );
+  store.setDirectiveApplyItemState(id, 0, "done");
+  assert.equal(store.getSnapshot().pending[0]?.applyChecklist?.[0]?.state, "done");
+});
+
+test("directive apply checklist appends across repair batches", () => {
+  const store = new MainPanelStore();
+  const id = store.enqueueCommitted("x") as number;
+  store.appendDirectiveApplyChecklist(id, ["1. a"]);
+  assert.equal(store.directiveApplyChecklistLength(id), 1);
+  store.appendDirectiveApplyChecklist(id, ["2. b", "3. c"]);
+  assert.equal(store.directiveApplyChecklistLength(id), 3);
+  assert.equal(store.getSnapshot().pending[0]?.applyChecklist?.[0]?.label, "1. a");
+  assert.equal(store.getSnapshot().pending[0]?.applyChecklist?.[2]?.label, "3. c");
+});
+
 test("markHandled stores optional agent summary", () => {
   const store = new MainPanelStore();
   const id = store.enqueueCommitted("fix the bug") as number;
   store.markHandled(id, { summary: "  Updated handler and tests.  " });
   const h = store.getSnapshot().recentHandled[0];
   assert.equal(h?.summary, "Updated handler and tests.");
+});
+
+test("markHandled sets skipped when transcript outcome is irrelevant", () => {
+  const store = new MainPanelStore();
+  const id = store.enqueueCommitted("what is the weather") as number;
+  store.markHandled(id, {
+    summary: "Not a coding task.",
+    transcriptOutcome: "irrelevant",
+  });
+  const h = store.getSnapshot().recentHandled[0];
+  assert.equal(h?.skipped, true);
 });
 
 test("recordCompletedTranscript appends done entry without pending", () => {

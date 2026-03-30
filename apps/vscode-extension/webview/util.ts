@@ -1,4 +1,4 @@
-import type { PanelState } from "./types";
+import type { DirectiveApplyChecklistRowState, PanelState } from "./types";
 
 export function fmtTime(iso: string): string {
   try {
@@ -42,10 +42,71 @@ export function normalizePanelState(raw: unknown): PanelState {
   const am = (o.audioMeter as Record<string, unknown>) || {};
   return {
     pending: Array.isArray(o.pending)
-      ? (o.pending as PanelState["pending"])
+      ? o.pending.map((row) => {
+          const r = row as Record<string, unknown>;
+          const checklistRaw = r.applyChecklist;
+          let applyChecklist: PanelState["pending"][number]["applyChecklist"];
+          if (Array.isArray(checklistRaw)) {
+            applyChecklist = checklistRaw.map((c) => {
+              const x = c as Record<string, unknown>;
+              const stateRaw = x.state;
+              let state: DirectiveApplyChecklistRowState = "pending";
+              if (
+                stateRaw === "pending" ||
+                stateRaw === "running" ||
+                stateRaw === "done" ||
+                stateRaw === "failed" ||
+                stateRaw === "skipped"
+              ) {
+                state = stateRaw;
+              }
+              return {
+                id:
+                  typeof x.id === "string" && x.id.length > 0
+                    ? x.id
+                    : `check-${Math.random().toString(36).slice(2)}`,
+                label: typeof x.label === "string" ? x.label : "",
+                state,
+                ...(typeof x.message === "string" && x.message.length > 0
+                  ? { message: x.message }
+                  : {}),
+              };
+            });
+          }
+          const base: PanelState["pending"][number] = {
+            id: typeof r.id === "number" ? r.id : 0,
+            text: typeof r.text === "string" ? r.text : "",
+            receivedAt:
+              typeof r.receivedAt === "string"
+                ? r.receivedAt
+                : new Date(0).toISOString(),
+            status: r.status === "processing" ? "processing" : "queued",
+          };
+          if (applyChecklist !== undefined && applyChecklist.length > 0) {
+            base.applyChecklist = applyChecklist;
+          }
+          return base;
+        })
       : [],
     recentHandled: Array.isArray(o.recentHandled)
-      ? (o.recentHandled as PanelState["recentHandled"])
+      ? o.recentHandled.map((row) => {
+          const r = row as Record<string, unknown>;
+          const base: PanelState["recentHandled"][number] = {
+            text: typeof r.text === "string" ? r.text : "",
+            receivedAt:
+              typeof r.receivedAt === "string" ? r.receivedAt : new Date(0).toISOString(),
+          };
+          if (typeof r.summary === "string" && r.summary.length > 0) {
+            (base as { summary?: string }).summary = r.summary;
+          }
+          if (typeof r.errorMessage === "string" && r.errorMessage.length > 0) {
+            (base as { errorMessage?: string }).errorMessage = r.errorMessage;
+          }
+          if (r.skipped === true) {
+            (base as { skipped?: true }).skipped = true;
+          }
+          return base;
+        })
       : [],
     latestPartial: typeof o.latestPartial === "string" ? o.latestPartial : null,
     voiceListening: o.voiceListening === true,

@@ -29,5 +29,7 @@ type agentLoopState struct {
 	directives            []protocol.VoiceTranscriptDirective
 	batchSourceIntents    []intents.Intent
 	transcriptSummary     string
-	maxRetries            int
+	// transcriptOutcome is protocol "transcriptOutcome": set to "irrelevant" when the agent returns TurnIrrelevant; empty otherwise.
+	transcriptOutcome string
+	maxRetries        int
 }

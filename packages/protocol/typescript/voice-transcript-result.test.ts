@@ -17,6 +17,27 @@ test("isVoiceTranscriptResult accepts summary when success", () => {
   );
 });
 
+test("isVoiceTranscriptResult accepts transcriptOutcome when success", () => {
+  assert.equal(
+    isVoiceTranscriptResult({
+      success: true,
+      summary: "Not a coding request.",
+      transcriptOutcome: "irrelevant",
+    }),
+    true,
+  );
+});
+
+test("isVoiceTranscriptResult rejects transcriptOutcome when not success", () => {
+  assert.equal(
+    isVoiceTranscriptResult({
+      success: false,
+      transcriptOutcome: "irrelevant",
+    }),
+    false,
+  );
+});
+
 test("isVoiceTranscriptResult rejects summary when not success", () => {
   assert.equal(
     isVoiceTranscriptResult({

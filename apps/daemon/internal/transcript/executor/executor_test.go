@@ -63,6 +63,9 @@ func TestExecuteIrrelevant(t *testing.T) {
 	if res.Summary != "not a coding request" {
 		t.Fatalf("summary %q", res.Summary)
 	}
+	if res.TranscriptOutcome != "irrelevant" {
+		t.Fatalf("transcriptOutcome %q", res.TranscriptOutcome)
+	}
 }
 
 func TestExecuteDone(t *testing.T) {
@@ -77,6 +80,9 @@ func TestExecuteDone(t *testing.T) {
 	}
 	if res.Summary != "all set" {
 		t.Fatalf("summary %q", res.Summary)
+	}
+	if res.TranscriptOutcome != "" {
+		t.Fatalf("expected empty transcriptOutcome, got %q", res.TranscriptOutcome)
 	}
 }
 

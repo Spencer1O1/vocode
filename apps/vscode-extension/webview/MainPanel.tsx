@@ -1,4 +1,9 @@
-import type { HandledRow, PanelState, PendingRow } from "./types";
+import type {
+  DirectiveApplyChecklistRowState,
+  HandledRow,
+  PanelState,
+  PendingRow,
+} from "./types";
 import { fmtTime, statusBadgeTitle, statusLabel } from "./util";
 
 function LiveSection({ state }: { state: PanelState }) {
@@ -22,7 +27,7 @@ function LiveSection({ state }: { state: PanelState }) {
             <div className="meta">
               <span
                 className="badge"
-                title="Streaming speech-to-text — not final until it moves to Done"
+                title="Streaming speech-to-text — not final until it moves below"
               >
                 Live
               </span>
@@ -43,31 +48,134 @@ function LiveSection({ state }: { state: PanelState }) {
   );
 }
 
-function PendingCard({ p }: { p: PendingRow }) {
-  const bt = statusBadgeTitle(p.status);
+type ApplyStepVisual =
+  | "done"
+  | "active"
+  | "pending"
+  | "failed"
+  | "directive-skipped";
+
+function applyPipelineSteps(status: PendingRow["status"]): {
+  label: string;
+  visual: ApplyStepVisual;
+  title?: string;
+}[] {
+  const st = status;
+  return [
+    { label: "Transcript committed", visual: "done" },
+    {
+      label: "Run agent",
+      visual: st === "processing" ? "active" : "pending",
+      title:
+        st === "queued"
+          ? "Waiting to send this line to the daemon"
+          : "Agent loop is running",
+    },
+  ];
+}
+
+function checklistRowVisual(
+  state: DirectiveApplyChecklistRowState,
+): ApplyStepVisual {
+  switch (state) {
+    case "done":
+      return "done";
+    case "running":
+      return "active";
+    case "failed":
+      return "failed";
+    case "skipped":
+      return "directive-skipped";
+    default:
+      return "pending";
+  }
+}
+
+function ApplyStepRow({
+  label,
+  visual,
+  title,
+}: {
+  label: string;
+  visual: ApplyStepVisual;
+  title?: string;
+}) {
   return (
-    <div className={`card pending ${p.status}`}>
+    <div className={`apply-step apply-step-${visual}`} title={title}>
+      <span className="apply-step-mark" aria-hidden="true" />
+      <span className="apply-step-label">{label}</span>
+    </div>
+  );
+}
+
+function CompactQueuedCard({ p }: { p: PendingRow }) {
+  return (
+    <div className={`card pending-compact pending ${p.status}`}>
       <div className="meta">
-        <span className="badge" title={bt || undefined}>
+        <span className="badge" title={statusBadgeTitle(p.status) || undefined}>
           {statusLabel(p.status)}
         </span>
         <span>{fmtTime(p.receivedAt)}</span>
       </div>
-      <div className="text">{p.text}</div>
+      <div className="text pending-compact-text">{p.text}</div>
     </div>
   );
 }
 
 function ApplyingSection({ pending }: { pending: readonly PendingRow[] }) {
+  const primary = pending[0];
+  const queuedRest = pending.length > 1 ? pending.slice(1) : [];
+
   return (
     <>
       <h1 className="section-title">Applying</h1>
-      {!pending.length ? (
+      {!primary ? (
         <div className="empty" />
       ) : (
         <div className="stack">
-          {pending.map((p) => (
-            <PendingCard key={p.id} p={p} />
+          <div className={`card pending ${primary.status}`}>
+            <div className="meta">
+              <span
+                className="badge"
+                title={statusBadgeTitle(primary.status) || undefined}
+              >
+                {statusLabel(primary.status)}
+              </span>
+              <span>{fmtTime(primary.receivedAt)}</span>
+            </div>
+            <div className="text">{primary.text}</div>
+            <div className="apply-steps" role="list" aria-label="Pipeline">
+              {applyPipelineSteps(primary.status).map((s) => (
+                <ApplyStepRow key={s.label} {...s} />
+              ))}
+            </div>
+            {primary.applyChecklist !== undefined &&
+            primary.applyChecklist.length > 0 ? (
+              <>
+                <h2 className="apply-steps-subhead">Directives</h2>
+                <div
+                  className="apply-steps apply-steps-directives"
+                  role="list"
+                  aria-label="Directives to apply"
+                >
+                  {primary.applyChecklist.map((item) => (
+                    <ApplyStepRow
+                      key={item.id}
+                      label={item.label}
+                      visual={checklistRowVisual(item.state)}
+                      title={
+                        item.message !== undefined && item.message.length > 0
+                          ? item.message
+                          : undefined
+                      }
+                    />
+                  ))}
+                </div>
+              </>
+            ) : null}
+          </div>
+          {queuedRest.map((p) => (
+            <CompactQueuedCard key={p.id} p={p} />
           ))}
         </div>
       )}
@@ -75,45 +183,64 @@ function ApplyingSection({ pending }: { pending: readonly PendingRow[] }) {
   );
 }
 
-function DoneCard({ h }: { h: HandledRow }) {
+function HistoryCard({ h }: { h: HandledRow }) {
   const failed =
     typeof h.errorMessage === "string" && h.errorMessage.length > 0;
-  const cardCls = failed ? "card done failed" : "card done";
-  return (
-    <div className={cardCls}>
-      <div className="meta">
-        {failed ? (
+  const summary =
+    typeof h.summary === "string" && h.summary.trim().length > 0
+      ? h.summary.trim()
+      : null;
+
+  if (failed) {
+    return (
+      <div className="card done failed history-card">
+        <div className="meta">
           <span
             className="badge"
             title="Daemon or workspace apply did not succeed"
           >
             {"Couldn't run"}
           </span>
-        ) : null}
+          <span>{fmtTime(h.receivedAt)}</span>
+        </div>
+        {summary ? <div className="text history-summary">{summary}</div> : null}
+        <div className="history-transcript muted-transcript">{h.text}</div>
+        <div className="error-detail">Error: {h.errorMessage}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card done history-card">
+      <div className="meta">
         <span>{fmtTime(h.receivedAt)}</span>
       </div>
-      <div className="text">{h.text}</div>
-      {failed ? (
-        <div className="error-detail">Error: {h.errorMessage}</div>
-      ) : null}
+      {summary ? (
+        <>
+          <div className="text history-summary">{summary}</div>
+          <div className="history-transcript muted-transcript">{h.text}</div>
+        </>
+      ) : (
+        <div className="text">{h.text}</div>
+      )}
     </div>
   );
 }
 
-function DoneSection({
-  recentHandled,
+function HistorySection({
+  items,
 }: {
-  recentHandled: readonly HandledRow[];
+  items: readonly HandledRow[];
 }) {
   return (
     <>
-      <h1 className="section-title">Done</h1>
-      {!recentHandled.length ? (
+      <h1 className="section-title">Recent</h1>
+      {!items.length ? (
         <div className="empty" />
       ) : (
         <div className="stack">
-          {recentHandled.map((h) => (
-            <DoneCard key={`${h.receivedAt}-done`} h={h} />
+          {items.map((h) => (
+            <HistoryCard key={`h-${h.receivedAt}-${h.text}`} h={h} />
           ))}
         </div>
       )}
@@ -121,46 +248,43 @@ function DoneSection({
   );
 }
 
-function SummarySection({
-  recentHandled,
-}: {
-  recentHandled: readonly HandledRow[];
-}) {
-  const withSummaries = recentHandled.filter(
-    (h) => typeof h.summary === "string" && h.summary.length > 0,
+function SkippedCard({ h }: { h: HandledRow }) {
+  const summary =
+    typeof h.summary === "string" && h.summary.trim().length > 0
+      ? h.summary.trim()
+      : null;
+  return (
+    <div className="card skipped-card">
+      <div className="meta">
+        <span className="badge" title="Agent treated this line as not actionable">
+          Skipped
+        </span>
+        <span>{fmtTime(h.receivedAt)}</span>
+      </div>
+      {summary ? (
+        <>
+          <div className="text skipped-summary">{summary}</div>
+          <div className="history-transcript muted-transcript">{h.text}</div>
+        </>
+      ) : (
+        <div className="text muted-transcript">{h.text}</div>
+      )}
+    </div>
   );
+}
+
+function SkippedSection({ items }: { items: readonly HandledRow[] }) {
+  if (!items.length) {
+    return null;
+  }
   return (
     <>
-      <h1 className="section-title">Summary</h1>
-      {!withSummaries.length ? (
-        <div className="empty" />
-      ) : (
-        <div className="stack">
-          {withSummaries.map((h) => {
-            const preview =
-              typeof h.text === "string" && h.text.length > 140
-                ? `${h.text.slice(0, 140)}…`
-                : h.text || "";
-            return (
-              <div key={`${h.receivedAt}-summary`} className="card summary">
-                <div className="meta">
-                  <span
-                    className="badge"
-                    title="Agent done summary for this turn"
-                  >
-                    Summary
-                  </span>
-                  <span>{fmtTime(h.receivedAt)}</span>
-                </div>
-                <div className="text">{h.summary}</div>
-                {preview ? (
-                  <div className="summary-for">Transcript: {preview}</div>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <h1 className="section-title">Skipped</h1>
+      <div className="stack">
+        {items.map((h) => (
+          <SkippedCard key={`s-${h.receivedAt}-${h.text}`} h={h} />
+        ))}
+      </div>
     </>
   );
 }
@@ -170,13 +294,15 @@ export function MainPanel({ state }: { state: PanelState }) {
   const recentHandled = Array.isArray(state.recentHandled)
     ? state.recentHandled
     : [];
+  const skippedItems = recentHandled.filter((h) => h.skipped === true);
+  const historyItems = recentHandled.filter((h) => h.skipped !== true);
 
   return (
     <div id="main-root">
       <LiveSection state={state} />
       <ApplyingSection pending={pending} />
-      <DoneSection recentHandled={recentHandled} />
-      <SummarySection recentHandled={recentHandled} />
+      <HistorySection items={historyItems} />
+      <SkippedSection items={skippedItems} />
       <p className="hint">Vocode · voice to code</p>
     </div>
   );

@@ -173,6 +173,9 @@ func (r VoiceTranscriptResult) Validate() error {
 	if !r.Success && r.ApplyBatchId != "" {
 		return errors.New("voice transcript result must not include applyBatchId when success=false")
 	}
+	if !r.Success && strings.TrimSpace(r.TranscriptOutcome) != "" {
+		return errors.New("voice transcript result must not include transcriptOutcome when success=false")
+	}
 	if len([]rune(r.Summary)) > 8192 {
 		return errors.New("voice transcript result: summary exceeds max length")
 	}
@@ -189,6 +192,10 @@ func (r VoiceTranscriptResult) Validate() error {
 		} else if r.ApplyBatchId != "" {
 			return errors.New("voice transcript result must not include applyBatchId without directives")
 		}
+	}
+	out := strings.TrimSpace(r.TranscriptOutcome)
+	if out != "" && out != "irrelevant" && out != "completed" {
+		return fmt.Errorf("voice transcript result: invalid transcriptOutcome %q", r.TranscriptOutcome)
 	}
 	return nil
 }

@@ -16,6 +16,7 @@ import { DaemonClient } from "./daemon/client";
 import { spawnDaemon } from "./daemon/spawn";
 import { attachTranscriptPipeline } from "./extension/transcript-pipeline";
 import { applyTranscriptResult } from "./transcript/apply-result";
+import { directiveApplyLabel } from "./transcript/directive-label";
 import { MainPanelViewProvider, mainPanelViewType } from "./ui/main-panel";
 import { MainPanelStore } from "./ui/main-panel-store";
 import { VoiceStatusIndicator } from "./ui/status-bar";
@@ -68,9 +69,63 @@ async function wireVocodeBackend(
           success: true,
           directives: params.directives,
         };
+
+        const panelStore = services.mainPanelStore;
+        const pendingId = panelStore.activeVoiceTranscriptRpcPendingId();
+        const checklistBase =
+          pendingId !== undefined
+            ? panelStore.directiveApplyChecklistLength(pendingId)
+            : 0;
+        const labels = params.directives.map((d, i) =>
+          directiveApplyLabel(d, checklistBase + i),
+        );
+        if (pendingId !== undefined && labels.length > 0) {
+          panelStore.appendDirectiveApplyChecklist(pendingId, labels);
+        }
+
         const outcomes = await applyTranscriptResult(
           voiceResult,
           params.activeFile,
+          pendingId !== undefined
+            ? {
+                onProgress: (e) => {
+                  const globalIndex = checklistBase + e.index;
+                  if (e.phase === "start") {
+                    panelStore.setDirectiveApplyItemState(
+                      pendingId,
+                      globalIndex,
+                      "running",
+                    );
+                    return;
+                  }
+                  const o = e.outcome;
+                  if (!o) {
+                    return;
+                  }
+                  if (o.status === "ok") {
+                    panelStore.setDirectiveApplyItemState(
+                      pendingId,
+                      globalIndex,
+                      "done",
+                    );
+                  } else if (o.status === "failed") {
+                    panelStore.setDirectiveApplyItemState(
+                      pendingId,
+                      globalIndex,
+                      "failed",
+                      o.message,
+                    );
+                  } else {
+                    panelStore.setDirectiveApplyItemState(
+                      pendingId,
+                      globalIndex,
+                      "skipped",
+                      o.message,
+                    );
+                  }
+                },
+              }
+            : undefined,
         );
 
         return {

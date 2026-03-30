@@ -23,6 +23,11 @@
     "applyBatchId": {
       "type": "string",
       "description": "Correlates host apply reports with daemon-held intents; present when success is true and directives is non-empty."
+    },
+    "transcriptOutcome": {
+      "type": "string",
+      "enum": ["irrelevant", "completed"],
+      "description": "Host UI hint: irrelevant transcripts vs normal completion. Omitted means completed (back-compat)."
     }
   },
   "required": ["success"]

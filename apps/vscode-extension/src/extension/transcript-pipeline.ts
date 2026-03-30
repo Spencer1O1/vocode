@@ -185,6 +185,7 @@ export function attachTranscriptPipeline(
     };
 
     void (async () => {
+      mainPanelStore.beginVoiceTranscriptRpc(pendingId);
       try {
         const result = await client.transcript(baseParams);
 
@@ -202,6 +203,7 @@ export function attachTranscriptPipeline(
 
         mainPanelStore.markHandled(pendingId, {
           summary: result.summary?.trim() || undefined,
+          transcriptOutcome: result.transcriptOutcome,
         });
       } catch (err) {
         const message =
@@ -210,6 +212,7 @@ export function attachTranscriptPipeline(
             : "Unknown error while running the transcript.";
         mainPanelStore.markError(pendingId, message);
       } finally {
+        mainPanelStore.endVoiceTranscriptRpc(pendingId);
         inFlightTranscripts = Math.max(0, inFlightTranscripts - 1);
         if (voiceSession.isRunning() && inFlightTranscripts === 0) {
           voiceStatus.setListening();

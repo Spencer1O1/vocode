@@ -45,6 +45,7 @@ func (e *Executor) runOneAgentLoopIteration(
 	switch turn.Kind {
 	case agent.TurnIrrelevant:
 		st.transcriptSummary = strings.TrimSpace(turn.IrrelevantReason)
+		st.transcriptOutcome = "irrelevant"
 		return advanceBreakLoop, protocol.VoiceTranscriptResult{}, false
 
 	case agent.TurnFinish:

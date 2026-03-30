@@ -105,6 +105,7 @@ async function sendTranscript(
 
     services.mainPanelStore.recordCompletedTranscript(trimmedText, {
       summary: result.summary?.trim() || undefined,
+      transcriptOutcome: result.transcriptOutcome,
     });
   } catch (err) {
     const message =

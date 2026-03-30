@@ -271,6 +271,7 @@ export function isVoiceTranscriptResult(
     "directives",
     "summary",
     "applyBatchId",
+    "transcriptOutcome",
   ]);
   if (!Object.keys(value).every((k) => allowedKeys.has(k))) {
     return false;
@@ -296,6 +297,17 @@ export function isVoiceTranscriptResult(
   }
   if (value.success !== true && value.summary !== undefined) {
     return false;
+  }
+  if (value.transcriptOutcome !== undefined) {
+    if (value.success !== true) {
+      return false;
+    }
+    if (
+      value.transcriptOutcome !== "irrelevant" &&
+      value.transcriptOutcome !== "completed"
+    ) {
+      return false;
+    }
   }
   return isVoiceTranscriptResultApplyBatchIdField(value);
 }

@@ -1,5 +1,7 @@
+import { randomUUID } from "node:crypto";
+
 /**
- * Observable state for the main voice sidebar webview (Live / Applying / Done / Summary,
+ * Observable state for the main voice sidebar webview (Live / Applying / Recent / Skipped,
  * partial hypotheses, listening flag, audio meter). Daemon transcript application lives in
  * ../transcript/apply-result — this store is UI-only.
  */
@@ -11,11 +13,27 @@ const DEFAULT_PARTIAL_CLEAR_DEBOUNCE_MS = 180;
 /** Committed voice text not yet finished processing through the daemon + apply pipeline. */
 export type PendingStatus = "queued" | "processing";
 
+export type DirectiveApplyChecklistState =
+  | "pending"
+  | "running"
+  | "done"
+  | "failed"
+  | "skipped";
+
+export type DirectiveApplyChecklistItem = {
+  readonly id: string;
+  readonly label: string;
+  state: DirectiveApplyChecklistState;
+  message?: string;
+};
+
 export type PendingTranscript = {
   readonly id: number;
   readonly text: string;
   readonly receivedAt: Date;
   status: PendingStatus;
+  /** Filled while `host.applyDirectives` runs for this voice line (duplex apply). */
+  applyChecklist?: DirectiveApplyChecklistItem[];
 };
 
 export type MainPanelSnapshot = {
@@ -30,6 +48,8 @@ export type MainPanelSnapshot = {
     readonly receivedAt: Date;
     readonly summary?: string;
     readonly errorMessage?: string;
+    /** Agent marked transcript as irrelevant / non-actionable; listed in the Skipped section. */
+    readonly skipped?: true;
   }[];
   /** Latest partial hypothesis after the most recent committed event. */
   readonly latestPartial: string | null;
@@ -57,6 +77,7 @@ export class MainPanelStore {
     receivedAt: Date;
     summary?: string;
     errorMessage?: string;
+    skipped?: true;
   }[] = [];
 
   private latestPartial: string | null = null;
@@ -67,6 +88,12 @@ export class MainPanelStore {
   private waveformRms: number[] = [];
 
   private partialClearTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /**
+   * FIFO queue of voice `pending` ids currently awaiting `voice.transcript` (daemon may call
+   * `host.applyDirectives` during the first entry). Used to attribute apply batches to the sidebar row.
+   */
+  private voiceTranscriptRpcOrder: number[] = [];
 
   constructor(
     private readonly maxHandled: number = DEFAULT_MAX_HANDLED,
@@ -176,17 +203,95 @@ export class MainPanelStore {
     }
   }
 
-  markHandled(id: number, options?: { summary?: string }): void {
+  /** Call immediately before `client.transcript` for a voice-committed line. */
+  beginVoiceTranscriptRpc(pendingId: number): void {
+    this.voiceTranscriptRpcOrder.push(pendingId);
+  }
+
+  /** Call in `finally` after `client.transcript` settles for that line. */
+  endVoiceTranscriptRpc(pendingId: number): void {
+    const i = this.voiceTranscriptRpcOrder.indexOf(pendingId);
+    if (i >= 0) {
+      this.voiceTranscriptRpcOrder.splice(i, 1);
+    }
+  }
+
+  /** Pending row id for the voice transcript RPC the daemon is executing (front of FIFO). */
+  activeVoiceTranscriptRpcPendingId(): number | undefined {
+    return this.voiceTranscriptRpcOrder[0];
+  }
+
+  /** Number of directive rows already on this pending line (across prior apply batches / repair rounds). */
+  directiveApplyChecklistLength(pendingId: number): number {
+    const item = this.pending.find((p) => p.id === pendingId);
+    return item?.applyChecklist?.length ?? 0;
+  }
+
+  /**
+   * Appends rows for a new host apply batch. Prior rows (e.g. completed repair rounds) stay visible.
+   */
+  appendDirectiveApplyChecklist(
+    pendingId: number,
+    labels: readonly string[],
+  ): void {
+    const item = this.pending.find((p) => p.id === pendingId);
+    if (!item || labels.length === 0) {
+      return;
+    }
+    if (!item.applyChecklist) {
+      item.applyChecklist = [];
+    }
+    for (const label of labels) {
+      item.applyChecklist.push({
+        id: randomUUID(),
+        label,
+        state: "pending",
+      });
+    }
+    this.emit();
+  }
+
+  setDirectiveApplyItemState(
+    pendingId: number,
+    index: number,
+    state: DirectiveApplyChecklistState,
+    message?: string,
+  ): void {
+    const item = this.pending.find((p) => p.id === pendingId);
+    const list = item?.applyChecklist;
+    if (!list || index < 0 || index >= list.length) {
+      return;
+    }
+    const row = list[index];
+    if (!row) {
+      return;
+    }
+    row.state = state;
+    if (message !== undefined && message.trim() !== "") {
+      row.message = message.trim();
+    } else if (state !== "failed") {
+      delete row.message;
+    }
+    this.emit();
+  }
+
+  markHandled(
+    id: number,
+    options?: { summary?: string; transcriptOutcome?: "irrelevant" | "completed" },
+  ): void {
     const index = this.pending.findIndex((p) => p.id === id);
     if (index === -1) {
       return;
     }
     const [removed] = this.pending.splice(index, 1);
     const summary = options?.summary?.trim();
+    const skipped =
+      options?.transcriptOutcome === "irrelevant" ? (true as const) : undefined;
     this.recentHandled.unshift({
       text: removed.text,
       receivedAt: removed.receivedAt,
       ...(summary ? { summary } : {}),
+      ...(skipped ? { skipped } : {}),
     });
     while (this.recentHandled.length > this.maxHandled) {
       this.recentHandled.pop();
@@ -200,7 +305,11 @@ export class MainPanelStore {
    */
   recordCompletedTranscript(
     text: string,
-    options?: { summary?: string; errorMessage?: string },
+    options?: {
+      summary?: string;
+      errorMessage?: string;
+      transcriptOutcome?: "irrelevant" | "completed";
+    },
   ): void {
     const normalized = text.trim();
     if (!normalized) {
@@ -208,6 +317,12 @@ export class MainPanelStore {
     }
     const summary = options?.summary?.trim();
     const err = options?.errorMessage?.trim();
+    const skipped =
+      err !== undefined && err !== ""
+        ? undefined
+        : options?.transcriptOutcome === "irrelevant"
+          ? (true as const)
+          : undefined;
     this.recentHandled.unshift({
       text: normalized,
       receivedAt: new Date(),
@@ -216,6 +331,7 @@ export class MainPanelStore {
         : summary
           ? { summary }
           : {}),
+      ...(skipped ? { skipped } : {}),
     });
     while (this.recentHandled.length > this.maxHandled) {
       this.recentHandled.pop();
