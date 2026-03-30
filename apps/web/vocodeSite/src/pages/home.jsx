@@ -122,7 +122,7 @@ function HomePage() {
                 {EXTENSION.tagline}
             </p>
             <div className="max-w-3xl w-screen mx-auto">
-                <div className=" text-left text-[clamp(1.25rem,4vw,0.5rem)]">
+                <div className=" text-left text-[clamp(0.5rem,4vw,1.25rem)]">
                     {OVERVIEW.filter((p) => p?.trim()).map((p, i) => (
                         <p
                             key={i}
