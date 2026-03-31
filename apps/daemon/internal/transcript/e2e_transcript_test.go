@@ -8,10 +8,6 @@ import (
 
 	"vocoding.net/vocode/v2/apps/daemon/internal/agent"
 	"vocoding.net/vocode/v2/apps/daemon/internal/agent/stub"
-	"vocoding.net/vocode/v2/apps/daemon/internal/gather"
-	"vocoding.net/vocode/v2/apps/daemon/internal/intents/dispatch"
-	"vocoding.net/vocode/v2/apps/daemon/internal/intents/dispatch/edit"
-	"vocoding.net/vocode/v2/apps/daemon/internal/symbols"
 	"vocoding.net/vocode/v2/apps/daemon/internal/transcript"
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
@@ -40,7 +36,7 @@ func (h *applyHost) ApplyDirectives(params protocol.HostApplyParams) (protocol.H
 				return out, nil
 			}
 			for _, action := range d.EditDirective.Actions {
-				if action.Kind != "replace_between_anchors" || action.Anchor == nil {
+				if action.Kind != "replace_between_anchors" && action.Kind != "replace_range" {
 					item.Status = "failed"
 					item.Message = "host apply: unsupported edit action kind"
 					out.Items = append(out.Items, item)
@@ -62,32 +58,76 @@ func (h *applyHost) ApplyDirectives(params protocol.HostApplyParams) (protocol.H
 				}
 				text := string(b)
 
-				before := action.Anchor.Before
-				after := action.Anchor.After
-				beforeIdx := strings.Index(text, before)
-				if beforeIdx < 0 {
-					item.Status = "failed"
-					item.Message = "host apply: missing before anchor"
-					out.Items = append(out.Items, item)
-					for j := i + 1; j < len(params.Directives); j++ {
-						out.Items = append(out.Items, protocol.VoiceTranscriptDirectiveApplyItem{Status: "skipped", Message: "not attempted"})
+				next := text
+				switch action.Kind {
+				case "replace_between_anchors":
+					if action.Anchor == nil {
+						item.Status = "failed"
+						item.Message = "host apply: missing anchor"
+						out.Items = append(out.Items, item)
+						for j := i + 1; j < len(params.Directives); j++ {
+							out.Items = append(out.Items, protocol.VoiceTranscriptDirectiveApplyItem{Status: "skipped", Message: "not attempted"})
+						}
+						return out, nil
 					}
-					return out, nil
-				}
-				searchStart := beforeIdx + len(before)
-				afterIdx := strings.Index(text[searchStart:], after)
-				if afterIdx < 0 {
-					item.Status = "failed"
-					item.Message = "host apply: missing after anchor"
-					out.Items = append(out.Items, item)
-					for j := i + 1; j < len(params.Directives); j++ {
-						out.Items = append(out.Items, protocol.VoiceTranscriptDirectiveApplyItem{Status: "skipped", Message: "not attempted"})
+					before := action.Anchor.Before
+					after := action.Anchor.After
+					beforeIdx := strings.Index(text, before)
+					if beforeIdx < 0 {
+						item.Status = "failed"
+						item.Message = "host apply: missing before anchor"
+						out.Items = append(out.Items, item)
+						for j := i + 1; j < len(params.Directives); j++ {
+							out.Items = append(out.Items, protocol.VoiceTranscriptDirectiveApplyItem{Status: "skipped", Message: "not attempted"})
+						}
+						return out, nil
 					}
-					return out, nil
+					searchStart := beforeIdx + len(before)
+					afterIdx := strings.Index(text[searchStart:], after)
+					if afterIdx < 0 {
+						item.Status = "failed"
+						item.Message = "host apply: missing after anchor"
+						out.Items = append(out.Items, item)
+						for j := i + 1; j < len(params.Directives); j++ {
+							out.Items = append(out.Items, protocol.VoiceTranscriptDirectiveApplyItem{Status: "skipped", Message: "not attempted"})
+						}
+						return out, nil
+					}
+					afterAbs := searchStart + afterIdx
+					next = text[:searchStart] + action.NewText + text[afterAbs:]
+				case "replace_range":
+					if action.Range == nil {
+						item.Status = "failed"
+						item.Message = "host apply: missing range"
+						out.Items = append(out.Items, item)
+						for j := i + 1; j < len(params.Directives); j++ {
+							out.Items = append(out.Items, protocol.VoiceTranscriptDirectiveApplyItem{Status: "skipped", Message: "not attempted"})
+						}
+						return out, nil
+					}
+					lines := strings.Split(text, "\n")
+					sl := int(action.Range.StartLine)
+					el := int(action.Range.EndLine)
+					if sl < 0 || el < sl || sl >= len(lines) {
+						item.Status = "failed"
+						item.Message = "host apply: invalid range"
+						out.Items = append(out.Items, item)
+						for j := i + 1; j < len(params.Directives); j++ {
+							out.Items = append(out.Items, protocol.VoiceTranscriptDirectiveApplyItem{Status: "skipped", Message: "not attempted"})
+						}
+						return out, nil
+					}
+					if el >= len(lines) {
+						el = len(lines) - 1
+					}
+					replLines := strings.Split(action.NewText, "\n")
+					merged := make([]string, 0, len(lines)-(el-sl+1)+len(replLines))
+					merged = append(merged, lines[:sl]...)
+					merged = append(merged, replLines...)
+					merged = append(merged, lines[el+1:]...)
+					next = strings.Join(merged, "\n")
 				}
-				afterAbs := searchStart + afterIdx
 
-				next := text[:searchStart] + action.NewText + text[afterAbs:]
 				if err := os.WriteFile(action.Path, []byte(next), 0o644); err != nil {
 					item.Status = "failed"
 					item.Message = "host apply: write target file failed: " + err.Error()
@@ -115,6 +155,28 @@ func (h *applyHost) ApplyDirectives(params protocol.HostApplyParams) (protocol.H
 	return out, nil
 }
 
+type flakyApplyHost struct {
+	t     *testing.T
+	calls int
+}
+
+func (h *flakyApplyHost) ApplyDirectives(params protocol.HostApplyParams) (protocol.HostApplyResult, error) {
+	h.t.Helper()
+	h.calls++
+	if h.calls == 1 {
+		return protocol.HostApplyResult{
+			Items: []protocol.VoiceTranscriptDirectiveApplyItem{
+				{Status: "failed", Message: "stale_range: expectedSha256 mismatch"},
+			},
+		}, nil
+	}
+	return protocol.HostApplyResult{
+		Items: []protocol.VoiceTranscriptDirectiveApplyItem{
+			{Status: "ok"},
+		},
+	}, nil
+}
+
 func TestVoiceTranscript_DuplexApply_RepairsAndEditsBubbleSort(t *testing.T) {
 	t.Parallel()
 
@@ -140,11 +202,8 @@ func TestVoiceTranscript_DuplexApply_RepairsAndEditsBubbleSort(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sym := symbols.NewTreeSitterResolver()
 	a := agent.New(stub.New())
-	h := dispatch.NewHandler(edit.NewEngine())
-	g := gather.NewProvider(sym)
-	svc := transcript.NewService(a, h, g, sym, nil)
+	svc := transcript.NewService(a, nil)
 	svc.SetHostApplyClient(&applyHost{t: t})
 
 	params := protocol.VoiceTranscriptParams{
@@ -189,6 +248,54 @@ func TestVoiceTranscript_DuplexApply_RepairsAndEditsBubbleSort(t *testing.T) {
 	}
 	if strings.Contains(got, "if (arr[j] < arr[j+1])") {
 		t.Fatalf("expected buggy comparator to be removed; got:\n%s", got)
+	}
+}
+
+func TestVoiceTranscript_RetriesOnStaleRange(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	active := filepath.Join(dir, "x.ts")
+	if err := os.WriteFile(active, []byte("export function f(){\n  return 1;\n}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	a := agent.New(stub.New())
+	svc := transcript.NewService(a, nil)
+	host := &flakyApplyHost{t: t}
+	svc.SetHostApplyClient(host)
+
+	params := protocol.VoiceTranscriptParams{
+		Text:          "Fix f",
+		ActiveFile:    active,
+		WorkspaceRoot: dir,
+		DaemonConfig: &struct {
+			MaxPlannerTurns                *int64 `json:"maxPlannerTurns,omitempty"`
+			MaxIntentsPerBatch             *int64 `json:"maxIntentsPerBatch,omitempty"`
+			MaxIntentDispatchRetries       *int64 `json:"maxIntentDispatchRetries,omitempty"`
+			MaxContextRounds               *int64 `json:"maxContextRounds,omitempty"`
+			MaxContextBytes                *int64 `json:"maxContextBytes,omitempty"`
+			MaxConsecutiveContextRequests  *int64 `json:"maxConsecutiveContextRequests,omitempty"`
+			MaxTranscriptRepairRpcs        *int64 `json:"maxTranscriptRepairRpcs,omitempty"`
+			SessionIdleResetMs             *int64 `json:"sessionIdleResetMs,omitempty"`
+			MaxGatheredBytes               *int64 `json:"maxGatheredBytes,omitempty"`
+			MaxGatheredExcerpts            *int64 `json:"maxGatheredExcerpts,omitempty"`
+		}{
+			MaxTranscriptRepairRpcs: ptrInt64(2),
+		},
+		ContextSessionId: "stale-range-retry",
+		CursorPosition: &struct {
+			Line      int64 `json:"line"`
+			Character int64 `json:"character"`
+		}{Line: 0, Character: 0},
+	}
+
+	res, ok, reason := svc.AcceptTranscript(params)
+	if !ok || !res.Success {
+		t.Fatalf("expected success, got ok=%v success=%v reason=%q summary=%q", ok, res.Success, reason, res.Summary)
+	}
+	if host.calls < 2 {
+		t.Fatalf("expected at least 2 host apply calls, got %d", host.calls)
 	}
 }
 

@@ -1,6 +1,19 @@
 /** Wire shape after JSON postMessage (dates are ISO strings). */
 export type PanelState = {
   pending: readonly PendingRow[];
+  clarifyPrompt?: {
+    question: string;
+    originalTranscript: string;
+  };
+  searchState?: {
+    results: readonly {
+      path: string;
+      line: number;
+      character: number;
+      preview: string;
+    }[];
+    activeIndex: number;
+  };
   recentHandled: readonly HandledRow[];
   latestPartial: string | null;
   voiceListening: boolean;

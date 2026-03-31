@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import path from "node:path";
 import type { EditDirective } from "@vocode/protocol";
 import * as vscode from "vscode";
@@ -74,6 +75,7 @@ export async function dispatchEditResultWorkspaceEdit(
       });
     } else if (action.kind === "replace_range") {
       const uri = vscode.Uri.file(actionPath);
+      const targetDoc = await vscode.workspace.openTextDocument(uri);
       const startPos = new vscode.Position(
         action.range.startLine,
         action.range.startChar,
@@ -82,6 +84,18 @@ export async function dispatchEditResultWorkspaceEdit(
         action.range.endLine,
         action.range.endChar,
       );
+      if (action.expectedSha256) {
+        const oldText = targetDoc.getText(new vscode.Range(startPos, endPos));
+        const got = crypto.createHash("sha256").update(oldText).digest("hex");
+        if (got !== action.expectedSha256) {
+          return {
+            ok: false,
+            appliedEdits,
+            undoStackOrderPaths,
+            message: `stale_range: expectedSha256 mismatch (expected=${action.expectedSha256} got=${got})`,
+          };
+        }
+      }
       wsEdit.replace(uri, new vscode.Range(startPos, endPos), action.newText);
       appliedEdits.push({
         editId: action.editId,

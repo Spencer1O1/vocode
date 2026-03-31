@@ -1,24 +1,36 @@
 package agentcontext
 
-import "vocoding.net/vocode/v2/apps/daemon/internal/intents"
-
-// TurnContext is everything the agent model sees for one [agent.ModelClient.NextTurn] call.
-type TurnContext struct {
-	TranscriptText string
-	// SucceededIntents lists intents the host already applied successfully for this voice session context
-	// (plus intents dispatched earlier in the same Execute), for repair / partial-batch prompts.
-	SucceededIntents   []intents.Intent
-	FailedIntents      []FailedIntent
-	SkippedIntents     []intents.Intent
-	IntentApplyHistory []IntentApplyRecord
-	Editor             EditorSnapshot
-	Gathered           Gathered
-	Limits             TurnLimits
+// ResolvedTarget is a daemon-resolved, bounded edit target.
+// The model never chooses the range; it only returns replacement text for this range.
+type ResolvedTarget struct {
+	Path        string
+	Range       Range
+	Fingerprint string
 }
 
-// TurnLimits are per-transcript caps the planner should respect.
-// These values come from the daemon's effective execution caps (env defaults overridden by voice.transcript daemonConfig).
-type TurnLimits struct {
-	MaxContextRounds  int `json:"maxContextRounds"`
-	ContextRoundsUsed int `json:"contextRoundsUsed"`
+// Range is a 0-based, inclusive-exclusive span.
+// Lines/chars are in VS Code coordinates (LSP UTF-16 columns).
+type Range struct {
+	StartLine int `json:"startLine"`
+	StartChar int `json:"startChar"`
+	EndLine   int `json:"endLine"`
+	EndChar   int `json:"endChar"`
+}
+
+// ScopedEditContext is everything the model sees for one scoped edit call.
+type ScopedEditContext struct {
+	Instruction string
+	Editor      EditorSnapshot
+	Target      ResolvedTarget
+	TargetText  string
+}
+
+// ScopeIntentContext is everything the model sees for one scope-intent call.
+type ScopeIntentContext struct {
+	Instruction      string
+	Editor           EditorSnapshot
+	ActiveFileSymbols []struct {
+		Name string `json:"name"`
+		Kind string `json:"kind"`
+	} `json:"activeFileSymbols,omitempty"`
 }

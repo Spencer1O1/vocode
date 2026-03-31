@@ -16,8 +16,28 @@
     },
     "transcriptOutcome": {
       "type": "string",
-      "enum": ["irrelevant", "completed"],
+      "enum": ["irrelevant", "completed", "clarify", "search"],
       "description": "Host UI hint: irrelevant transcripts vs normal completion. Omitted means completed (back-compat)."
+    },
+    "searchResults": {
+      "type": "array",
+      "description": "When transcriptOutcome=search, the daemon returns a numbered list of search hits for voice navigation.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": { "type": "string" },
+          "line": { "type": "integer", "minimum": 0 },
+          "character": { "type": "integer", "minimum": 0 },
+          "preview": { "type": "string" }
+        },
+        "required": ["path", "line", "character", "preview"]
+      }
+    },
+    "activeSearchIndex": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "0-based active index into searchResults for next/back navigation."
     }
   },
   "required": ["success"]

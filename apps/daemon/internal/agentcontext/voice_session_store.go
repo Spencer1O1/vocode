@@ -6,14 +6,19 @@ import (
 	"time"
 )
 
-// VoiceSession is all daemon state keyed by params.contextSessionId for one voice
-// transcript stream: accumulated gathered context plus at most one open directive-apply batch
-// awaiting host report (see [DirectiveApplyBatch]), and cumulative host apply outcomes for the model.
+// VoiceSession is all daemon state keyed by params.contextSessionId for one voice transcript stream.
 type VoiceSession struct {
 	Gathered              Gathered
 	PendingDirectiveApply *DirectiveApplyBatch
-	IntentApplyHistory    []IntentApplyRecord
-	NextApplyBatchOrdinal int
+	SearchResults         []SearchHit
+	ActiveSearchIndex     int
+}
+
+type SearchHit struct {
+	Path      string
+	Line      int
+	Character int
+	Preview   string
 }
 
 // VoiceSessionStore retains [VoiceSession] between voice.transcript RPCs.
@@ -82,5 +87,10 @@ func (s *VoiceSessionStore) Put(key string, session VoiceSession) {
 }
 
 func cloneVoiceSession(v VoiceSession) VoiceSession {
-	return CloneVoiceSession(v)
+	return VoiceSession{
+		Gathered:              v.Gathered,
+		PendingDirectiveApply: v.PendingDirectiveApply,
+		SearchResults:         append([]SearchHit(nil), v.SearchResults...),
+		ActiveSearchIndex:     v.ActiveSearchIndex,
+	}
 }

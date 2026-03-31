@@ -1,15 +1,185 @@
 package transcript
 
 import (
+	"regexp"
 	"strings"
 	"time"
 
 	"vocoding.net/vocode/v2/apps/daemon/internal/agentcontext"
-	"vocoding.net/vocode/v2/apps/daemon/internal/intents"
 	"vocoding.net/vocode/v2/apps/daemon/internal/transcript/config"
 	"vocoding.net/vocode/v2/apps/daemon/internal/transcript/voicesession"
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
+
+var (
+	searchNavNextRe   = regexp.MustCompile(`\b(next|forward)\b`)
+	searchNavBackRe   = regexp.MustCompile(`\b(back|prev|previous)\b`)
+	searchNavResultRe = regexp.MustCompile(`\bresult\b`)
+	searchNavEditRe   = regexp.MustCompile(`\bedit\b`)
+	searchNavSelectRe = regexp.MustCompile(`\b(select|choose|pick)\b`)
+	searchNavGoRe     = regexp.MustCompile(`\b(go|jump|open|show)\b`)
+	searchNavIntRe    = regexp.MustCompile(`\b\d+\b`)
+)
+
+func parseSearchNavigation(text string) (kind string, ordinal int, ok bool) {
+	t := strings.TrimSpace(strings.ToLower(text))
+	if t == "" {
+		return "", 0, false
+	}
+	if searchNavNextRe.MatchString(t) {
+		return "next", 0, true
+	}
+	if searchNavBackRe.MatchString(t) {
+		return "back", 0, true
+	}
+
+	// "edit result N" and "select result N" should both behave like "result N" (jump+select).
+	hasResult := searchNavResultRe.MatchString(t)
+	hasEdit := searchNavEditRe.MatchString(t)
+	hasSelect := searchNavSelectRe.MatchString(t)
+	hasGo := searchNavGoRe.MatchString(t)
+
+	// Bare ordinal only if the whole utterance is essentially "3" / "three" / "third".
+	if isBareOrdinal(t) {
+		if n := parseAnyOrdinal(t); n > 0 {
+			return "pick", n, true
+		}
+	}
+
+	// Otherwise, require a hint word so random numbers in normal instructions don't hijack.
+	// Examples:
+	// - "result 3"
+	// - "select result three"
+	// - "edit result 4"
+	// - "go to result 2"
+	if hasResult || hasEdit || hasSelect || hasGo {
+		if n := parseAnyOrdinal(t); n > 0 {
+			return "pick", n, true
+		}
+	}
+
+	return "", 0, false
+}
+
+func parseAnyOrdinal(s string) int {
+	if n := parseAnyIntToken(s); n > 0 {
+		return n
+	}
+	for _, w := range strings.Fields(s) {
+		switch strings.Trim(w, ".,;:!?") {
+		case "one", "1st", "first":
+			return 1
+		case "two", "2nd", "second":
+			return 2
+		case "three", "3rd", "third":
+			return 3
+		case "four", "4th", "fourth":
+			return 4
+		case "five", "5th", "fifth":
+			return 5
+		case "six", "6th", "sixth":
+			return 6
+		case "seven", "7th", "seventh":
+			return 7
+		case "eight", "8th", "eighth":
+			return 8
+		case "nine", "9th", "ninth":
+			return 9
+		case "ten", "10th", "tenth":
+			return 10
+		}
+	}
+	return 0
+}
+
+func isBareOrdinal(t string) bool {
+	t = strings.TrimSpace(strings.ToLower(t))
+	if t == "" {
+		return false
+	}
+	// Digits only (optionally surrounded by punctuation/whitespace).
+	if searchNavIntRe.MatchString(t) && len(strings.Fields(t)) == 1 {
+		return true
+	}
+	switch strings.Trim(t, ".,;:!?") {
+	case "one", "first", "1st",
+		"two", "second", "2nd",
+		"three", "third", "3rd",
+		"four", "fourth", "4th",
+		"five", "fifth", "5th",
+		"six", "sixth", "6th",
+		"seven", "seventh", "7th",
+		"eight", "eighth", "8th",
+		"nine", "ninth", "9th",
+		"ten", "tenth", "10th":
+		return true
+	}
+	return false
+}
+
+func parseAnyIntToken(s string) int {
+	n := 0
+	inDigits := false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c >= '0' && c <= '9' {
+			inDigits = true
+			n = n*10 + int(c-'0')
+			continue
+		}
+		if inDigits {
+			return n
+		}
+	}
+	if inDigits {
+		return n
+	}
+	return 0
+}
+
+func ptrInt64(v int64) *int64 { return &v }
+
+func voiceSessionHitsToWire(in []agentcontext.SearchHit) []struct {
+	Path      string `json:"path"`
+	Line      int64  `json:"line"`
+	Character int64  `json:"character"`
+	Preview   string `json:"preview"`
+} {
+	out := make([]struct {
+		Path      string `json:"path"`
+		Line      int64  `json:"line"`
+		Character int64  `json:"character"`
+		Preview   string `json:"preview"`
+	}, 0, len(in))
+	for _, h := range in {
+		out = append(out, struct {
+			Path      string `json:"path"`
+			Line      int64  `json:"line"`
+			Character int64  `json:"character"`
+			Preview   string `json:"preview"`
+		}{Path: h.Path, Line: int64(h.Line), Character: int64(h.Character), Preview: h.Preview})
+	}
+	return out
+}
+
+func wireHitsToVoiceSession(in []struct {
+	Path      string `json:"path"`
+	Line      int64  `json:"line"`
+	Character int64  `json:"character"`
+	Preview   string `json:"preview"`
+},
+) []agentcontext.SearchHit {
+	out := make([]agentcontext.SearchHit, 0, len(in))
+	for _, h := range in {
+		out = append(out, agentcontext.SearchHit{
+			Path:      h.Path,
+			Line:      int(h.Line),
+			Character: int(h.Character),
+			Preview:   h.Preview,
+		})
+	}
+	return out
+}
 
 func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (protocol.VoiceTranscriptCompletion, bool, string) {
 	s.executeMu.Lock()
@@ -38,10 +208,6 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 
 	// Async host apply reports are not supported (duplex-only execution). PendingDirectiveApply
 	// is consumed immediately after each host.applyDirectives call within this RPC.
-	var extSucc []intents.Intent
-	var extFail []agentcontext.FailedIntent
-	var extSkipped []intents.Intent
-
 	activeFile := strings.TrimSpace(params.ActiveFile)
 	maxGatheredBytes := config.DefaultGatheredMaxBytes
 	maxGatheredExcerpts := config.DefaultGatheredMaxExcerpts
@@ -54,8 +220,99 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 		}
 	}
 
-	// In duplex mode, the daemon applies directives immediately and feeds the
-	// host's per-directive outcomes back into the next planning iteration.
+	// If a search hit list is active, interpret lightweight navigation utterances.
+	if navKind, ord, ok := parseSearchNavigation(params.Text); ok && len(vs.SearchResults) > 0 {
+		switch navKind {
+		case "next":
+			if vs.ActiveSearchIndex < len(vs.SearchResults)-1 {
+				vs.ActiveSearchIndex++
+			}
+		case "back":
+			if vs.ActiveSearchIndex > 0 {
+				vs.ActiveSearchIndex--
+			}
+		case "pick":
+			if ord >= 1 && ord <= len(vs.SearchResults) {
+				vs.ActiveSearchIndex = ord - 1
+			}
+		}
+		hit := vs.SearchResults[vs.ActiveSearchIndex]
+		res := protocol.VoiceTranscriptCompletion{
+			Success:           true,
+			Summary:           "search results",
+			TranscriptOutcome: "search",
+			SearchResults:     voiceSessionHitsToWire(vs.SearchResults),
+			ActiveSearchIndex: ptrInt64(int64(vs.ActiveSearchIndex)),
+		}
+		dirs := []protocol.VoiceTranscriptDirective{
+			{
+				Kind: "navigate",
+				NavigationDirective: &protocol.NavigationDirective{
+					Kind: "success",
+					Action: &protocol.NavigationAction{
+						Kind: "open_file",
+						OpenFile: &struct {
+							Path string `json:"path"`
+						}{Path: hit.Path},
+					},
+				},
+			},
+			{
+				Kind: "navigate",
+				NavigationDirective: &protocol.NavigationDirective{
+					Kind: "success",
+					Action: &protocol.NavigationAction{
+						Kind: "select_range",
+						SelectRange: &struct {
+							Target struct {
+								Path      string `json:"path,omitempty"`
+								StartLine int64  `json:"startLine"`
+								StartChar int64  `json:"startChar"`
+								EndLine   int64  `json:"endLine"`
+								EndChar   int64  `json:"endChar"`
+							} `json:"target"`
+						}{
+							Target: struct {
+								Path      string `json:"path,omitempty"`
+								StartLine int64  `json:"startLine"`
+								StartChar int64  `json:"startChar"`
+								EndLine   int64  `json:"endLine"`
+								EndChar   int64  `json:"endChar"`
+							}{
+								Path:      hit.Path,
+								StartLine: int64(hit.Line),
+								StartChar: int64(hit.Character),
+								EndLine:   int64(hit.Line),
+								EndChar:   int64(hit.Character + 1),
+							},
+						},
+					},
+				},
+			},
+		}
+		// Apply directives via duplex path just like normal.
+		// We bypass executor here, so we manually call host apply once.
+		if s.hostApplyClient == nil {
+			return protocol.VoiceTranscriptCompletion{Success: false}, true, "daemon has directives but no host apply client is configured"
+		}
+		pending := &agentcontext.DirectiveApplyBatch{ID: "search-nav", NumDirectives: len(dirs)}
+		vs.PendingDirectiveApply = pending
+		hostRes, err := s.hostApplyClient.ApplyDirectives(protocol.HostApplyParams{
+			ApplyBatchId: pending.ID,
+			ActiveFile:   params.ActiveFile,
+			Directives:   dirs,
+		})
+		_ = hostRes
+		_ = err
+		vs.PendingDirectiveApply = nil
+		if strings.TrimSpace(key) == "" {
+			voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
+		} else {
+			voicesession.SaveKeyed(s.sessions, key, vs)
+		}
+		return res, true, ""
+	}
+
 	maxRepairSteps := config.DefaultMaxRepairSteps
 	if dc != nil && dc.MaxTranscriptRepairRpcs != nil {
 		maxRepairSteps = int(*dc.MaxTranscriptRepairRpcs)
@@ -64,11 +321,7 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 		maxRepairSteps = 1
 	}
 
-	appliedOkTotal := 0
-	appliedFailTotal := 0
-	appliedSkippedTotal := 0
-	appliedBatchesTotal := 0
-
+	var lastApplyErr error
 	for stepI := 0; stepI < maxRepairSteps; stepI++ {
 		vs.Gathered = agentcontext.ApplyGatheredRollingCap(
 			vs.Gathered,
@@ -77,14 +330,13 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 			maxGatheredExcerpts,
 		)
 
-		res, dirs, g1, pending, ok, reason := s.executor.Execute(params, vs.Gathered, vs.IntentApplyHistory, extSucc, extFail, extSkipped)
+		res, dirs, g1, pending, ok, reason := s.executor.Execute(params, vs.Gathered)
 		vs.Gathered = g1
 		if strings.TrimSpace(key) != "" {
 			vs.Gathered = agentcontext.ApplyGatheredRollingCap(vs.Gathered, activeFile, maxGatheredBytes, maxGatheredExcerpts)
 		}
 
 		if !ok {
-			// Treat executor failure as transcript failure: host UI will show a generic error.
 			if strings.TrimSpace(key) == "" {
 				voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
 			} else {
@@ -98,20 +350,31 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 
 		if !res.Success || len(dirs) == 0 {
 			vs.PendingDirectiveApply = nil
-			// Persist before returning.
 			if strings.TrimSpace(key) == "" {
 				voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
 			} else {
 				voicesession.SaveKeyed(s.sessions, key, vs)
 			}
-			// Transcript logging is now a daemon logger concern rather than env-driven tuning.
 			if !res.Success && strings.TrimSpace(reason) != "" {
 				return res, ok, reason
+			}
+			// Persist search results when the daemon returned them (even with no directives).
+			if res.TranscriptOutcome == "search" && len(res.SearchResults) > 0 {
+				vs.SearchResults = wireHitsToVoiceSession(res.SearchResults)
+				if res.ActiveSearchIndex != nil {
+					vs.ActiveSearchIndex = int(*res.ActiveSearchIndex)
+				} else {
+					vs.ActiveSearchIndex = 0
+				}
+				if strings.TrimSpace(key) == "" {
+					voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
+				} else {
+					voicesession.SaveKeyed(s.sessions, key, vs)
+				}
 			}
 			return res, ok, ""
 		}
 
-		// We have directives; in duplex mode we must call the host for outcomes.
 		if pending == nil || s.hostApplyClient == nil {
 			vs.PendingDirectiveApply = nil
 			if strings.TrimSpace(key) == "" {
@@ -123,7 +386,6 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 		}
 
 		vs.PendingDirectiveApply = pending
-
 		hostRes, err := s.hostApplyClient.ApplyDirectives(protocol.HostApplyParams{
 			ApplyBatchId: pending.ID,
 			ActiveFile:   params.ActiveFile,
@@ -138,35 +400,31 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 			}
 			return protocol.VoiceTranscriptCompletion{Success: false}, true, "host.applyDirectives failed: " + err.Error()
 		}
-
-		// Consume the host report to update IntentApplyHistory and compute delta
-		// succeeded/failed/skipped intents for this planning iteration.
-		extSucc, extFail, extSkipped, err = voicesession.ConsumeHostApplyReport(
-			pending.ID,
-			hostRes.Items,
-			&vs,
-		)
-		if err != nil {
+		if err := voicesession.ConsumeHostApplyReport(pending.ID, hostRes.Items, &vs); err != nil {
+			lastApplyErr = err
+			// Retry only for explicit stale-range failures.
+			if strings.Contains(err.Error(), "stale_range") && stepI+1 < maxRepairSteps {
+				continue
+			}
 			vs.PendingDirectiveApply = nil
 			if strings.TrimSpace(key) == "" {
 				voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
 			} else {
 				voicesession.SaveKeyed(s.sessions, key, vs)
 			}
-			return protocol.VoiceTranscriptCompletion{Success: false}, true, "failed to consume host apply report: " + err.Error()
+			return protocol.VoiceTranscriptCompletion{Success: false}, true, "host apply failed: " + err.Error()
 		}
 
-		appliedBatchesTotal++
-		appliedOkTotal += len(extSucc)
-		appliedFailTotal += len(extFail)
-		appliedSkippedTotal += len(extSkipped)
+		if strings.TrimSpace(key) == "" {
+			voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
+		} else {
+			voicesession.SaveKeyed(s.sessions, key, vs)
+		}
+		return res, ok, ""
 	}
 
-	// Repair-cap hit: directives still outstanding.
-	if strings.TrimSpace(key) == "" {
-		voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
-	} else {
-		voicesession.SaveKeyed(s.sessions, key, vs)
+	if lastApplyErr != nil {
+		return protocol.VoiceTranscriptCompletion{Success: false}, true, "host apply failed: " + lastApplyErr.Error()
 	}
-	return protocol.VoiceTranscriptCompletion{Success: false}, true, "maxTranscriptRepairRpcs exceeded; directives still failing or being retried"
+	return protocol.VoiceTranscriptCompletion{Success: false}, true, "maxTranscriptRepairRpcs exceeded"
 }

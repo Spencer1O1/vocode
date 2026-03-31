@@ -10,11 +10,7 @@ import (
 	"vocoding.net/vocode/v2/apps/daemon/internal/agent/anthropic"
 	"vocoding.net/vocode/v2/apps/daemon/internal/agent/openai"
 	"vocoding.net/vocode/v2/apps/daemon/internal/agent/stub"
-	"vocoding.net/vocode/v2/apps/daemon/internal/gather"
-	"vocoding.net/vocode/v2/apps/daemon/internal/intents/dispatch"
-	"vocoding.net/vocode/v2/apps/daemon/internal/intents/dispatch/edit"
 	"vocoding.net/vocode/v2/apps/daemon/internal/rpc"
-	"vocoding.net/vocode/v2/apps/daemon/internal/symbols"
 	"vocoding.net/vocode/v2/apps/daemon/internal/transcript"
 )
 
@@ -32,11 +28,7 @@ type App struct {
 
 func New(opts Options) (*App, error) {
 	agentRuntime := agent.New(selectModelClient(opts.Logger))
-	editEngine := edit.NewEngine()
-	sym := symbols.NewTreeSitterResolver()
-	gatherProvider := gather.NewProvider(sym)
-	intentHandler := dispatch.NewHandler(editEngine)
-	voiceService := transcript.NewService(agentRuntime, intentHandler, gatherProvider, sym, opts.Logger)
+	voiceService := transcript.NewService(agentRuntime, opts.Logger)
 
 	router := rpc.NewRouter(opts.Logger)
 	for _, def := range rpc.BuildHandlers(voiceService) {

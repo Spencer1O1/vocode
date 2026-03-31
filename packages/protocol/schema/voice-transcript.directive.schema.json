@@ -7,7 +7,15 @@
   "properties": {
     "kind": {
       "type": "string",
-      "enum": ["edit", "command", "navigate", "undo"]
+      "enum": [
+        "edit",
+        "command",
+        "navigate",
+        "undo",
+        "rename",
+        "code_action",
+        "format"
+      ]
     },
     "editDirective": {
       "$ref": "./edit-directive.schema.json"
@@ -20,6 +28,15 @@
     },
     "undoDirective": {
       "$ref": "./undo-directive.schema.json"
+    },
+    "renameDirective": {
+      "$ref": "./rename-directive.schema.json"
+    },
+    "codeActionDirective": {
+      "$ref": "./code-action-directive.schema.json"
+    },
+    "formatDirective": {
+      "$ref": "./format-directive.schema.json"
     }
   },
   "required": ["kind"]

@@ -4,18 +4,27 @@ import (
 	"encoding/json"
 )
 
-// chatResponseFormat picks OpenAI Chat Completions response_format.
-// Always uses json_schema with strict=true so the model must return JSON matching the
-// turn envelope (kind + optional fields); intent payloads stay validated by turnjson.ParseTurn.
-func chatResponseFormat() *responseFormat {
+// chatResponseFormatScopedEdit picks OpenAI Chat Completions response_format for scoped edits.
+func chatResponseFormatScopedEdit() *responseFormat {
 	return &responseFormat{
 		Type: "json_schema",
 		JSONSchema: &namedJSONSchema{
-			Name:   "vocode_turn",
-			// Strict=false: schema guides the model shape, but we rely on
-			// turnjson.ParseTurn + Go validators for hard validation.
+			Name: "vocode_scoped_edit",
+			// Strict=false: schema guides the model shape, but we rely on Go decode + validation for hard validation.
 			Strict: false,
-			Schema: turnEnvelopeJSONSchema(),
+			Schema: scopedEditJSONSchema(),
+		},
+	}
+}
+
+// chatResponseFormatScopeIntent picks OpenAI Chat Completions response_format for scope intent classification.
+func chatResponseFormatScopeIntent() *responseFormat {
+	return &responseFormat{
+		Type: "json_schema",
+		JSONSchema: &namedJSONSchema{
+			Name:   "vocode_scope_intent",
+			Strict: false,
+			Schema: scopeIntentJSONSchema(),
 		},
 	}
 }
@@ -31,38 +40,35 @@ type namedJSONSchema struct {
 	Schema any    `json:"schema"`
 }
 
-func turnEnvelopeJSONSchema() map[string]any {
+func scopedEditJSONSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"kind": map[string]any{
-				"type": "string",
-				"enum": []string{
-					"irrelevant",
-					"done",
-					"request_context",
-					"intents",
-				},
-			},
-			"reason":         map[string]any{"type": "string"},
-			"summary":        map[string]any{"type": "string"},
-			"requestContext": map[string]any{"type": "object"},
-			"intents": map[string]any{
-				"type": "array",
-				"items": map[string]any{
-					"type": "object",
-				},
-			},
+			"replacementText": map[string]any{"type": "string"},
 		},
-		"required":             []string{"kind"},
-		// OpenAI structured outputs require additionalProperties=false at the top level
-		// when using strict json_schema response_format. Intent payloads remain flexible
-		// because they are nested objects inside the "intents" array.
+		"required": []string{"replacementText"},
+		// OpenAI structured outputs require additionalProperties=false at the top level.
+		"additionalProperties": false,
+	}
+}
+
+func scopeIntentJSONSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"scopeKind": map[string]any{
+				"type": "string",
+				"enum": []string{"current_function", "current_file", "named_symbol", "clarify"},
+			},
+			"symbolName":       map[string]any{"type": "string"},
+			"clarifyQuestion":  map[string]any{"type": "string"},
+		},
+		"required":             []string{"scopeKind"},
 		"additionalProperties": false,
 	}
 }
 
 // marshalChatResponseFormatJSON exists for tests (stable shape without building a full request).
 func marshalChatResponseFormatJSON() ([]byte, error) {
-	return json.Marshal(chatResponseFormat())
+	return json.Marshal(chatResponseFormatScopedEdit())
 }

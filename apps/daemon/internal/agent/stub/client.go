@@ -3,13 +3,10 @@ package stub
 
 import (
 	"context"
-	"runtime"
 	"strings"
 
 	"vocoding.net/vocode/v2/apps/daemon/internal/agent"
 	"vocoding.net/vocode/v2/apps/daemon/internal/agentcontext"
-	"vocoding.net/vocode/v2/apps/daemon/internal/intents"
-	"vocoding.net/vocode/v2/apps/daemon/internal/symbols"
 )
 
 // Client ignores most input and returns a deterministic turn sequence.
@@ -20,105 +17,23 @@ func New() *Client {
 	return &Client{}
 }
 
-// NextTurn implements [agent.ModelClient].
-func (*Client) NextTurn(ctx context.Context, in agentcontext.TurnContext) (agent.TurnResult, error) {
+// ScopedEdit implements [agent.ModelClient].
+func (*Client) ScopedEdit(ctx context.Context, in agentcontext.ScopedEditContext) (agent.ScopedEditResult, error) {
 	_ = ctx
-	if len(in.IntentApplyHistory) > 0 {
-		return agent.TurnResult{Kind: agent.TurnFinish, FinishSummary: "stub model acknowledged prior host apply"}, nil
+	// Deterministic fixture for integration tests: if targetText contains the buggy comparator,
+	// flip it. Otherwise, echo the original targetText (no-op style).
+	text := in.TargetText
+	if strings.Contains(text, "if (arr[j] < arr[j+1])") {
+		text = strings.ReplaceAll(text, "if (arr[j] < arr[j+1])", "if (arr[j] > arr[j+1])")
 	}
-
-	// Deterministic “real transcript” fixture for end-to-end integration tests.
-	// When the user asks about bubble sort, emit a single edit intent that fixes the buggy comparator
-	// between unique anchors in the active file.
-	if strings.Contains(strings.ToLower(in.TranscriptText), "bubble sort") {
-		return agent.TurnResult{
-			Kind: agent.TurnIntents,
-			Intents: []intents.Intent{
-				{
-					Kind: intents.IntentKindEdit,
-					Edit: &intents.EditIntent{
-						Kind: intents.EditIntentKindReplace,
-						Replace: &intents.ReplaceEditIntent{
-							Target: intents.EditTarget{
-								Kind: intents.EditTargetKindAnchor,
-								Anchor: &intents.AnchorTarget{
-									// Path omitted -> current active file (action builder uses active file by default).
-									Before: "// ANCHOR:bubble_sort_if_before",
-									After:  "// ANCHOR:bubble_sort_if_after",
-								},
-							},
-							NewText: "\n    if (arr[j] > arr[j+1]) {\n      const tmp = arr[j];\n      arr[j] = arr[j+1];\n      arr[j+1] = tmp;\n    }\n",
-						},
-					},
-				},
-			},
-		}, nil
-	}
-
-	active := strings.TrimSpace(in.Editor.ActiveFilePath)
-	if active == "" {
-		active = "test.js"
-	}
-	return agent.TurnResult{
-		Kind: agent.TurnIntents,
-		Intents: []intents.Intent{
-			{
-				Kind: intents.IntentKindNavigate,
-				Navigate: &intents.NavigationIntent{
-					Kind: intents.NavigationIntentKindOpenFile,
-					OpenFile: &intents.OpenFileNavigationIntent{
-						Path: active,
-					},
-				},
-			},
-			{
-				Kind: intents.IntentKindNavigate,
-				Navigate: &intents.NavigationIntent{
-					Kind: intents.NavigationIntentKindRevealSymbol,
-					RevealSymbol: &intents.RevealSymbolNavigationIntent{
-						Path:       active,
-						SymbolName: "test",
-						SymbolKind: "function",
-					},
-				},
-			},
-			{
-				Kind: intents.IntentKindEdit,
-				Edit: &intents.EditIntent{
-					Kind: intents.EditIntentKindReplace,
-					Replace: &intents.ReplaceEditIntent{
-						Target: intents.EditTarget{
-							Kind: intents.EditTargetKindSymbolID,
-							SymbolID: &intents.SymbolIDTarget{
-								ID: symbols.BuildSymbolID(symbols.SymbolRef{
-									Path: "",
-									Line: 0,
-									Kind: "function",
-									Name: "test",
-								}),
-							},
-						},
-						NewText: "\n  console.log(\"updated from stub\");\n",
-					},
-				},
-			},
-			{
-				Kind:    intents.IntentKindCommand,
-				Command: stubEchoRunCommand(),
-			},
-		},
-	}, nil
+	return agent.ScopedEditResult{ReplacementText: text}, nil
 }
 
-func stubEchoRunCommand() *intents.CommandIntent {
-	if runtime.GOOS == "windows" {
-		return &intents.CommandIntent{
-			Command: "cmd.exe",
-			Args:    []string{"/c", "echo", "stub-model-client"},
-		}
+func (*Client) ScopeIntent(ctx context.Context, in agentcontext.ScopeIntentContext) (agent.ScopeIntentResult, error) {
+	_ = ctx
+	// Simple deterministic stub: prefer current_function when we have a cursor symbol.
+	if in.Editor.CursorSymbol != nil && strings.TrimSpace(in.Editor.CursorSymbol.Name) != "" {
+		return agent.ScopeIntentResult{ScopeKind: agent.ScopeCurrentFunction}, nil
 	}
-	return &intents.CommandIntent{
-		Command: "echo",
-		Args:    []string{"stub-model-client"},
-	}
+	return agent.ScopeIntentResult{ScopeKind: agent.ScopeCurrentFile}, nil
 }

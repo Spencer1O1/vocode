@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"vocoding.net/vocode/v2/apps/daemon/internal/agentcontext"
-	"vocoding.net/vocode/v2/apps/daemon/internal/intents"
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
@@ -21,7 +20,7 @@ func Load(store *agentcontext.VoiceSessionStore, contextKey string, idleReset ti
 		if ephemeral == nil {
 			return agentcontext.VoiceSession{}
 		}
-		return agentcontext.CloneVoiceSession(*ephemeral)
+		return *ephemeral
 	}
 	return store.Get(key, idleReset)
 }
@@ -37,7 +36,7 @@ func SaveKeyed(store *agentcontext.VoiceSessionStore, contextKey string, vs agen
 
 // StoreEphemeralVoiceSession copies vs into *dst for the next RPC when contextSessionId is empty.
 func StoreEphemeralVoiceSession(dst *agentcontext.VoiceSession, vs agentcontext.VoiceSession) {
-	*dst = agentcontext.CloneVoiceSession(vs)
+	*dst = vs
 }
 
 // ConsumeHostApplyReport consumes the host's apply outcomes for the currently
@@ -47,25 +46,27 @@ func ConsumeHostApplyReport(
 	reportID string,
 	items []protocol.VoiceTranscriptDirectiveApplyItem,
 	vs *agentcontext.VoiceSession,
-) ([]intents.Intent, []agentcontext.FailedIntent, []intents.Intent, error) {
+) error {
 	if len(items) == 0 {
 		vs.PendingDirectiveApply = nil
-		return nil, nil, nil, nil
+		return nil
 	}
 	if vs.PendingDirectiveApply == nil {
-		return nil, nil, nil, fmt.Errorf("host apply report without pending directive apply batch")
+		return fmt.Errorf("host apply report without pending directive apply batch")
 	}
 	batch := vs.PendingDirectiveApply
-	extSucc, extFail, extSkipped, err := batch.ConsumeHostApplyReport(reportID, items)
-	if err != nil {
-		return nil, nil, nil, err
+	if err := batch.ConsumeHostApplyReport(reportID, items); err != nil {
+		return err
 	}
-	hist, err := agentcontext.AppendIntentApplyHistory(vs.IntentApplyHistory, vs.NextApplyBatchOrdinal, batch.SourceIntents, items)
-	if err != nil {
-		return nil, nil, nil, err
+	for i := range items {
+		if strings.TrimSpace(items[i].Status) == agentcontext.ApplyItemStatusFailed {
+			msg := strings.TrimSpace(items[i].Message)
+			if msg == "" {
+				msg = "host apply failed"
+			}
+			return fmt.Errorf("%s", msg)
+		}
 	}
-	vs.IntentApplyHistory = hist
-	vs.NextApplyBatchOrdinal++
 	vs.PendingDirectiveApply = nil
-	return extSucc, extFail, extSkipped, nil
+	return nil
 }

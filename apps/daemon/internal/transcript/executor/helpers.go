@@ -3,22 +3,14 @@ package executor
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"fmt"
-	"os"
+	"path/filepath"
 	"strings"
 
 	"vocoding.net/vocode/v2/apps/daemon/internal/agentcontext"
-	"vocoding.net/vocode/v2/apps/daemon/internal/intents"
-	"vocoding.net/vocode/v2/apps/daemon/internal/intents/dispatch/edit"
+	"vocoding.net/vocode/v2/apps/daemon/internal/hostcaps"
 	"vocoding.net/vocode/v2/apps/daemon/internal/symbols"
-	"vocoding.net/vocode/v2/apps/daemon/internal/symbols/tags"
-	"vocoding.net/vocode/v2/apps/daemon/internal/workspace"
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
-
-func appendSourceIntentForDirective(dst *[]intents.Intent, intent intents.Intent) {
-	*dst = append(*dst, intent)
-}
 
 func newDirectiveApplyBatchID() (string, error) {
 	var b [16]byte
@@ -28,10 +20,7 @@ func newDirectiveApplyBatchID() (string, error) {
 	return hex.EncodeToString(b[:]), nil
 }
 
-func resolveHostCursorSymbol(r symbols.Resolver, params protocol.VoiceTranscriptParams) *agentcontext.CursorSymbol {
-	if r == nil {
-		return nil
-	}
+func resolveHostCursorSymbol(symProvider hostcaps.SymbolProvider, params protocol.VoiceTranscriptParams) *agentcontext.CursorSymbol {
 	cp := params.CursorPosition
 	if cp == nil {
 		return nil
@@ -45,57 +34,64 @@ func resolveHostCursorSymbol(r symbols.Resolver, params protocol.VoiceTranscript
 	if line < 0 || char < 0 {
 		return nil
 	}
-	byteCol, err := tags.ByteOffsetForLineAndUTF16Column(active, line, char)
-	if err != nil {
-		return nil
-	}
-	ref, ok := r.ResolveInnermostAtLine(strings.TrimSpace(params.WorkspaceRoot), active, line, byteCol)
-	if !ok {
-		return nil
-	}
-	return &agentcontext.CursorSymbol{ID: ref.ID, Name: ref.Name, Kind: ref.Kind}
-}
 
-func buildEditExecutionContext(params protocol.VoiceTranscriptParams, ex *intents.Intent) (edit.EditExecutionContext, string) {
-	if ex == nil {
-		return edit.EditExecutionContext{}, "missing intent"
+	syms := symProvider.ActiveFileSymbols(params)
+	if len(syms) == 0 || len(params.ActiveFileSymbols) == 0 {
+		return nil
 	}
-	if ex.Kind == intents.IntentKindUndo {
-		return edit.EditExecutionContext{}, ""
+
+	type symRange struct {
+		startLine int
+		startChar int
+		endLine   int
+		endChar   int
 	}
-	active := strings.TrimSpace(params.ActiveFile)
-	workspaceRoot := workspace.EffectiveWorkspaceRoot(params.WorkspaceRoot, active)
-	if ex.Kind == intents.IntentKindEdit && active == "" {
-		return edit.EditExecutionContext{}, "activeFile is required when the next intent is an edit"
-	}
-	if ex.Kind == intents.IntentKindEdit && workspaceRoot == "" {
-		return edit.EditExecutionContext{}, "workspaceRoot is required when the next intent is an edit"
-	}
-	fileText := ""
-	if active != "" {
-		b, err := os.ReadFile(active)
-		if err != nil {
-			return edit.EditExecutionContext{}, fmt.Sprintf("read active file: %v", err)
+	contains := func(r symRange) bool {
+		if line < r.startLine || line > r.endLine {
+			return false
 		}
-		fileText = string(b)
+		if line == r.startLine && char < r.startChar {
+			return false
+		}
+		if line == r.endLine && char > r.endChar {
+			return false
+		}
+		return true
 	}
-	return edit.EditExecutionContext{
-		Instruction:   params.Text,
-		ActiveFile:    params.ActiveFile,
-		FileText:      fileText,
-		WorkspaceRoot: workspaceRoot,
-	}, ""
-}
+	size := func(r symRange) int {
+		// Rough size in characters; good enough for “innermost” selection.
+		return (r.endLine-r.startLine)*100000 + (r.endChar - r.startChar)
+	}
 
-func appendGatheredNote(g agentcontext.Gathered, note string) agentcontext.Gathered {
-	const maxNotes = 8
-	note = strings.TrimSpace(note)
-	if note == "" {
-		return g
+	bestIdx := -1
+	bestSize := 0
+	for i := range params.ActiveFileSymbols {
+		s := params.ActiveFileSymbols[i]
+		rng := symRange{
+			startLine: int(s.Range.StartLine),
+			startChar: int(s.Range.StartChar),
+			endLine:   int(s.Range.EndLine),
+			endChar:   int(s.Range.EndChar),
+		}
+		if !contains(rng) {
+			continue
+		}
+		sz := size(rng)
+		if bestIdx == -1 || sz < bestSize {
+			bestIdx = i
+			bestSize = sz
+		}
 	}
-	g.Notes = append(g.Notes, note)
-	if len(g.Notes) > maxNotes {
-		g.Notes = g.Notes[len(g.Notes)-maxNotes:]
+	if bestIdx == -1 {
+		return nil
 	}
-	return g
+	best := params.ActiveFileSymbols[bestIdx]
+	ref := symbols.SymbolRef{
+		Path: filepath.Clean(active),
+		Line: int(best.SelectionRange.StartLine) + 1,
+		Kind: strings.TrimSpace(best.Kind),
+		Name: strings.TrimSpace(best.Name),
+	}
+	ref.ID = symbols.BuildSymbolID(ref)
+	return &agentcontext.CursorSymbol{ID: ref.ID, Name: ref.Name, Kind: ref.Kind}
 }

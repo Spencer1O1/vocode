@@ -4,57 +4,44 @@ import (
 	"fmt"
 	"strings"
 
-	"vocoding.net/vocode/v2/apps/daemon/internal/intents"
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
+)
+
+const (
+	ApplyItemStatusOK      = "ok"
+	ApplyItemStatusFailed  = "failed"
+	ApplyItemStatusSkipped = "skipped"
 )
 
 // DirectiveApplyBatch is one batch of directives the daemon returned and the host must apply.
 // Wire: [protocol.HostApplyParams.applyBatchId] is used to correlate the host's response
 // back to this batch during duplex apply inside the same voice.transcript RPC.
 type DirectiveApplyBatch struct {
-	ID            string
-	SourceIntents []intents.Intent
+	ID           string
+	NumDirectives int
 }
 
-// ConsumeHostApplyReport validates the host report against this batch and returns succeeded,
-// failed (attempted), and skipped (not attempted) intents for the next agent loop iteration.
-// Caller must clear [VoiceSession.PendingDirectiveApply] after a successful return.
+// ConsumeHostApplyReport validates the host report against this batch.
 func (b *DirectiveApplyBatch) ConsumeHostApplyReport(
 	reportBatchID string,
 	items []protocol.VoiceTranscriptDirectiveApplyItem,
-) ([]intents.Intent, []FailedIntent, []intents.Intent, error) {
+) error {
 	if b == nil {
-		return nil, nil, nil, fmt.Errorf("directive apply batch: nil batch")
+		return fmt.Errorf("directive apply batch: nil batch")
 	}
 	if strings.TrimSpace(reportBatchID) != b.ID {
-		return nil, nil, nil, fmt.Errorf("directive apply batch: applyBatchId mismatch")
+		return fmt.Errorf("directive apply batch: applyBatchId mismatch")
 	}
-	if len(items) != len(b.SourceIntents) {
-		return nil, nil, nil, fmt.Errorf("directive apply batch: apply items length mismatch")
+	if len(items) != b.NumDirectives {
+		return fmt.Errorf("directive apply batch: apply items length mismatch")
 	}
-	var extSucc []intents.Intent
-	var extFail []FailedIntent
-	var extSkipped []intents.Intent
-	for i, it := range items {
-		intent := b.SourceIntents[i]
+	for _, it := range items {
 		switch strings.TrimSpace(it.Status) {
-		case ApplyItemStatusOK:
-			extSucc = append(extSucc, intent)
-		case ApplyItemStatusSkipped:
-			extSkipped = append(extSkipped, intent)
-		case ApplyItemStatusFailed:
-			msg := strings.TrimSpace(it.Message)
-			if msg == "" {
-				msg = "extension failed to apply directive"
-			}
-			extFail = append(extFail, FailedIntent{
-				Intent: intent,
-				Phase:  PhaseExtension,
-				Reason: msg,
-			})
+		case ApplyItemStatusOK, ApplyItemStatusSkipped, ApplyItemStatusFailed:
+			// valid
 		default:
-			return nil, nil, nil, fmt.Errorf("directive apply batch: unknown status %q", it.Status)
+			return fmt.Errorf("directive apply batch: unknown status %q", it.Status)
 		}
 	}
-	return extSucc, extFail, extSkipped, nil
+	return nil
 }

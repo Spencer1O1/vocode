@@ -19,12 +19,36 @@ function firstEditPath(
   const a = editDirective.actions[0] as EditAction;
   if (
     a.kind === "replace_between_anchors" ||
+    a.kind === "replace_range" ||
+    a.kind === "replace_file" ||
     a.kind === "create_file" ||
     a.kind === "append_to_file"
   ) {
     return a.path;
   }
   return undefined;
+}
+
+function editSummary(d: VoiceTranscriptDirective): string {
+  const ed = d.editDirective;
+  if (!ed || ed.kind !== "success" || !ed.actions?.length) {
+    return "Edit";
+  }
+  const a = ed.actions[0] as EditAction;
+  switch (a.kind) {
+    case "replace_range":
+      return "Scoped edit";
+    case "replace_file":
+      return "Replace file";
+    case "replace_between_anchors":
+      return "Edit (anchors)";
+    case "create_file":
+      return "Create file";
+    case "append_to_file":
+      return "Append to file";
+    default:
+      return "Edit";
+  }
 }
 
 function navigationSummary(nav: NavigationDirective | undefined): string {
@@ -67,13 +91,37 @@ export function directiveApplyLabel(
     }
     case "edit": {
       const p = firstEditPath(d.editDirective);
-      return p !== undefined ? `${n}. Edit ${path.basename(p)}` : `${n}. Edit`;
+      const base = editSummary(d);
+      return p !== undefined
+        ? `${n}. ${base}: ${path.basename(p)}`
+        : `${n}. ${base}`;
     }
     case "navigate":
       return `${n}. ${navigationSummary(d.navigationDirective)}`;
     case "undo": {
       const scope = d.undoDirective?.scope ?? "undo";
       return `${n}. Undo (${scope})`;
+    }
+    case "rename": {
+      const p = d.renameDirective?.path
+        ? path.basename(d.renameDirective.path)
+        : "file";
+      const newName = d.renameDirective?.newName ?? "rename";
+      return `${n}. Rename in ${p} → ${newName}`;
+    }
+    case "format": {
+      const p = d.formatDirective?.path
+        ? path.basename(d.formatDirective.path)
+        : "file";
+      const scope = d.formatDirective?.scope ?? "document";
+      return `${n}. Format (${scope}): ${p}`;
+    }
+    case "code_action": {
+      const p = d.codeActionDirective?.path
+        ? path.basename(d.codeActionDirective.path)
+        : "file";
+      const kind = d.codeActionDirective?.actionKind ?? "code action";
+      return `${n}. ${kind}: ${p}`;
     }
     default:
       return `${n}. Directive`;

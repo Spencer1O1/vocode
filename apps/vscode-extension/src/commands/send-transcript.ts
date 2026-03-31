@@ -55,6 +55,37 @@ async function sendTranscript(
     services.voiceStatus.setProcessing();
 
     const pos = editor.selection.active;
+    const sel = editor.selection;
+    const docSymbols = (await vscode.commands.executeCommand(
+      "vscode.executeDocumentSymbolProvider",
+      editor.document.uri,
+    )) as vscode.DocumentSymbol[] | undefined;
+
+    const flattenSymbols = (
+      syms: vscode.DocumentSymbol[] | undefined,
+      out: VoiceTranscriptParams["activeFileSymbols"],
+    ) => {
+      if (!syms) return;
+      for (const s of syms) {
+        out?.push({
+          name: s.name,
+          kind: String(s.kind),
+          range: {
+            startLine: s.range.start.line,
+            startChar: s.range.start.character,
+            endLine: s.range.end.line,
+            endChar: s.range.end.character,
+          },
+          selectionRange: {
+            startLine: s.selectionRange.start.line,
+            startChar: s.selectionRange.start.character,
+            endLine: s.selectionRange.end.line,
+            endChar: s.selectionRange.end.character,
+          },
+        });
+        if (s.children?.length) flattenSymbols(s.children, out);
+      }
+    };
 
     const vocodeCfg = vscode.workspace.getConfiguration("vocode");
     const daemonConfig: NonNullable<VoiceTranscriptParams["daemonConfig"]> = {
@@ -85,6 +116,17 @@ async function sendTranscript(
       activeFile: activePath,
       workspaceRoot: transcriptWorkspaceRoot(activePath),
       cursorPosition: { line: pos.line, character: pos.character },
+      activeSelection: {
+        startLine: sel.start.line,
+        startChar: sel.start.character,
+        endLine: sel.end.line,
+        endChar: sel.end.character,
+      },
+      activeFileSymbols: (() => {
+        const out: NonNullable<VoiceTranscriptParams["activeFileSymbols"]> = [];
+        flattenSymbols(docSymbols, out);
+        return out;
+      })(),
       contextSessionId: services.voiceSession.contextSessionId(),
       daemonConfig,
     };
@@ -100,6 +142,8 @@ async function sendTranscript(
     services.mainPanelStore.recordCompletedTranscript(trimmedText, {
       summary: result.summary?.trim() || undefined,
       transcriptOutcome: result.transcriptOutcome,
+      searchResults: result.searchResults,
+      activeSearchIndex: result.activeSearchIndex ?? null,
     });
   } catch (err) {
     const message =

@@ -139,6 +139,18 @@ test("markHandled sets skipped when transcript outcome is irrelevant", () => {
   assert.equal(h?.skipped, true);
 });
 
+test("markHandled sets clarifyPrompt when transcript outcome is clarify", () => {
+  const store = new MainPanelStore();
+  const id = store.enqueueCommitted("fix thing") as number;
+  store.markHandled(id, {
+    summary: "Which function should I edit?",
+    transcriptOutcome: "clarify",
+  });
+  const snap = store.getSnapshot();
+  assert.equal(snap.clarifyPrompt?.question, "Which function should I edit?");
+  assert.equal(snap.clarifyPrompt?.originalTranscript, "fix thing");
+});
+
 test("recordCompletedTranscript appends done entry without pending", () => {
   const store = new MainPanelStore();
   store.recordCompletedTranscript("manual line", { summary: "Done." });

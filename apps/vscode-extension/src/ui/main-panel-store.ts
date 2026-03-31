@@ -39,6 +39,21 @@ export type PendingTranscript = {
 export type MainPanelSnapshot = {
   /** Committed lines still in flight (queued, processing, or error). */
   readonly pending: readonly PendingTranscript[];
+  /** When set, the daemon requested clarification and voice input should answer this question. */
+  readonly clarifyPrompt?: {
+    readonly question: string;
+    readonly originalTranscript: string;
+  };
+  /** Latest search hit list + active selection (voice "next/back/3" updates this). */
+  readonly searchState?: {
+    readonly results: readonly {
+      readonly path: string;
+      readonly line: number;
+      readonly character: number;
+      readonly preview: string;
+    }[];
+    readonly activeIndex: number;
+  };
   /**
    * Recently finished lines (newest first): success (optional `summary` for Summary panel)
    * or failure (`errorMessage` when daemon/apply did not complete successfully).
@@ -85,6 +100,22 @@ export class MainPanelStore {
 
   private latestPartial: string | null = null;
   private voiceListening = false;
+
+  private clarifyPrompt:
+    | { question: string; originalTranscript: string }
+    | undefined;
+
+  private searchState:
+    | {
+        results: readonly {
+          path: string;
+          line: number;
+          character: number;
+          preview: string;
+        }[];
+        activeIndex: number;
+      }
+    | undefined;
 
   private meterSpeaking = false;
   private meterRms = 0;
@@ -198,6 +229,30 @@ export class MainPanelStore {
     return id;
   }
 
+  /**
+   * If a clarification prompt is active, consumes it and returns a combined text to send to the daemon.
+   * The returned string is the transcript text to send; UI still displays the committed line normally.
+   */
+  consumeClarifyPromptAnswer(answerText: string): string | null {
+    if (!this.clarifyPrompt) {
+      return null;
+    }
+    const answer = answerText.trim();
+    if (!answer) {
+      return null;
+    }
+    const { question, originalTranscript } = this.clarifyPrompt;
+    // Clear immediately so subsequent utterances are treated normally.
+    this.clarifyPrompt = undefined;
+    this.emit();
+    return [
+      originalTranscript.trim(),
+      "",
+      `Clarifying question: ${question.trim()}`,
+      `User answer: ${answer}`,
+    ].join("\n");
+  }
+
   markProcessing(id: number): void {
     const item = this.pending.find((p) => p.id === id);
     if (item) {
@@ -282,7 +337,14 @@ export class MainPanelStore {
     id: number,
     options?: {
       summary?: string;
-      transcriptOutcome?: "irrelevant" | "completed";
+      transcriptOutcome?: "irrelevant" | "completed" | "clarify" | "search";
+      searchResults?: readonly {
+        path: string;
+        line: number;
+        character: number;
+        preview: string;
+      }[];
+      activeSearchIndex?: number | null;
     },
   ): void {
     const index = this.pending.findIndex((p) => p.id === id);
@@ -293,6 +355,18 @@ export class MainPanelStore {
     const summary = options?.summary?.trim();
     const skipped =
       options?.transcriptOutcome === "irrelevant" ? (true as const) : undefined;
+    if (options?.transcriptOutcome === "clarify" && summary) {
+      this.clarifyPrompt = {
+        question: summary,
+        originalTranscript: removed.text,
+      };
+    }
+    if (options?.transcriptOutcome === "search" && options.searchResults) {
+      this.searchState = {
+        results: options.searchResults,
+        activeIndex: Math.max(0, options.activeSearchIndex ?? 0),
+      };
+    }
     this.recentHandled.unshift({
       text: removed.text,
       receivedAt: removed.receivedAt,
@@ -320,7 +394,14 @@ export class MainPanelStore {
     options?: {
       summary?: string;
       errorMessage?: string;
-      transcriptOutcome?: "irrelevant" | "completed";
+      transcriptOutcome?: "irrelevant" | "completed" | "clarify" | "search";
+      searchResults?: readonly {
+        path: string;
+        line: number;
+        character: number;
+        preview: string;
+      }[];
+      activeSearchIndex?: number | null;
     },
   ): void {
     const normalized = text.trim();
@@ -335,6 +416,12 @@ export class MainPanelStore {
         : options?.transcriptOutcome === "irrelevant"
           ? (true as const)
           : undefined;
+    if (options?.transcriptOutcome === "search" && options.searchResults) {
+      this.searchState = {
+        results: options.searchResults,
+        activeIndex: Math.max(0, options.activeSearchIndex ?? 0),
+      };
+    }
     this.recentHandled.unshift({
       text: normalized,
       receivedAt: new Date(),
@@ -381,6 +468,8 @@ export class MainPanelStore {
   getSnapshot(): MainPanelSnapshot {
     return {
       pending: this.pending,
+      ...(this.clarifyPrompt ? { clarifyPrompt: this.clarifyPrompt } : {}),
+      ...(this.searchState ? { searchState: this.searchState } : {}),
       recentHandled: this.recentHandled,
       latestPartial: this.latestPartial,
       voiceListening: this.voiceListening,

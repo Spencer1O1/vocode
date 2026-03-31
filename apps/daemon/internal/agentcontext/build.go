@@ -4,9 +4,6 @@ import (
 	"os"
 	"strings"
 	"unicode/utf8"
-
-	"vocoding.net/vocode/v2/apps/daemon/internal/intents"
-	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
 // maxActiveFileExcerptRunes limits on-disk active-file text merged into [Gathered.Excerpts].
@@ -28,30 +25,6 @@ func ReadActiveFileExcerpt(absPath string) string {
 	}
 	runes := []rune(s)
 	return string(runes[:maxActiveFileExcerptRunes])
-}
-
-// ComposeTurnContext builds a [TurnContext] for one [agent.Agent.NextTurn] call.
-func ComposeTurnContext(
-	params protocol.VoiceTranscriptParams,
-	transcript string,
-	succeeded []intents.Intent,
-	failed []FailedIntent,
-	skipped []intents.Intent,
-	intentApplyHistory []IntentApplyRecord,
-	gathered Gathered,
-	cursor *CursorSymbol,
-	limits TurnLimits,
-) TurnContext {
-	return TurnContext{
-		TranscriptText:     transcript,
-		SucceededIntents:   append([]intents.Intent(nil), succeeded...),
-		FailedIntents:      append([]FailedIntent(nil), failed...),
-		SkippedIntents:     append([]intents.Intent(nil), skipped...),
-		IntentApplyHistory: append([]IntentApplyRecord(nil), intentApplyHistory...),
-		Editor:             EditorSnapshotFromParams(params, cursor),
-		Gathered:           gathered,
-		Limits:             limits,
-	}
 }
 
 // EstimatedGatheredBytes approximates wire-ish size for gathered context caps.

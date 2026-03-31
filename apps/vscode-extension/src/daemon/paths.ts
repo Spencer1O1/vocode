@@ -56,29 +56,6 @@ export function resolveDaemonPath(context: vscode.ExtensionContext): string {
   );
 }
 
-export function resolveTreeSitterPath(
-  context: vscode.ExtensionContext,
-): string | undefined {
-  const binaryName = getPlatformToolBinaryName("tree-sitter");
-  const rel = path.join(
-    "tools",
-    "tree-sitter",
-    getPlatformBinarySubdir(),
-    binaryName,
-  );
-  const devPath = path.resolve(context.extensionPath, "..", "..", rel);
-  if (fs.existsSync(devPath)) {
-    console.log(`[vocode] using dev tree-sitter: ${devPath}`);
-    return devPath;
-  }
-  const bundledPath = path.join(context.extensionPath, rel);
-  if (fs.existsSync(bundledPath)) {
-    console.log(`[vocode] using bundled tree-sitter: ${bundledPath}`);
-    return bundledPath;
-  }
-  return undefined;
-}
-
 export function resolveRipgrepPath(
   context: vscode.ExtensionContext,
 ): string | undefined {

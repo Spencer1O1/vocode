@@ -14,7 +14,6 @@ import (
 
 	"vocoding.net/vocode/v2/apps/daemon/internal/agent"
 	"vocoding.net/vocode/v2/apps/daemon/internal/agent/prompt"
-	"vocoding.net/vocode/v2/apps/daemon/internal/agent/turnjson"
 	"vocoding.net/vocode/v2/apps/daemon/internal/agentcontext"
 )
 
@@ -52,31 +51,31 @@ func NewFromEnv() (*Client, error) {
 	}, nil
 }
 
-// NextTurn implements [agent.ModelClient].
-func (c *Client) NextTurn(ctx context.Context, in agentcontext.TurnContext) (agent.TurnResult, error) {
+// ScopedEdit implements [agent.ModelClient].
+func (c *Client) ScopedEdit(ctx context.Context, in agentcontext.ScopedEditContext) (agent.ScopedEditResult, error) {
 	if strings.TrimSpace(c.APIKey) == "" {
-		return agent.TurnResult{}, fmt.Errorf("anthropic: missing API key")
+		return agent.ScopedEditResult{}, fmt.Errorf("anthropic: missing API key")
 	}
-	userBytes, err := prompt.UserJSON(in)
+	userBytes, err := prompt.ScopedEditUserJSON(in)
 	if err != nil {
-		return agent.TurnResult{}, fmt.Errorf("anthropic: prompt: %w", err)
+		return agent.ScopedEditResult{}, fmt.Errorf("anthropic: prompt: %w", err)
 	}
 	body := messagesRequest{
 		Model:     c.Model,
 		MaxTokens: 4096,
-		System:    prompt.System(prompt.SystemConfig{MaxContextRounds: in.Limits.MaxContextRounds}),
+		System:    prompt.ScopedEditSystem(),
 		Messages: []messageBlock{
 			{Role: "user", Content: []contentPart{{Type: "text", Text: string(userBytes)}}},
 		},
 	}
 	payload, err := json.Marshal(body)
 	if err != nil {
-		return agent.TurnResult{}, err
+		return agent.ScopedEditResult{}, err
 	}
 	url := c.BaseURL + "/messages"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
 	if err != nil {
-		return agent.TurnResult{}, err
+		return agent.ScopedEditResult{}, err
 	}
 	req.Header.Set("x-api-key", c.APIKey)
 	req.Header.Set("anthropic-version", anthropicAPIVersion)
@@ -88,22 +87,22 @@ func (c *Client) NextTurn(ctx context.Context, in agentcontext.TurnContext) (age
 	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return agent.TurnResult{}, fmt.Errorf("anthropic: request: %w", err)
+		return agent.ScopedEditResult{}, fmt.Errorf("anthropic: request: %w", err)
 	}
 	defer resp.Body.Close()
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	if err != nil {
-		return agent.TurnResult{}, err
+		return agent.ScopedEditResult{}, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return agent.TurnResult{}, fmt.Errorf("anthropic: HTTP %s: %s", resp.Status, truncateForErr(respBody, 512))
+		return agent.ScopedEditResult{}, fmt.Errorf("anthropic: HTTP %s: %s", resp.Status, truncateForErr(respBody, 512))
 	}
 	var parsed messagesResponse
 	if err := json.Unmarshal(respBody, &parsed); err != nil {
-		return agent.TurnResult{}, fmt.Errorf("anthropic: decode: %w", err)
+		return agent.ScopedEditResult{}, fmt.Errorf("anthropic: decode: %w", err)
 	}
 	if parsed.Error != nil && strings.TrimSpace(parsed.Error.Message) != "" {
-		return agent.TurnResult{}, fmt.Errorf("anthropic: %s", parsed.Error.Message)
+		return agent.ScopedEditResult{}, fmt.Errorf("anthropic: %s", parsed.Error.Message)
 	}
 	var text string
 	for _, b := range parsed.Content {
@@ -113,9 +112,100 @@ func (c *Client) NextTurn(ctx context.Context, in agentcontext.TurnContext) (age
 	}
 	text = strings.TrimSpace(text)
 	if text == "" {
-		return agent.TurnResult{}, fmt.Errorf("anthropic: empty assistant content")
+		return agent.ScopedEditResult{}, fmt.Errorf("anthropic: empty assistant content")
 	}
-	return turnjson.ParseTurn([]byte(text))
+	var out struct {
+		ReplacementText string `json:"replacementText"`
+	}
+	if err := json.Unmarshal([]byte(text), &out); err != nil {
+		return agent.ScopedEditResult{}, fmt.Errorf("anthropic: decode scoped edit: %w", err)
+	}
+	res := agent.ScopedEditResult{ReplacementText: out.ReplacementText}
+	if err := res.Validate(); err != nil {
+		return agent.ScopedEditResult{}, err
+	}
+	return res, nil
+}
+
+func (c *Client) ScopeIntent(ctx context.Context, in agentcontext.ScopeIntentContext) (agent.ScopeIntentResult, error) {
+	if strings.TrimSpace(c.APIKey) == "" {
+		return agent.ScopeIntentResult{}, fmt.Errorf("anthropic: missing API key")
+	}
+	userBytes, err := prompt.ScopeIntentUserJSON(in)
+	if err != nil {
+		return agent.ScopeIntentResult{}, fmt.Errorf("anthropic: prompt: %w", err)
+	}
+	body := messagesRequest{
+		Model:     c.Model,
+		MaxTokens: 512,
+		System:    prompt.ScopeIntentSystem(),
+		Messages: []messageBlock{
+			{Role: "user", Content: []contentPart{{Type: "text", Text: string(userBytes)}}},
+		},
+	}
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return agent.ScopeIntentResult{}, err
+	}
+	url := c.BaseURL + "/messages"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+	if err != nil {
+		return agent.ScopeIntentResult{}, err
+	}
+	req.Header.Set("x-api-key", c.APIKey)
+	req.Header.Set("anthropic-version", anthropicAPIVersion)
+	req.Header.Set("Content-Type", "application/json")
+
+	httpClient := c.HTTPClient
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return agent.ScopeIntentResult{}, fmt.Errorf("anthropic: request: %w", err)
+	}
+	defer resp.Body.Close()
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return agent.ScopeIntentResult{}, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return agent.ScopeIntentResult{}, fmt.Errorf("anthropic: HTTP %s: %s", resp.Status, truncateForErr(respBody, 512))
+	}
+	var parsed messagesResponse
+	if err := json.Unmarshal(respBody, &parsed); err != nil {
+		return agent.ScopeIntentResult{}, fmt.Errorf("anthropic: decode: %w", err)
+	}
+	if parsed.Error != nil && strings.TrimSpace(parsed.Error.Message) != "" {
+		return agent.ScopeIntentResult{}, fmt.Errorf("anthropic: %s", parsed.Error.Message)
+	}
+	var text string
+	for _, b := range parsed.Content {
+		if b.Type == "text" {
+			text += b.Text
+		}
+	}
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return agent.ScopeIntentResult{}, fmt.Errorf("anthropic: empty assistant content")
+	}
+	var out struct {
+		ScopeKind       string `json:"scopeKind"`
+		SymbolName      string `json:"symbolName"`
+		ClarifyQuestion string `json:"clarifyQuestion"`
+	}
+	if err := json.Unmarshal([]byte(text), &out); err != nil {
+		return agent.ScopeIntentResult{}, fmt.Errorf("anthropic: decode scope intent: %w", err)
+	}
+	res := agent.ScopeIntentResult{
+		ScopeKind:       agent.ScopeKind(strings.TrimSpace(out.ScopeKind)),
+		SymbolName:      out.SymbolName,
+		ClarifyQuestion: out.ClarifyQuestion,
+	}
+	if err := res.Validate(); err != nil {
+		return agent.ScopeIntentResult{}, err
+	}
+	return res, nil
 }
 
 type messagesRequest struct {

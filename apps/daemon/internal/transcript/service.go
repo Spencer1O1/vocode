@@ -8,9 +8,6 @@ import (
 
 	"vocoding.net/vocode/v2/apps/daemon/internal/agent"
 	"vocoding.net/vocode/v2/apps/daemon/internal/agentcontext"
-	"vocoding.net/vocode/v2/apps/daemon/internal/gather"
-	"vocoding.net/vocode/v2/apps/daemon/internal/intents/dispatch"
-	"vocoding.net/vocode/v2/apps/daemon/internal/symbols"
 	"vocoding.net/vocode/v2/apps/daemon/internal/transcript/config"
 	"vocoding.net/vocode/v2/apps/daemon/internal/transcript/executor"
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
@@ -59,31 +56,13 @@ type transcriptAcceptResp struct {
 
 func NewService(
 	agentRuntime *agent.Agent,
-	intentHandler *dispatch.Handler,
-	gatherProvider *gather.Provider,
-	symbolResolver symbols.Resolver,
 	logger *log.Logger,
 ) *TranscriptService {
 	queueSize := config.DefaultTranscriptQueueSize
 	coalesceMs := config.DefaultTranscriptCoalesceMs
 	maxMergeJobs := config.DefaultTranscriptMaxMergeJobs
 	maxMergeChars := config.DefaultTranscriptMaxMergeChars
-	maxAgentTurns := config.DefaultMaxAgentTurns
-	maxIntentRetries := config.DefaultMaxIntentRetries
-	maxContextRounds := config.DefaultMaxContextRounds
-	maxContextBytes := config.DefaultMaxContextBytes
-	maxConsecutiveContextReq := config.DefaultMaxConsecutiveContextReq
-	maxIntentsPerBatch := config.DefaultMaxIntentsPerBatch
-
-	exec := executor.New(agentRuntime, intentHandler, gatherProvider, executor.Options{
-		MaxAgentTurns:            maxAgentTurns,
-		MaxIntentRetries:         maxIntentRetries,
-		MaxContextRounds:         maxContextRounds,
-		MaxContextBytes:          maxContextBytes,
-		MaxConsecutiveContextReq: maxConsecutiveContextReq,
-		MaxIntentsPerBatch:       maxIntentsPerBatch,
-		Symbols:                  symbolResolver,
-	})
+	exec := executor.New(agentRuntime, executor.Options{})
 
 	s := &TranscriptService{
 		executor:       exec,

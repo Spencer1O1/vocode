@@ -1,17 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://vocoding.net/schemas/edit-action.replace-range.schema.json",
-  "title": "ReplaceRangeAction",
+  "$id": "https://vocoding.net/schemas/format-directive.schema.json",
+  "title": "FormatDirective",
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "kind": {
-      "type": "string",
-      "const": "replace_range"
-    },
-    "path": {
-      "type": "string"
-    },
+    "path": { "type": "string" },
+    "scope": { "type": "string", "enum": ["document", "selection"] },
     "range": {
       "type": "object",
       "additionalProperties": false,
@@ -22,16 +17,7 @@
         "endChar": { "type": "integer", "minimum": 0 }
       },
       "required": ["startLine", "startChar", "endLine", "endChar"]
-    },
-    "newText": {
-      "type": "string"
-    },
-    "expectedSha256": {
-      "type": "string"
-    },
-    "editId": {
-      "type": "string"
     }
   },
-  "required": ["kind", "path", "range", "newText"]
+  "required": ["path", "scope"]
 }

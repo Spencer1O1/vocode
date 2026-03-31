@@ -34,7 +34,7 @@ func TestChatResponseFormatStrictAlways(t *testing.T) {
 	if err := json.Unmarshal(innerBytes, &inner); err != nil {
 		t.Fatal(err)
 	}
-	if inner.Name != "vocode_turn" || inner.Strict != false {
+	if inner.Name != "vocode_scoped_edit" || inner.Strict != false {
 		t.Fatalf("%+v", inner)
 	}
 	if inner.Schema["type"] != "object" {

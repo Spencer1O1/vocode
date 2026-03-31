@@ -24,7 +24,7 @@ Vocode is composed of three main parts:
 - Handles:
   - agent logic
   - code edits (AST/diff-based)
-  - symbol resolution (tree-sitter tags, grep-backed name search)
+  - symbol resolution (host-provided LSP document symbols)
   - command execution
   - transcript agent-loop orchestration
 
@@ -124,11 +124,6 @@ Daemon transcript queueing:
 - the VS Code extension forwards committed transcripts to the daemon
 - the daemon processes transcripts in FIFO order and can coalesce multiple committed transcripts that arrive within `VOCODE_DAEMON_VOICE_TRANSCRIPT_COALESCE_MS`
 - queue + merge bounds are configurable via `VOCODE_DAEMON_VOICE_TRANSCRIPT_QUEUE_SIZE`, `VOCODE_DAEMON_VOICE_TRANSCRIPT_MAX_MERGE_JOBS`, and `VOCODE_DAEMON_VOICE_TRANSCRIPT_MAX_MERGE_CHARS`
-
-Tree-sitter provisioning:
-- daemon symbol resolution requires the `tree-sitter` CLI
-- the extension always sets `VOCODE_TREE_SITTER_BIN` for the spawned daemon to the provisioned binary at `tools/tree-sitter/<platform-arch>/tree-sitter(.exe)` (dev repo or bundled under the extension)
-- run `pnpm provision:tree-sitter` to populate that path locally (extension `build` also runs this via `prebuild`)
 
 ### Daemon agent protocol (iterative)
 
@@ -231,7 +226,7 @@ Go Daemon
 ├── rpc/
 ├── agent/
 ├── intents/
-├── symbols/ (tree-sitter `tags` subpackage)
+├── hostcaps/ (host-provided capabilities like LSP symbols)
 ├── workspace/
 └── transcript/
 

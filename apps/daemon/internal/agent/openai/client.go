@@ -14,7 +14,6 @@ import (
 
 	"vocoding.net/vocode/v2/apps/daemon/internal/agent"
 	"vocoding.net/vocode/v2/apps/daemon/internal/agent/prompt"
-	"vocoding.net/vocode/v2/apps/daemon/internal/agent/turnjson"
 	"vocoding.net/vocode/v2/apps/daemon/internal/agentcontext"
 )
 
@@ -50,33 +49,33 @@ func NewFromEnv() (*Client, error) {
 	}, nil
 }
 
-// NextTurn implements [agent.ModelClient].
-func (c *Client) NextTurn(ctx context.Context, in agentcontext.TurnContext) (agent.TurnResult, error) {
+// ScopedEdit implements [agent.ModelClient].
+func (c *Client) ScopedEdit(ctx context.Context, in agentcontext.ScopedEditContext) (agent.ScopedEditResult, error) {
 	if strings.TrimSpace(c.APIKey) == "" {
-		return agent.TurnResult{}, fmt.Errorf("openai: missing API key")
+		return agent.ScopedEditResult{}, fmt.Errorf("openai: missing API key")
 	}
-	userBytes, err := prompt.UserJSON(in)
+	userBytes, err := prompt.ScopedEditUserJSON(in)
 	if err != nil {
-		return agent.TurnResult{}, fmt.Errorf("openai: prompt: %w", err)
+		return agent.ScopedEditResult{}, fmt.Errorf("openai: prompt: %w", err)
 	}
 	temp := 0.2
 	body := chatCompletionsRequest{
 		Model:       c.Model,
 		Temperature: &temp,
 		Messages: []chatMessage{
-			{Role: "system", Content: prompt.System(prompt.SystemConfig{MaxContextRounds: in.Limits.MaxContextRounds})},
+			{Role: "system", Content: prompt.ScopedEditSystem()},
 			{Role: "user", Content: string(userBytes)},
 		},
-		ResponseFormat: chatResponseFormat(),
+		ResponseFormat: chatResponseFormatScopedEdit(),
 	}
 	payload, err := json.Marshal(body)
 	if err != nil {
-		return agent.TurnResult{}, err
+		return agent.ScopedEditResult{}, err
 	}
 	url := c.BaseURL + "/chat/completions"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
 	if err != nil {
-		return agent.TurnResult{}, err
+		return agent.ScopedEditResult{}, err
 	}
 	req.Header.Set("Authorization", "Bearer "+c.APIKey)
 	req.Header.Set("Content-Type", "application/json")
@@ -87,31 +86,120 @@ func (c *Client) NextTurn(ctx context.Context, in agentcontext.TurnContext) (age
 	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return agent.TurnResult{}, fmt.Errorf("openai: request: %w", err)
+		return agent.ScopedEditResult{}, fmt.Errorf("openai: request: %w", err)
 	}
 	defer resp.Body.Close()
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	if err != nil {
-		return agent.TurnResult{}, err
+		return agent.ScopedEditResult{}, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return agent.TurnResult{}, fmt.Errorf("openai: HTTP %s: %s", resp.Status, truncateForErr(respBody, 512))
+		return agent.ScopedEditResult{}, fmt.Errorf("openai: HTTP %s: %s", resp.Status, truncateForErr(respBody, 512))
 	}
 	var parsed chatCompletionsResponse
 	if err := json.Unmarshal(respBody, &parsed); err != nil {
-		return agent.TurnResult{}, fmt.Errorf("openai: decode response: %w", err)
+		return agent.ScopedEditResult{}, fmt.Errorf("openai: decode response: %w", err)
 	}
 	if parsed.Error != nil && strings.TrimSpace(parsed.Error.Message) != "" {
-		return agent.TurnResult{}, fmt.Errorf("openai: %s", parsed.Error.Message)
+		return agent.ScopedEditResult{}, fmt.Errorf("openai: %s", parsed.Error.Message)
 	}
 	if len(parsed.Choices) == 0 {
-		return agent.TurnResult{}, fmt.Errorf("openai: empty choices")
+		return agent.ScopedEditResult{}, fmt.Errorf("openai: empty choices")
 	}
 	content := strings.TrimSpace(parsed.Choices[0].Message.Content)
 	if content == "" {
-		return agent.TurnResult{}, fmt.Errorf("openai: empty message content")
+		return agent.ScopedEditResult{}, fmt.Errorf("openai: empty message content")
 	}
-	return turnjson.ParseTurn([]byte(content))
+	var out struct {
+		ReplacementText string `json:"replacementText"`
+	}
+	if err := json.Unmarshal([]byte(content), &out); err != nil {
+		return agent.ScopedEditResult{}, fmt.Errorf("openai: decode scoped edit: %w", err)
+	}
+	res := agent.ScopedEditResult{ReplacementText: out.ReplacementText}
+	if err := res.Validate(); err != nil {
+		return agent.ScopedEditResult{}, err
+	}
+	return res, nil
+}
+
+func (c *Client) ScopeIntent(ctx context.Context, in agentcontext.ScopeIntentContext) (agent.ScopeIntentResult, error) {
+	if strings.TrimSpace(c.APIKey) == "" {
+		return agent.ScopeIntentResult{}, fmt.Errorf("openai: missing API key")
+	}
+	userBytes, err := prompt.ScopeIntentUserJSON(in)
+	if err != nil {
+		return agent.ScopeIntentResult{}, fmt.Errorf("openai: prompt: %w", err)
+	}
+	temp := 0.0
+	body := chatCompletionsRequest{
+		Model:       c.Model,
+		Temperature: &temp,
+		Messages: []chatMessage{
+			{Role: "system", Content: prompt.ScopeIntentSystem()},
+			{Role: "user", Content: string(userBytes)},
+		},
+		ResponseFormat: chatResponseFormatScopeIntent(),
+	}
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return agent.ScopeIntentResult{}, err
+	}
+	url := c.BaseURL + "/chat/completions"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+	if err != nil {
+		return agent.ScopeIntentResult{}, err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.APIKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	httpClient := c.HTTPClient
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return agent.ScopeIntentResult{}, fmt.Errorf("openai: request: %w", err)
+	}
+	defer resp.Body.Close()
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return agent.ScopeIntentResult{}, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return agent.ScopeIntentResult{}, fmt.Errorf("openai: HTTP %s: %s", resp.Status, truncateForErr(respBody, 512))
+	}
+	var parsed chatCompletionsResponse
+	if err := json.Unmarshal(respBody, &parsed); err != nil {
+		return agent.ScopeIntentResult{}, fmt.Errorf("openai: decode response: %w", err)
+	}
+	if parsed.Error != nil && strings.TrimSpace(parsed.Error.Message) != "" {
+		return agent.ScopeIntentResult{}, fmt.Errorf("openai: %s", parsed.Error.Message)
+	}
+	if len(parsed.Choices) == 0 {
+		return agent.ScopeIntentResult{}, fmt.Errorf("openai: empty choices")
+	}
+	content := strings.TrimSpace(parsed.Choices[0].Message.Content)
+	if content == "" {
+		return agent.ScopeIntentResult{}, fmt.Errorf("openai: empty message content")
+	}
+	var out struct {
+		ScopeKind        string `json:"scopeKind"`
+		SymbolName       string `json:"symbolName"`
+		ClarifyQuestion  string `json:"clarifyQuestion"`
+	}
+	if err := json.Unmarshal([]byte(content), &out); err != nil {
+		return agent.ScopeIntentResult{}, fmt.Errorf("openai: decode scope intent: %w", err)
+	}
+	res := agent.ScopeIntentResult{
+		ScopeKind:        agent.ScopeKind(strings.TrimSpace(out.ScopeKind)),
+		SymbolName:       out.SymbolName,
+		ClarifyQuestion:  out.ClarifyQuestion,
+	}
+	if err := res.Validate(); err != nil {
+		return agent.ScopeIntentResult{}, err
+	}
+	return res, nil
 }
 
 type chatCompletionsRequest struct {

@@ -2,7 +2,6 @@ package edit
 
 import (
 	"vocoding.net/vocode/v2/apps/daemon/internal/intents"
-	"vocoding.net/vocode/v2/apps/daemon/internal/symbols"
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
@@ -13,10 +12,6 @@ type Engine struct {
 
 func NewEngine() *Engine {
 	return &Engine{actionBuilder: NewActionBuilder()}
-}
-
-func NewEngineWithResolver(resolver symbols.Resolver) *Engine {
-	return &Engine{actionBuilder: NewActionBuilderWithResolver(resolver)}
 }
 
 func (e *Engine) BuildActions(ctx EditExecutionContext, editIntent intents.EditIntent) ([]protocol.EditAction, *EditBuildFailure) {

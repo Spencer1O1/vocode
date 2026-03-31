@@ -48,6 +48,35 @@ function LiveSection({ state }: { state: PanelState }) {
   );
 }
 
+function ClarifySection({ state }: { state: PanelState }) {
+  const prompt = state.clarifyPrompt;
+  if (!prompt || !prompt.question) {
+    return null;
+  }
+  return (
+    <>
+      <h1>Clarification needed</h1>
+      <div className="stack">
+        <div className="card done failed history-card">
+          <div className="meta">
+            <span className="badge" title="Vocode needs one detail to proceed">
+              Question
+            </span>
+          </div>
+          <div className="text history-summary">{prompt.question}</div>
+          <div className="history-transcript muted-transcript">
+            Original: {prompt.originalTranscript}
+          </div>
+          <div className="hint">
+            Speak your answer next — Vocode will treat the next utterance as the
+            reply.
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 type ApplyStepVisual =
   | "done"
   | "active"
@@ -370,6 +399,45 @@ function SkippedSection({ items }: { items: readonly HandledRow[] }) {
   );
 }
 
+function SearchResultsSection({ state }: { state: PanelState }) {
+  const ss = state.searchState;
+  if (!ss || !Array.isArray(ss.results) || ss.results.length === 0) {
+    return null;
+  }
+  const active = Math.min(
+    Math.max(0, Number.isFinite(ss.activeIndex) ? ss.activeIndex : 0),
+    ss.results.length - 1,
+  );
+  return (
+    <>
+      <h1>Search results</h1>
+      <div className="stack">
+        {ss.results.map((r, i) => (
+          <div
+            key={`sr-${r.path}:${r.line}:${r.character}`}
+            className={`card history-card ${i === active ? "card-active" : ""}`}
+          >
+            <div className="meta">
+              <span className="badge" title="Result number for voice selection">
+                {i + 1}
+              </span>
+              <span className="muted-transcript">
+                {r.path}:{r.line + 1}:{r.character + 1}
+              </span>
+            </div>
+            <div className="text mono">{r.preview}</div>
+            {i === active ? (
+              <div className="hint">
+                Active. Say “next”, “back”, or a number (e.g. “3”) to jump.
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 export function MainPanel({ state }: { state: PanelState }) {
   const pending = Array.isArray(state.pending) ? state.pending : [];
   const recentHandled = Array.isArray(state.recentHandled)
@@ -381,6 +449,8 @@ export function MainPanel({ state }: { state: PanelState }) {
   return (
     <div id="main-root">
       <LiveSection state={state} />
+      <ClarifySection state={state} />
+      <SearchResultsSection state={state} />
       <ApplyingSection pending={pending} />
       <HistorySection items={historyItems} />
       <SkippedSection items={skippedItems} />

@@ -3,7 +3,7 @@ import * as path from "node:path";
 import type * as vscode from "vscode";
 
 import { applyVocodeSpawnEnvironment } from "../config/spawn-env";
-import { resolveDaemonPath, resolveRipgrepPath, resolveTreeSitterPath } from "./paths";
+import { resolveDaemonPath, resolveRipgrepPath } from "./paths";
 
 export interface SpawnedDaemon {
   process: ChildProcessWithoutNullStreams;
@@ -14,16 +14,10 @@ export async function spawnDaemon(
   context: vscode.ExtensionContext,
 ): Promise<SpawnedDaemon> {
   const binaryPath = resolveDaemonPath(context);
-  const treeSitterPath = resolveTreeSitterPath(context);
   const ripgrepPath = resolveRipgrepPath(context);
   const env = { ...process.env };
   await applyVocodeSpawnEnvironment(context, env);
   // Always use extension-resolved provisioned binary; ignore inherited env overrides.
-  if (treeSitterPath) {
-    env.VOCODE_TREE_SITTER_BIN = treeSitterPath;
-  } else {
-    delete env.VOCODE_TREE_SITTER_BIN;
-  }
   if (ripgrepPath) {
     env.VOCODE_RG_BIN = ripgrepPath;
   } else {

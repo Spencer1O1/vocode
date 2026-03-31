@@ -122,7 +122,15 @@ export function attachTranscriptPipeline(
       return;
     }
 
-    const pendingId = mainPanelStore.enqueueCommitted(evt.text);
+    // If the daemon previously asked a clarify question, treat the next committed utterance
+    // as the answer and send a combined instruction to the daemon.
+    const clarifyTextToSend =
+      mainPanelStore.consumeClarifyPromptAnswer(evt.text) ?? undefined;
+    // If this utterance is answering a clarification prompt, do not enqueue it as its own transcript.
+    const pendingId =
+      clarifyTextToSend !== undefined
+        ? mainPanelStore.enqueueCommitted("Answering clarification…")
+        : mainPanelStore.enqueueCommitted(evt.text);
 
     if (!voiceSession.isRunning()) {
       return;
@@ -142,7 +150,8 @@ export function attachTranscriptPipeline(
     }
 
     const activeFile = editor.document.uri.fsPath;
-    const text = evt.text;
+    const sel = editor.selection;
+    const text = clarifyTextToSend ?? evt.text;
 
     if (inFlightTranscripts === 0) {
       voiceStatus.setProcessing();
@@ -151,7 +160,6 @@ export function attachTranscriptPipeline(
 
     mainPanelStore.markProcessing(pendingId);
 
-    const pos = editor.selection.active;
     const vocodeCfg = vscode.workspace.getConfiguration("vocode");
     const daemonConfig: NonNullable<VoiceTranscriptParams["daemonConfig"]> = {
       maxPlannerTurns: vocodeCfg.get<number>("maxPlannerTurns", 8),
@@ -179,7 +187,16 @@ export function attachTranscriptPipeline(
       text,
       activeFile,
       workspaceRoot: transcriptWorkspaceRoot(activeFile),
-      cursorPosition: { line: pos.line, character: pos.character },
+      cursorPosition: {
+        line: editor.selection.active.line,
+        character: editor.selection.active.character,
+      },
+      activeSelection: {
+        startLine: sel.start.line,
+        startChar: sel.start.character,
+        endLine: sel.end.line,
+        endChar: sel.end.character,
+      },
       contextSessionId: voiceSession.contextSessionId(),
       daemonConfig,
     };
@@ -187,7 +204,48 @@ export function attachTranscriptPipeline(
     void (async () => {
       mainPanelStore.beginVoiceTranscriptRpc(pendingId);
       try {
-        const result = await client.transcript(baseParams);
+        const docSymbols = (await vscode.commands.executeCommand(
+          "vscode.executeDocumentSymbolProvider",
+          editor.document.uri,
+        )) as vscode.DocumentSymbol[] | undefined;
+
+        const flattenSymbols = (
+          syms: vscode.DocumentSymbol[] | undefined,
+          out: VoiceTranscriptParams["activeFileSymbols"],
+        ) => {
+          if (!syms) return;
+          for (const s of syms) {
+            out?.push({
+              name: s.name,
+              kind: String(s.kind),
+              range: {
+                startLine: s.range.start.line,
+                startChar: s.range.start.character,
+                endLine: s.range.end.line,
+                endChar: s.range.end.character,
+              },
+              selectionRange: {
+                startLine: s.selectionRange.start.line,
+                startChar: s.selectionRange.start.character,
+                endLine: s.selectionRange.end.line,
+                endChar: s.selectionRange.end.character,
+              },
+            });
+            if (s.children?.length) flattenSymbols(s.children, out);
+          }
+        };
+
+        const paramsWithSymbols: VoiceTranscriptParams = {
+          ...baseParams,
+          activeFileSymbols: (() => {
+            const out: NonNullable<VoiceTranscriptParams["activeFileSymbols"]> =
+              [];
+            flattenSymbols(docSymbols, out);
+            return out;
+          })(),
+        };
+
+        const result = await client.transcript(paramsWithSymbols);
 
         if (!result.success) {
           mainPanelStore.markError(pendingId, FAILED_TO_PROCESS_TRANSCRIPT);
@@ -197,6 +255,8 @@ export function attachTranscriptPipeline(
         mainPanelStore.markHandled(pendingId, {
           summary: result.summary?.trim() || undefined,
           transcriptOutcome: result.transcriptOutcome,
+          searchResults: result.searchResults,
+          activeSearchIndex: result.activeSearchIndex ?? null,
         });
       } catch (err) {
         const message =

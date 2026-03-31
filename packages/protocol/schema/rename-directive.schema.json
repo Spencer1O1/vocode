@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vocoding.net/schemas/rename-directive.schema.json",
+  "title": "RenameDirective",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "path": { "type": "string" },
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "line": { "type": "integer", "minimum": 0 },
+        "character": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["line", "character"]
+    },
+    "newName": { "type": "string" }
+  },
+  "required": ["path", "position", "newName"]
+}

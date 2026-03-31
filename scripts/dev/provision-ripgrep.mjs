@@ -77,17 +77,20 @@ if (candidates.length === 0) {
   }
 }
 if (candidates.length === 0) {
-  console.warn("[vocode] ripgrep not provisioned: install `@vscode/ripgrep` (pnpm)");
+  console.warn(
+    "[vocode] ripgrep not provisioned: install `@vscode/ripgrep` (pnpm)",
+  );
   process.exit(0);
 }
 
 const sourcePath = candidates.find((candidate) => verifyBinary(candidate));
 if (!sourcePath) {
-  console.warn("[vocode] no executable ripgrep binary found in @vscode/ripgrep");
+  console.warn(
+    "[vocode] no executable ripgrep binary found in @vscode/ripgrep",
+  );
   process.exit(0);
 }
 
 mkdirSync(targetDir, { recursive: true });
 copyFileSync(sourcePath, targetPath);
 console.log(`[vocode] provisioned ripgrep: ${targetPath}`);
-

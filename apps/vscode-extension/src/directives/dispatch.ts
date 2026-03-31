@@ -1,9 +1,12 @@
 import type { VoiceTranscriptDirective } from "@vocode/protocol";
 
 import type { TranscriptApplyContext } from "../transcript/context";
+import { dispatchCodeAction } from "./code-action/dispatch";
 import { dispatchCommand } from "./command/dispatch";
 import { dispatchEdit } from "./edit/dispatch";
+import { dispatchFormat } from "./format/dispatch";
 import { dispatchNavigation } from "./navigation/dispatch";
+import { dispatchRename } from "./rename/dispatch";
 import { dispatchUndo } from "./undo/dispatch";
 
 export type DirectiveDispatchOutcome = {
@@ -27,5 +30,11 @@ export function dispatchTranscript(
       return dispatchNavigation(transcriptDirective, ctx);
     case "undo":
       return dispatchUndo(transcriptDirective.undoDirective);
+    case "rename":
+      return dispatchRename(transcriptDirective.renameDirective);
+    case "code_action":
+      return dispatchCodeAction(transcriptDirective.codeActionDirective);
+    case "format":
+      return dispatchFormat(transcriptDirective.formatDirective);
   }
 }

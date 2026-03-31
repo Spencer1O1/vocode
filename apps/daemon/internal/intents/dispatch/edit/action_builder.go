@@ -11,18 +11,12 @@ import (
 )
 
 type ActionBuilder struct {
-	validator      *Validator
-	symbolResolver symbols.Resolver
+	validator *Validator
 }
 
 func NewActionBuilder() *ActionBuilder {
-	return NewActionBuilderWithResolver(symbols.NewTreeSitterResolver())
-}
-
-func NewActionBuilderWithResolver(resolver symbols.Resolver) *ActionBuilder {
 	return &ActionBuilder{
-		validator:      NewValidator(),
-		symbolResolver: resolver,
+		validator: NewValidator(),
 	}
 }
 
