@@ -1,8 +1,5 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
-import type {
-  HostApplyParams,
-  HostApplyResult,
-} from "@vocode/protocol";
+import type { HostApplyParams, HostApplyResult } from "@vocode/protocol";
 import * as vscode from "vscode";
 
 import { registerAllCommands } from "./commands";

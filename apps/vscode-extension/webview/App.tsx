@@ -92,7 +92,7 @@ export function App() {
     <div className="app-shell">
       <header className="panel-top">
         <div className="panel-top-title">
-          {panelView === "main" ? "Voice" : "Settings"}
+          {panelView === "main" ? "Vocode" : "Settings"}
         </div>
         <div
           className="panel-top-actions"
@@ -113,7 +113,7 @@ export function App() {
             <button
               type="button"
               className="panel-icon-btn"
-              aria-label="Back to Voice"
+              aria-label="Back to Vocode"
               title="Back"
               onClick={() => setPanelView("main")}
             >

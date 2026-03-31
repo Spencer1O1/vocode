@@ -2,8 +2,8 @@ import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import type {
   PingParams,
   PingResult,
-  VoiceTranscriptParams,
   VoiceTranscriptCompletion,
+  VoiceTranscriptParams,
 } from "@vocode/protocol";
 import { isPingResult, isVoiceTranscriptCompletion } from "@vocode/protocol";
 

@@ -55,6 +55,9 @@ importers:
       '@vocode/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@vocode/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -70,6 +73,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@vocode/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       react:
         specifier: ^19.1.0
         version: 19.2.4
@@ -125,6 +131,8 @@ importers:
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
+
+  packages/ui: {}
 
 packages:
 

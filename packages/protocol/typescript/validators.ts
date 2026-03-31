@@ -3,8 +3,8 @@ import type {
   EditAction,
   EditDirective,
   PingResult,
-  VoiceTranscriptDirective,
   VoiceTranscriptCompletion,
+  VoiceTranscriptDirective,
 } from "./types.generated";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -248,11 +248,7 @@ export function isVoiceTranscriptCompletion(
   if (!isRecord(value) || typeof value.success !== "boolean") {
     return false;
   }
-  const allowedKeys = new Set([
-    "success",
-    "summary",
-    "transcriptOutcome",
-  ]);
+  const allowedKeys = new Set(["success", "summary", "transcriptOutcome"]);
   if (!Object.keys(value).every((k) => allowedKeys.has(k))) {
     return false;
   }

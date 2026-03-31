@@ -302,7 +302,7 @@ export function MainPanel({ state }: { state: PanelState }) {
       <ApplyingSection pending={pending} />
       <HistorySection items={historyItems} />
       <SkippedSection items={skippedItems} />
-      <p className="hint">Vocode · voice to code</p>
+      <p className="hint">Vocode · a new paradigm</p>
     </div>
   );
 }
