@@ -2,7 +2,6 @@ package symbols
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -74,6 +73,37 @@ func (r *TreeSitterResolver) ResolveSymbol(workspaceRoot, symbolName, symbolKind
 	return out, nil
 }
 
+func (r *TreeSitterResolver) ResolveFileSymbols(workspaceRoot, absFile string) ([]SymbolRef, error) {
+	if strings.TrimSpace(r.binaryPath) == "" {
+		return nil, errors.New("tree-sitter CLI not configured (run `pnpm provision:tree-sitter` from the repo; extension spawns daemon with the provisioned binary path)")
+	}
+	file := strings.TrimSpace(absFile)
+	if file == "" {
+		return nil, nil
+	}
+	tagList, err := tags.LoadTags(r.binaryPath, file)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]SymbolRef, 0, 16)
+	seen := map[string]bool{}
+	for _, ref := range tagList {
+		if !ref.IsDefinition {
+			continue
+		}
+		s := tagToSymbolRef(ref)
+		if s.ID == "" {
+			continue
+		}
+		if seen[s.ID] {
+			continue
+		}
+		seen[s.ID] = true
+		out = append(out, s)
+	}
+	return out, nil
+}
+
 func candidateFiles(workspaceRoot, symbolName, hintPath string) ([]string, error) {
 	files := make([]string, 0, 8)
 	seen := map[string]bool{}
@@ -101,7 +131,8 @@ func candidateFiles(workspaceRoot, symbolName, hintPath string) ([]string, error
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil && stdout.Len() == 0 {
-		return nil, fmt.Errorf("candidate file search failed: %v (%s)", err, strings.TrimSpace(stderr.String()))
+		// Soft failure: surface as empty candidate list so the planner can continue.
+		return []string{}, nil
 	}
 
 	for _, line := range strings.Split(stdout.String(), "\n") {

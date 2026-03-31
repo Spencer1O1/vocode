@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vocoding.net/schemas/edit-action.replace-file.schema.json",
+  "title": "ReplaceFileAction",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "type": "string",
+      "const": "replace_file"
+    },
+    "path": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "editId": {
+      "type": "string"
+    }
+  },
+  "required": ["kind", "path", "content"]
+}
+

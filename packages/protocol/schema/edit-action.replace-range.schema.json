@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vocoding.net/schemas/edit-action.replace-range.schema.json",
+  "title": "ReplaceRangeAction",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "type": "string",
+      "const": "replace_range"
+    },
+    "path": {
+      "type": "string"
+    },
+    "range": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "startLine": { "type": "integer", "minimum": 0 },
+        "startChar": { "type": "integer", "minimum": 0 },
+        "endLine": { "type": "integer", "minimum": 0 },
+        "endChar": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["startLine", "startChar", "endLine", "endChar"]
+    },
+    "newText": {
+      "type": "string"
+    },
+    "editId": {
+      "type": "string"
+    }
+  },
+  "required": ["kind", "path", "range", "newText"]
+}
+

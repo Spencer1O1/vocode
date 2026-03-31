@@ -98,6 +98,9 @@ type Options struct {
 // New constructs an [Executor].
 // MaxIntentsPerBatch: 0 means no cap; unset env defaults to 16 in [transcript.NewService].
 func New(a *agent.Agent, h *dispatch.Handler, gatherProv *gather.Provider, opts Options) *Executor {
+	if opts.Symbols == nil {
+		opts.Symbols = symbols.NewTreeSitterResolver()
+	}
 	return &Executor{
 		agent:                    a,
 		intentHandler:            h,
@@ -134,6 +137,30 @@ func (e *Executor) Execute(
 		completed:  make([]intents.Intent, 0, maxLoopIters),
 		directives: make([]protocol.VoiceTranscriptDirective, 0, maxLoopIters*4),
 		maxRetries: maxRetries,
+	}
+	// Pre-populate active-file symbols on turn 0 so the planner can use symbol_id targets
+	// without immediately spending a context round on request_symbols.
+	if e.symbols != nil && len(st.gathered.Symbols) == 0 && strings.TrimSpace(params.ActiveFile) != "" {
+		syms, err := e.symbols.ResolveFileSymbols(strings.TrimSpace(params.WorkspaceRoot), strings.TrimSpace(params.ActiveFile))
+		if err != nil {
+			st.gathered = appendGatheredNote(st.gathered, fmt.Sprintf("symbol resolver unavailable for active file: %v", err))
+		} else if len(syms) > 0 {
+			// Merge by id.
+			seen := map[string]bool{}
+			for _, s := range st.gathered.Symbols {
+				seen[s.ID] = true
+			}
+			for _, s := range syms {
+				if s.ID == "" || seen[s.ID] {
+					continue
+				}
+				seen[s.ID] = true
+				st.gathered.Symbols = append(st.gathered.Symbols, s)
+				if len(st.gathered.Symbols) >= 50 {
+					break
+				}
+			}
+		}
 	}
 
 	brokeOK := false

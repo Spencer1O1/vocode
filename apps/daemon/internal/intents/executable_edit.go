@@ -3,6 +3,8 @@ package intents
 import (
 	"fmt"
 	"strings"
+
+	"vocoding.net/vocode/v2/apps/daemon/internal/symbols"
 )
 
 type EditIntentKind string
@@ -126,13 +128,19 @@ func ValidateEditIntent(intent EditIntent) error {
 	}
 	switch intent.Kind {
 	case EditIntentKindReplace:
-		if intent.Replace == nil || strings.TrimSpace(intent.Replace.NewText) == "" {
-			return fmt.Errorf("edit intent: replace requires non-empty payload")
+		if intent.Replace == nil {
+			return fmt.Errorf("edit intent: replace requires payload")
+		}
+		if strings.TrimSpace(intent.Replace.NewText) == "" {
+			return fmt.Errorf(`edit intent: replace requires non-empty replace.newText (common mistake: putting "newText" inside replace.target; it must be a sibling of "target")`)
 		}
 		return validateTarget(intent.Replace.Target)
 	case EditIntentKindInsert:
-		if intent.Insert == nil || strings.TrimSpace(intent.Insert.Text) == "" {
-			return fmt.Errorf("edit intent: insert requires non-empty payload")
+		if intent.Insert == nil {
+			return fmt.Errorf("edit intent: insert requires payload")
+		}
+		if strings.TrimSpace(intent.Insert.Text) == "" {
+			return fmt.Errorf("edit intent: insert requires non-empty insert.text")
 		}
 		return validateTarget(intent.Insert.Target)
 	case EditIntentKindDelete:
@@ -180,6 +188,11 @@ func validateTarget(t EditTarget) error {
 	case EditTargetKindSymbolID:
 		if t.SymbolID == nil || strings.TrimSpace(t.SymbolID.ID) == "" {
 			return fmt.Errorf("edit target: symbol_id requires id")
+		}
+		// Fail closed: symbolId.id must be a real ID produced by gathered.symbols (v1|...).
+		// This prevents the planner from sending plain symbol names like "test" which cannot be resolved deterministically.
+		if _, err := symbols.ParseSymbolID(t.SymbolID.ID); err != nil {
+			return fmt.Errorf("edit target: symbol_id id must be taken from gathered.symbols.id (not a plain name): %v", err)
 		}
 	case EditTargetKindAnchor:
 		if t.Anchor == nil || strings.TrimSpace(t.Anchor.Before) == "" || strings.TrimSpace(t.Anchor.After) == "" {

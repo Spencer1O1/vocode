@@ -40,14 +40,37 @@ func (e *Executor) runOneAgentLoopIteration(
 		intentApplyHistory,
 		st.gathered,
 		hostCursor,
-		agentcontext.TurnLimits{MaxContextRounds: caps.MaxContextRounds},
+		agentcontext.TurnLimits{
+			MaxContextRounds:  caps.MaxContextRounds,
+			ContextRoundsUsed: st.contextRounds,
+		},
 	)
 
 	turn, err := e.agent.NextTurn(context.Background(), turnCtx)
 	if err != nil {
+		// Treat common "turn json:" structural errors as repairable and allow the planner to retry.
+		if st.maxRetries > 0 && strings.Contains(err.Error(), "turn json:") {
+			st.gathered = appendGatheredNote(
+				st.gathered,
+				fmt.Sprintf("model returned invalid turn JSON: %v; retry with corrected JSON shape (do not request more context unless absolutely necessary)", err),
+			)
+			st.maxRetries--
+			return advanceContinue, protocol.VoiceTranscriptCompletion{}, false, ""
+		}
 		return advanceContinue, protocol.VoiceTranscriptCompletion{Success: false}, true, fmt.Sprintf("model.NextTurn failed: %v", err)
 	}
 	if err := turn.Validate(); err != nil {
+		// Treat invalid turn JSON as a repairable planner failure when possible.
+		// This avoids aborting the entire transcript for common structural mistakes
+		// (e.g. wrong field nesting) and lets the planner retry within the retry budget.
+		if st.maxRetries > 0 {
+			st.gathered = appendGatheredNote(
+				st.gathered,
+				fmt.Sprintf("model returned invalid turn JSON: %v; retry with corrected JSON shape (do not request more context unless absolutely necessary)", err),
+			)
+			st.maxRetries--
+			return advanceContinue, protocol.VoiceTranscriptCompletion{}, false, ""
+		}
 		return advanceContinue, protocol.VoiceTranscriptCompletion{Success: false}, true, fmt.Sprintf("model returned invalid turn JSON: %v", err)
 	}
 
@@ -62,6 +85,20 @@ func (e *Executor) runOneAgentLoopIteration(
 		return advanceBreakLoop, protocol.VoiceTranscriptCompletion{}, false, ""
 
 	case agent.TurnGatherContext:
+		// Hard stop: once the cap is reached, do not allow further request_context turns.
+		// Treat it as a repairable planner mistake and force the model to emit best-effort intents instead.
+		if caps.MaxContextRounds > 0 && st.contextRounds >= caps.MaxContextRounds {
+			if st.maxRetries > 0 {
+				st.gathered = appendGatheredNote(
+					st.gathered,
+					fmt.Sprintf("request_context is not allowed because maxContextRounds=%d has already been reached (contextRoundsUsed=%d). Emit kind:\"intents\" using the existing gathered excerpts/symbols; do not request more context.", caps.MaxContextRounds, st.contextRounds),
+				)
+				st.maxRetries--
+				return advanceContinue, protocol.VoiceTranscriptCompletion{}, false, ""
+			}
+			return advanceContinue, protocol.VoiceTranscriptCompletion{Success: false}, true, fmt.Sprintf("maxContextRounds exceeded: %d > %d", st.contextRounds+1, caps.MaxContextRounds)
+		}
+
 		st.contextRounds++
 		st.consecutiveContextReq++
 		if caps.MaxContextRounds > 0 && st.contextRounds > caps.MaxContextRounds {

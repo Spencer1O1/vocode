@@ -72,6 +72,37 @@ export async function dispatchEditResultWorkspaceEdit(
         selectionStart: startPos,
         selectionEnd: startPos,
       });
+    } else if (action.kind === "replace_range") {
+      const uri = vscode.Uri.file(actionPath);
+      const startPos = new vscode.Position(
+        action.range.startLine,
+        action.range.startChar,
+      );
+      const endPos = new vscode.Position(
+        action.range.endLine,
+        action.range.endChar,
+      );
+      wsEdit.replace(uri, new vscode.Range(startPos, endPos), action.newText);
+      appliedEdits.push({
+        editId: action.editId,
+        path: actionPath,
+        selectionStart: startPos,
+        selectionEnd: startPos,
+      });
+    } else if (action.kind === "replace_file") {
+      const uri = vscode.Uri.file(actionPath);
+      const fullRange = new vscode.Range(
+        new vscode.Position(0, 0),
+        // Use a large range to cover the entire document; VS Code will clamp it.
+        new vscode.Position(Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER),
+      );
+      wsEdit.replace(uri, fullRange, action.content);
+      appliedEdits.push({
+        editId: action.editId,
+        path: actionPath,
+        selectionStart: new vscode.Position(0, 0),
+        selectionEnd: new vscode.Position(0, 0),
+      });
     } else if (action.kind === "create_file") {
       const uri = vscode.Uri.file(actionPath);
       wsEdit.createFile(uri, { overwrite: true, ignoreIfExists: false });

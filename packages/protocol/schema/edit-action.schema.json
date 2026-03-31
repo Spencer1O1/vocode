@@ -7,6 +7,12 @@
       "$ref": "./edit-action.replace-between-anchors.schema.json"
     },
     {
+      "$ref": "./edit-action.replace-range.schema.json"
+    },
+    {
+      "$ref": "./edit-action.replace-file.schema.json"
+    },
+    {
       "$ref": "./edit-action.create-file.schema.json"
     },
     {

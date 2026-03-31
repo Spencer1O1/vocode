@@ -36,7 +36,34 @@ func (b *ActionBuilder) BuildActions(ctx EditExecutionContext, editIntent intent
 		return []protocol.EditAction{replaceActionToEditAction(action)}, nil
 	case intents.EditIntentKindReplace:
 		target := editIntent.Replace.Target
-		if target.Kind == intents.EditTargetKindAnchor {
+		// Direct range target: build a replace_range action from the supplied coordinates.
+		if target.Kind == intents.EditTargetKindRange && target.Range != nil {
+			path := ctx.ResolvePath(strings.TrimSpace(target.Range.Path))
+			if path == "" || path == "." {
+				path = ctx.ActiveFile
+			}
+			action := protocol.EditAction{
+				Kind: "replace_range",
+				Path: path,
+				Range: &struct {
+					StartLine int64 `json:"startLine"`
+					StartChar int64 `json:"startChar"`
+					EndLine   int64 `json:"endLine"`
+					EndChar   int64 `json:"endChar"`
+				}{
+					StartLine: int64(target.Range.StartLine),
+					StartChar: int64(target.Range.StartChar),
+					EndLine:   int64(target.Range.EndLine),
+					EndChar:   int64(target.Range.EndChar),
+				},
+				NewText: editIntent.Replace.NewText,
+			}
+			return []protocol.EditAction{action}, nil
+		}
+
+		// Anchor-based target: keep existing replace_between_anchors behavior (used by legacy
+		// symbol-scoped and function-body replacements).
+		if target.Kind == intents.EditTargetKindAnchor && target.Anchor != nil {
 			path := ctx.ActiveFile
 			if p := strings.TrimSpace(target.Anchor.Path); p != "" {
 				path = ctx.ResolvePath(p)
@@ -57,6 +84,25 @@ func (b *ActionBuilder) BuildActions(ctx EditExecutionContext, editIntent intent
 			}
 			return []protocol.EditAction{replaceActionToEditAction(action)}, nil
 		}
+
+		// Nuclear option: current_file target becomes ReplaceFileAction with no ambiguity.
+		if target.Kind == intents.EditTargetKindCurrentFile {
+			path := ctx.ActiveFile
+			if path == "" || path == "." {
+				return nil, &EditBuildFailure{
+					Code:    "unsupported_instruction",
+					Message: "No active file available for current_file replace.",
+				}
+			}
+			action := protocol.EditAction{
+				Kind:    "replace_file",
+				Path:    path,
+				Content: editIntent.Replace.NewText,
+			}
+			return []protocol.EditAction{action}, nil
+		}
+
+		// Fallback to legacy behavior for other cases (e.g. cursor-based function body replace).
 		action, failure := b.buildReplaceCurrentFunctionBodyAction(ctx, editIntent)
 		if failure != nil {
 			return nil, failure

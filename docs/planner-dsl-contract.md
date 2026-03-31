@@ -321,7 +321,7 @@ These patterns should be backed by:
    - Do not show `current_file` full‑file replaces as the “normal” path.
 
 3. **Make navigation and gather tooling‑failures soft**:
-   - Confirm that rg / tree‑sitter failures result in empty results + notes, not transcript aborts.
+   - Confirm that rg / tree‑sitter failures result in empty results + notes, not transcript aborts. (Implemented: `gather.FulfillSpec` now treats symbol resolver / rg failures as notes in `gathered.notes`, and `TreeSitterResolver.candidateFiles` returns an empty slice on rg failure.)
 
 4. **Expand repair examples in `System()`**:
    - For ambiguous target, invalid command, invalid path, etc., add:
@@ -337,6 +337,35 @@ These patterns should be backed by:
    - Verify:
      - No unexpected validator/dispatch failures for allowed shapes,
      - Repair steps follow the DSL guidance instead of spamming `request_context`.
+
+---
+
+### 8. Current Protocol Edit Actions
+
+The protocol currently exposes the following edit actions (see `packages/protocol/schema/edit-action*.schema.json`):
+
+- Primary range / file actions:
+  - `replace_between_anchors`
+  - `replace_range`
+  - `replace_file` (nuclear)
+- File-level helpers:
+  - `create_file`
+  - `append_to_file`
+
+The planner DSL examples in `System()` emphasize:
+
+- `replace` intents that map to:
+  - `replace_range` for explicit `target.kind:"range"` coordinates.
+  - `replace_between_anchors` for function-body or import-block edits that truly need anchors.
+- A `current_file` + `replace` nuclear option that maps to `replace_file` and is only used when the user clearly asks to rewrite an entire file.
+
+Extension and daemon mappings are now aligned with this contract:
+
+- VS Code extension `dispatchEditResultWorkspaceEdit` applies `replace_range` using `WorkspaceEdit.replace` on the specified span, and `replace_file` by replacing the full document contents.
+- Daemon `ActionBuilder.BuildActions`:
+  - Emits `replace_range` for `EditIntent` targets of kind `range`.
+  - Emits `replace_file` for `EditIntent` targets of kind `current_file` (nuclear option).
+  - Keeps `replace_between_anchors` for anchor-based and legacy function-body replacements.
 
 This document is the working checklist for making the planner DSL “what you see is what you get”: intuitive from the outside, and accepted 100% of the time by our internals whenever the referenced entities exist.
 

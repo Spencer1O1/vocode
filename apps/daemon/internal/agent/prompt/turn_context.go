@@ -54,6 +54,8 @@ Top-level union (exactly one variant per response):
   - The daemon enforces maxContextRounds (see limits above). If you keep asking for more context without making executable progress, the entire transcript will fail.
   - Prefer using the existing gathered excerpts and symbols when they are already sufficient; only request more context when you truly cannot answer correctly with what you have.
   - In typical cases you should need **at most one** request_context turn before emitting intents. A second request_context turn is only appropriate when a previous gather clearly failed to return what you asked for, or when you are explicitly resolving a prior failure.
+  - You receive limits.contextRoundsUsed in the user JSON; when this is >= 1, you should almost always emit a best-effort kind:"intents" response instead of requesting more context again.
+  - If limits.maxContextRounds is non-zero and limits.contextRoundsUsed is already equal to or greater than it, you must NOT emit request_context again; emit best-effort intents.
 
   {"kind":"request_context","requestContext":{"kind":"request_symbols","query":"rename foo","maxResult":10}}
 
@@ -63,8 +65,8 @@ Top-level union (exactly one variant per response):
     "kind":"intents",
     "intents":[
       {"kind":"navigate","navigate":{"kind":"open_file","openFile":{"path":"apps/daemon/internal/agent/turn_result.go"}}},
-      {"kind":"edit","edit":{"kind":"replace","replace":{"target":{"kind":"current_file","currentFile":{}},"newText":"replacement Go code for the current file region"}}},
-      {"kind":"command","command":{"command":"vscode.executeCommand","args":["workbench.action.files.save"]}}
+      {"kind":"edit","edit":{"kind":"replace","replace":{"target":{"kind":"range","range":{"path":"apps/daemon/internal/agent/turn_result.go","startLine":0,"startChar":0,"endLine":1,"endChar":0}},"newText":"replacement code for that exact range"}}},
+      {"kind":"command","command":{"command":"cmd.exe","args":["/c","echo","hello from vocode"]}}
     ]
   }
 
@@ -80,6 +82,9 @@ Allowed requestContext kinds (for kind:"request_context"):
       "maxResult":20
     }
   }
+
+  When the active file excerpt in gathered.excerpts already contains the named function you need to edit (for example a "function test()" definition in the current file), do not request_symbols just to find it again. Instead, emit a replace edit using a range target that covers that function, or use symbol_id when you already have an id from gathered.symbols.
+  IMPORTANT: when using a range to replace a function, the range MUST include the entire function definition (the "function name(...)" line AND the closing "}" brace). If you only replace the inner lines, you will leave the old function signature and create duplicate nested functions.
 
 - request_file_excerpt: ask for more file contents around a path.
 
@@ -98,7 +103,7 @@ Allowed requestContext kinds (for kind:"request_context"):
     "kind":"request_context",
     "requestContext":{
       "kind":"request_usages",
-      "symbolId":"symbol-id-from-gathered.symbols",
+      "symbolId":"v1|...|...|...|...",
       "maxResult":20
     }
   }
@@ -167,13 +172,36 @@ Allowed intent kinds (for kind:"intents"):
       "kind":"replace",
       "replace":{
         "target":{
-          "kind":"symbol_id",
-          "symbolId":{"id":"symbol-id-from-gathered.symbols"}
+          "kind":"range",
+          "range":{"path":"optional/file/path.js","startLine":0,"startChar":0,"endLine":5,"endChar":0}
         },
         "newText":"function thing(name) { console.log(\"hello from \" + name); }"
       }
     }
   }
+
+  IMPORTANT:
+  - In a replace edit, "newText" is a field on the replace payload (a sibling of "target"). Never put "newText" inside the target object.
+  - The "target" object must contain only the fields for that target kind (kind + currentFile/currentCursor/currentSelection/symbolId/anchor/range). Never include "newText" or other edit fields inside target.
+  - For target.kind:"symbol_id", symbolId.id must be copied exactly from gathered.symbols[].id (it is not the same as the symbol name).
+  - symbolId.id values always start with "v1|" and look like "v1|...|...|...|...". NEVER guess or invent them.
+  - NEVER copy placeholder strings from examples (like "v1|...|...|...|...") into a real intent. Use a real id from gathered.symbols.
+  - If gathered.symbols is empty or does not include the symbol you need, DO NOT use target.kind:"symbol_id". Use target.kind:"range" instead.
+
+  In very rare cases where the user explicitly asks you to rewrite the entire current file from scratch, you may use a nuclear full-file replace:
+
+  {
+    "kind":"edit",
+    "edit":{
+      "kind":"replace",
+      "replace":{
+        "target":{"kind":"current_file","currentFile":{}},
+        "newText":"entire new file contents here"
+      }
+    }
+  }
+
+  Only use this when the user clearly wants a complete rewrite; otherwise prefer symbol_id or range targets.
 
   Examples of other edit kinds:
 
@@ -211,6 +239,8 @@ Allowed intent kinds (for kind:"intents"):
       }
     }
   }
+
+  IMPORTANT: All range and cursor coordinates are 0-based: first line is startLine=0, first column is startChar=0.
 
   {
     "kind":"edit",
@@ -306,7 +336,8 @@ func UserJSON(in agentcontext.TurnContext) ([]byte, error) {
 		AttemptHistory: attemptHistoryToWire(in),
 		Gathered:       gatheredToWire(in.Gathered),
 		Limits: promptLimitsPayload{
-			MaxContextRounds: in.Limits.MaxContextRounds,
+			MaxContextRounds:  in.Limits.MaxContextRounds,
+			ContextRoundsUsed: in.Limits.ContextRoundsUsed,
 		},
 	}
 	if in.Editor.CursorSymbol != nil {
@@ -328,7 +359,8 @@ type turnPromptPayload struct {
 }
 
 type promptLimitsPayload struct {
-	MaxContextRounds int `json:"maxContextRounds"`
+	MaxContextRounds  int `json:"maxContextRounds"`
+	ContextRoundsUsed int `json:"contextRoundsUsed"`
 }
 
 type editorPayload struct {

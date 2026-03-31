@@ -60,7 +60,8 @@ func FulfillSpec(
 		root := workspace.EffectiveWorkspaceRoot(params.WorkspaceRoot, params.ActiveFile)
 		matches, err := p.symbols.ResolveSymbol(root, query, "", strings.TrimSpace(params.ActiveFile))
 		if err != nil {
-			return out, err
+			out.Notes = append(out.Notes, fmt.Sprintf("gather symbols failed: %v", err))
+			return out, nil
 		}
 		limit := clampContextMax(spec.MaxResult, 10)
 		if out.Symbols == nil {
@@ -113,6 +114,7 @@ func FulfillSpec(
 		var stdout bytes.Buffer
 		cmd.Stdout = &stdout
 		if err := cmd.Run(); err != nil && stdout.Len() == 0 {
+			out.Notes = append(out.Notes, fmt.Sprintf("gather usages failed: %v", err))
 			return out, nil
 		}
 		sc := bufio.NewScanner(bytes.NewReader(stdout.Bytes()))

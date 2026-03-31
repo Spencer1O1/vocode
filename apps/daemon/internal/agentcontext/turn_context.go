@@ -19,5 +19,6 @@ type TurnContext struct {
 // TurnLimits are per-transcript caps the planner should respect.
 // These values come from the daemon's effective execution caps (env defaults overridden by voice.transcript daemonConfig).
 type TurnLimits struct {
-	MaxContextRounds int `json:"maxContextRounds"`
+	MaxContextRounds  int `json:"maxContextRounds"`
+	ContextRoundsUsed int `json:"contextRoundsUsed"`
 }
