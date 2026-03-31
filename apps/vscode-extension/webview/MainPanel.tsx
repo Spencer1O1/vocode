@@ -108,6 +108,41 @@ function ApplyStepRow({
   );
 }
 
+function DirectiveChecklist({
+  items,
+}: {
+  items: readonly {
+    id: string;
+    label: string;
+    state: DirectiveApplyChecklistRowState;
+    message?: string;
+  }[];
+}) {
+  return (
+    <>
+      <h2 className="apply-steps-subhead">Directives</h2>
+      <div
+        className="apply-steps apply-steps-directives"
+        role="list"
+        aria-label="Directives to apply"
+      >
+        {items.map((item) => (
+          <ApplyStepRow
+            key={item.id}
+            label={item.label}
+            visual={checklistRowVisual(item.state)}
+            title={
+              item.message !== undefined && item.message.length > 0
+                ? item.message
+                : undefined
+            }
+          />
+        ))}
+      </div>
+    </>
+  );
+}
+
 function CompactQueuedCard({ p }: { p: PendingRow }) {
   return (
     <div className={`card pending-compact pending ${p.status}`}>
@@ -151,27 +186,7 @@ function ApplyingSection({ pending }: { pending: readonly PendingRow[] }) {
             </div>
             {primary.applyChecklist !== undefined &&
             primary.applyChecklist.length > 0 ? (
-              <>
-                <h2 className="apply-steps-subhead">Directives</h2>
-                <div
-                  className="apply-steps apply-steps-directives"
-                  role="list"
-                  aria-label="Directives to apply"
-                >
-                  {primary.applyChecklist.map((item) => (
-                    <ApplyStepRow
-                      key={item.id}
-                      label={item.label}
-                      visual={checklistRowVisual(item.state)}
-                      title={
-                        item.message !== undefined && item.message.length > 0
-                          ? item.message
-                          : undefined
-                      }
-                    />
-                  ))}
-                </div>
-              </>
+              <DirectiveChecklist items={primary.applyChecklist} />
             ) : null}
           </div>
           {queuedRest.map((p) => (
@@ -223,6 +238,9 @@ function HistoryCard({ h }: { h: HandledRow }) {
       ) : (
         <div className="text">{h.text}</div>
       )}
+      {h.applyChecklist !== undefined && h.applyChecklist.length > 0 ? (
+        <DirectiveChecklist items={h.applyChecklist} />
+      ) : null}
     </div>
   );
 }
