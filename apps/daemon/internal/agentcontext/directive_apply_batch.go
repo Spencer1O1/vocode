@@ -9,7 +9,7 @@ import (
 )
 
 // DirectiveApplyBatch is one batch of directives the daemon returned and the host must apply.
-// Wire: [protocol.VoiceTranscriptResult.applyBatchId] matches [protocol.VoiceTranscriptParams.reportApplyBatchId];
+// Wire: [protocol.HostApplyParams.applyBatchId] matches [protocol.VoiceTranscriptParams.reportApplyBatchId];
 // [protocol.VoiceTranscriptParams.lastBatchApply] is parallel to [SourceIntents] and to result.directives.
 type DirectiveApplyBatch struct {
 	ID            string

@@ -1,4 +1,4 @@
-import type { VoiceTranscriptResult } from "@vocode/protocol";
+import type { VoiceTranscriptDirective } from "@vocode/protocol";
 
 import { dispatchTranscript } from "../directives/dispatch";
 import {
@@ -23,23 +23,19 @@ export type ApplyTranscriptProgressEvent = {
   outcome?: DirectiveApplyOutcome;
 };
 
-export async function applyTranscriptResult(
-  result: VoiceTranscriptResult,
+export async function applyDirectives(
+  directives: readonly VoiceTranscriptDirective[],
   activeDocumentPath: string,
   options?: {
     onProgress?: (event: ApplyTranscriptProgressEvent) => void;
   },
 ): Promise<DirectiveApplyOutcome[]> {
-  if (!result.success) {
-    return [];
-  }
-
   const ctx: TranscriptApplyContext = {
     activeDocumentPath,
     editLocations: {},
   };
 
-  const dirs = result.directives ?? [];
+  const dirs = directives ?? [];
   const outcomes: DirectiveApplyOutcome[] = [];
   beginTranscriptUndoSession();
   try {

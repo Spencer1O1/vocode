@@ -242,24 +242,6 @@ export function isVoiceTranscriptDirective(
   return false;
 }
 
-function isVoiceTranscriptResultApplyBatchIdField(
-  value: Record<string, unknown>,
-): boolean {
-  const idRaw = value.applyBatchId;
-  if (idRaw !== undefined && typeof idRaw !== "string") {
-    return false;
-  }
-  if (value.success !== true) {
-    return idRaw === undefined;
-  }
-  const batchID = typeof idRaw === "string" ? idRaw.trim() : "";
-  const dirs = value.directives;
-  if (Array.isArray(dirs) && dirs.length > 0) {
-    return batchID !== "";
-  }
-  return batchID === "";
-}
-
 export function isVoiceTranscriptResult(
   value: unknown,
 ): value is VoiceTranscriptResult {
@@ -268,9 +250,7 @@ export function isVoiceTranscriptResult(
   }
   const allowedKeys = new Set([
     "success",
-    "directives",
     "summary",
-    "applyBatchId",
     "transcriptOutcome",
   ]);
   if (!Object.keys(value).every((k) => allowedKeys.has(k))) {
@@ -283,17 +263,6 @@ export function isVoiceTranscriptResult(
     if ([...value.summary].length > 8192) {
       return false;
     }
-  }
-  if (value.directives !== undefined) {
-    if (!Array.isArray(value.directives)) {
-      return false;
-    }
-    if (!value.directives.every(isVoiceTranscriptDirective)) {
-      return false;
-    }
-  }
-  if (value.success !== true && value.directives !== undefined) {
-    return false;
   }
   if (value.success !== true && value.summary !== undefined) {
     return false;
@@ -309,5 +278,5 @@ export function isVoiceTranscriptResult(
       return false;
     }
   }
-  return isVoiceTranscriptResultApplyBatchIdField(value);
+  return true;
 }

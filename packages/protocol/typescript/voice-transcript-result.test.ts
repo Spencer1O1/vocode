@@ -62,116 +62,12 @@ test("isVoiceTranscriptResult rejects extra keys", () => {
   );
 });
 
-test("isVoiceTranscriptResult accepts directives with edit directive success", () => {
-  assert.equal(
-    isVoiceTranscriptResult({
-      success: true,
-      directives: [
-        {
-          kind: "edit",
-          editDirective: {
-            kind: "success",
-            actions: [
-              {
-                kind: "replace_between_anchors",
-                path: "/tmp/x.ts",
-                anchor: { before: "a", after: "b" },
-                newText: "\n",
-              },
-            ],
-          },
-        },
-      ],
-      applyBatchId: "abc123",
-    }),
-    true,
-  );
-});
-
-test("isVoiceTranscriptResult rejects directives without applyBatchId", () => {
-  assert.equal(
-    isVoiceTranscriptResult({
-      success: true,
-      directives: [
-        {
-          kind: "command",
-          commandDirective: { command: "echo", args: ["stub"] },
-        },
-      ],
-    }),
-    false,
-  );
-});
-
 test("isVoiceTranscriptResult rejects extra keys (unexpected property)", () => {
   assert.equal(
     isVoiceTranscriptResult({
       success: true,
       unexpected: "bad",
-      directives: [
-        {
-          kind: "command",
-          commandDirective: { command: "echo", args: ["stub"] },
-        },
-      ],
-      applyBatchId: "x",
     }),
     false,
-  );
-});
-
-test("isVoiceTranscriptResult accepts undo directive", () => {
-  assert.equal(
-    isVoiceTranscriptResult({
-      success: true,
-      directives: [
-        {
-          kind: "undo",
-          undoDirective: { scope: "last_transcript" },
-        },
-      ],
-      applyBatchId: "batch-1",
-    }),
-    true,
-  );
-});
-
-test("isVoiceTranscriptResult accepts multi-directive batch with shared applyBatchId", () => {
-  assert.equal(
-    isVoiceTranscriptResult({
-      success: true,
-      directives: [
-        {
-          kind: "command",
-          commandDirective: { command: "echo", args: ["a"] },
-        },
-        {
-          kind: "command",
-          commandDirective: { command: "echo", args: ["b"] },
-        },
-        {
-          kind: "command",
-          commandDirective: { command: "echo", args: ["c"] },
-        },
-      ],
-      applyBatchId: "multi-batch-1",
-    }),
-    true,
-  );
-});
-
-/** Mirrors batch-intents Phase 6: large batch still validates with one applyBatchId. */
-test("isVoiceTranscriptResult accepts seven-directive command batch with shared applyBatchId", () => {
-  const directives = Array.from({ length: 7 }, (_, i) => ({
-    kind: "command" as const,
-    commandDirective: { command: "echo", args: [String(i)] },
-  }));
-  assert.equal(
-    isVoiceTranscriptResult({
-      success: true,
-      directives,
-      applyBatchId: "phase6-seven",
-    }),
-    true,
   );
 });

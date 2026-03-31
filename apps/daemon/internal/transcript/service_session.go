@@ -75,7 +75,7 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 			maxGatheredExcerpts,
 		)
 
-		res, g1, pending, ok := s.executor.Execute(params, vs.Gathered, vs.IntentApplyHistory, extSucc, extFail, extSkipped)
+		res, dirs, g1, pending, ok := s.executor.Execute(params, vs.Gathered, vs.IntentApplyHistory, extSucc, extFail, extSkipped)
 		vs.Gathered = g1
 		if strings.TrimSpace(key) != "" {
 			vs.Gathered = agentcontext.ApplyGatheredRollingCap(vs.Gathered, activeFile, maxGatheredBytes, maxGatheredExcerpts)
@@ -91,7 +91,7 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 			return protocol.VoiceTranscriptResult{Success: false}, false
 		}
 
-		if !res.Success || len(res.Directives) == 0 {
+		if !res.Success || len(dirs) == 0 {
 			vs.PendingDirectiveApply = nil
 			// Persist before returning.
 			if strings.TrimSpace(key) == "" {
@@ -119,7 +119,7 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 		hostRes, err := s.hostApplyClient.ApplyDirectives(protocol.HostApplyParams{
 			ApplyBatchId: pending.ID,
 			ActiveFile:   params.ActiveFile,
-			Directives:   res.Directives,
+			Directives:   dirs,
 		})
 		if err != nil {
 			vs.PendingDirectiveApply = nil

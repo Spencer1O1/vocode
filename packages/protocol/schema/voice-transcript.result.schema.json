@@ -14,16 +14,6 @@
       "description": "Human-readable summary when the agent ends the loop (control_done); for host UI.",
       "maxLength": 8192
     },
-    "directives": {
-      "type": "array",
-      "items": {
-        "$ref": "./voice-transcript.directive.schema.json"
-      }
-    },
-    "applyBatchId": {
-      "type": "string",
-      "description": "Correlates host apply reports with daemon-held intents; present when success is true and directives is non-empty."
-    },
     "transcriptOutcome": {
       "type": "string",
       "enum": ["irrelevant", "completed"],

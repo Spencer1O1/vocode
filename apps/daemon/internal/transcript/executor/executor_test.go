@@ -56,9 +56,9 @@ func TestExecuteIrrelevant(t *testing.T) {
 		{Kind: agent.TurnIrrelevant, IrrelevantReason: "not a coding request"},
 	}})
 	params := protocol.VoiceTranscriptParams{Text: "hello weather"}
-	res, _, pending, ok := ex.Execute(params, agentcontext.Gathered{}, nil, nil, nil, nil)
-	if !ok || !res.Success || len(res.Directives) != 0 || pending != nil {
-		t.Fatalf("got ok=%v success=%v dirs=%d pending=%v", ok, res.Success, len(res.Directives), pending)
+	res, dirs, _, pending, ok := ex.Execute(params, agentcontext.Gathered{}, nil, nil, nil, nil)
+	if !ok || !res.Success || len(dirs) != 0 || pending != nil {
+		t.Fatalf("got ok=%v success=%v dirs=%d pending=%v", ok, res.Success, len(dirs), pending)
 	}
 	if res.Summary != "not a coding request" {
 		t.Fatalf("summary %q", res.Summary)
@@ -74,8 +74,8 @@ func TestExecuteDone(t *testing.T) {
 		{Kind: agent.TurnFinish, FinishSummary: "all set"},
 	}})
 	params := protocol.VoiceTranscriptParams{Text: "thanks"}
-	res, _, pending, ok := ex.Execute(params, agentcontext.Gathered{}, nil, nil, nil, nil)
-	if !ok || !res.Success || len(res.Directives) != 0 || pending != nil {
+	res, dirs, _, pending, ok := ex.Execute(params, agentcontext.Gathered{}, nil, nil, nil, nil)
+	if !ok || !res.Success || len(dirs) != 0 || pending != nil {
 		t.Fatalf("got %+v", res)
 	}
 	if res.Summary != "all set" {
@@ -106,12 +106,12 @@ func TestExecuteGatherContextThenCommand(t *testing.T) {
 		}},
 	}})
 	params := protocol.VoiceTranscriptParams{Text: "run echo", WorkspaceRoot: dir}
-	res, _, pending, ok := ex.Execute(params, agentcontext.Gathered{}, nil, nil, nil, nil)
-	if !ok || !res.Success || len(res.Directives) != 1 || pending == nil {
-		t.Fatalf("ok=%v success=%v dirs=%d pending=%v", ok, res.Success, len(res.Directives), pending != nil)
+	res, dirs, _, pending, ok := ex.Execute(params, agentcontext.Gathered{}, nil, nil, nil, nil)
+	if !ok || !res.Success || len(dirs) != 1 || pending == nil {
+		t.Fatalf("ok=%v success=%v dirs=%d pending=%v", ok, res.Success, len(dirs), pending != nil)
 	}
-	if res.Directives[0].Kind != "command" {
-		t.Fatalf("kind %q", res.Directives[0].Kind)
+	if dirs[0].Kind != "command" {
+		t.Fatalf("kind %q", dirs[0].Kind)
 	}
 }
 
@@ -130,9 +130,9 @@ func TestExecuteMultiExecutableBatch(t *testing.T) {
 		}},
 	}})
 	params := protocol.VoiceTranscriptParams{Text: "twice", WorkspaceRoot: t.TempDir()}
-	res, _, pending, ok := ex.Execute(params, agentcontext.Gathered{}, nil, nil, nil, nil)
-	if !ok || !res.Success || len(res.Directives) != 2 || pending == nil {
-		t.Fatalf("ok=%v success=%v dirs=%d pending=%v", ok, res.Success, len(res.Directives), pending != nil)
+	res, dirs, _, pending, ok := ex.Execute(params, agentcontext.Gathered{}, nil, nil, nil, nil)
+	if !ok || !res.Success || len(dirs) != 2 || pending == nil {
+		t.Fatalf("ok=%v success=%v dirs=%d pending=%v", ok, res.Success, len(dirs), pending != nil)
 	}
 }
 
@@ -154,12 +154,12 @@ func TestExecuteRetryAfterDispatchFailure(t *testing.T) {
 	}})
 	// First command fails daemon allowlist; second succeeds after retry.
 	params := protocol.VoiceTranscriptParams{Text: "fix it", WorkspaceRoot: t.TempDir()}
-	res, _, pending, ok := ex.Execute(params, agentcontext.Gathered{}, nil, nil, nil, nil)
-	if !ok || !res.Success || len(res.Directives) != 1 {
-		t.Fatalf("ok=%v success=%v dirs=%d", ok, res.Success, len(res.Directives))
+	res, dirs, _, pending, ok := ex.Execute(params, agentcontext.Gathered{}, nil, nil, nil, nil)
+	if !ok || !res.Success || len(dirs) != 1 {
+		t.Fatalf("ok=%v success=%v dirs=%d", ok, res.Success, len(dirs))
 	}
-	if res.Directives[0].Kind != "command" {
-		t.Fatalf("expected command after retry, got %q", res.Directives[0].Kind)
+	if dirs[0].Kind != "command" {
+		t.Fatalf("expected command after retry, got %q", dirs[0].Kind)
 	}
 	if pending == nil {
 		t.Fatal("expected pending batch")

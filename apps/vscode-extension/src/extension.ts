@@ -2,7 +2,6 @@ import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import type {
   HostApplyParams,
   HostApplyResult,
-  VoiceTranscriptResult,
 } from "@vocode/protocol";
 import * as vscode from "vscode";
 
@@ -15,7 +14,7 @@ import { ELEVENLABS_API_KEY_SECRET } from "./config/spawn-env";
 import { DaemonClient } from "./daemon/client";
 import { spawnDaemon } from "./daemon/spawn";
 import { attachTranscriptPipeline } from "./extension/transcript-pipeline";
-import { applyTranscriptResult } from "./transcript/apply-result";
+import { applyDirectives } from "./transcript/apply-result";
 import { directiveApplyLabel } from "./transcript/directive-label";
 import { MainPanelViewProvider, mainPanelViewType } from "./ui/main-panel";
 import { MainPanelStore } from "./ui/main-panel-store";
@@ -65,11 +64,6 @@ async function wireVocodeBackend(
           );
         }
 
-        const voiceResult: VoiceTranscriptResult = {
-          success: true,
-          directives: params.directives,
-        };
-
         const panelStore = services.mainPanelStore;
         const pendingId = panelStore.activeVoiceTranscriptRpcPendingId();
         const checklistBase =
@@ -83,8 +77,8 @@ async function wireVocodeBackend(
           panelStore.appendDirectiveApplyChecklist(pendingId, labels);
         }
 
-        const outcomes = await applyTranscriptResult(
-          voiceResult,
+        const outcomes = await applyDirectives(
+          params.directives,
           params.activeFile,
           pendingId !== undefined
             ? {
