@@ -1,5 +1,4 @@
 import path from "node:path";
-
 import type {
   EditAction,
   NavigationAction,
@@ -7,12 +6,22 @@ import type {
   VoiceTranscriptDirective,
 } from "@vocode/protocol";
 
-function firstEditPath(editDirective: VoiceTranscriptDirective["editDirective"]): string | undefined {
-  if (!editDirective || editDirective.kind !== "success" || !editDirective.actions?.length) {
+function firstEditPath(
+  editDirective: VoiceTranscriptDirective["editDirective"],
+): string | undefined {
+  if (
+    !editDirective ||
+    editDirective.kind !== "success" ||
+    !editDirective.actions?.length
+  ) {
     return undefined;
   }
   const a = editDirective.actions[0] as EditAction;
-  if (a.kind === "replace_between_anchors" || a.kind === "create_file" || a.kind === "append_to_file") {
+  if (
+    a.kind === "replace_between_anchors" ||
+    a.kind === "create_file" ||
+    a.kind === "append_to_file"
+  ) {
     return a.path;
   }
   return undefined;
@@ -45,7 +54,10 @@ function navigationSummary(nav: NavigationDirective | undefined): string {
 /**
  * Short host-facing label for sidebar checklist (one line per directive).
  */
-export function directiveApplyLabel(d: VoiceTranscriptDirective, index: number): string {
+export function directiveApplyLabel(
+  d: VoiceTranscriptDirective,
+  index: number,
+): string {
   const n = index + 1;
   switch (d.kind) {
     case "command": {

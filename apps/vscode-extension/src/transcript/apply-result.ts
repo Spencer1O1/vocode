@@ -60,7 +60,11 @@ export async function applyTranscriptResult(
             message: "not attempted",
           };
           outcomes.push(skipped);
-          options?.onProgress?.({ index: j, phase: "complete", outcome: skipped });
+          options?.onProgress?.({
+            index: j,
+            phase: "complete",
+            outcome: skipped,
+          });
         }
         return outcomes;
       }

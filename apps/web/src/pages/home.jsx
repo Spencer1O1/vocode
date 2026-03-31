@@ -307,9 +307,7 @@ function HomePage() {
                       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#007acc] text-[0.85rem] font-bold text-white">
                         {i + 1}
                       </span>
-                      <span
-                        className={`pt-0.5 text-neutral-300 ${stepKbd}`}
-                      >
+                      <span className={`pt-0.5 text-neutral-300 ${stepKbd}`}>
                         {step.content}
                       </span>
                     </li>
@@ -323,9 +321,7 @@ function HomePage() {
                     </code>
                   </p>
                 ) : (
-                  <p className="mt-5 text-sm text-neutral-400">
-                    coming soon
-                  </p>
+                  <p className="mt-5 text-sm text-neutral-400">coming soon</p>
                 )}
               </div>
             );

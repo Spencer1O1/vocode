@@ -89,11 +89,19 @@ func findSingleFunctionBlock(fileText string) (*lineBlock, *EditBuildFailure) {
 
 	switch len(candidates) {
 	case 0:
-		return nil, &EditBuildFailure{Code: "missing_anchor", Message: "Could not find a supported current function in the active file."}
+		return nil, &EditBuildFailure{
+			Code: "missing_anchor",
+			Message: "Could not find a supported function to treat as the current function in the active file. " +
+				"Fix: move the cursor inside the intended function, or target a symbol_id, or use an anchor/range target.",
+		}
 	case 1:
 		return &candidates[0], nil
 	default:
-		return nil, &EditBuildFailure{Code: "ambiguous_target", Message: "The active file contains multiple candidate functions; current function was ambiguous."}
+		return nil, &EditBuildFailure{
+			Code: "ambiguous_target",
+			Message: "The active file contains multiple candidate functions, so the current function is ambiguous. " +
+				"Fix: target a specific symbol_id (with a name), or use an anchor/range target.",
+		}
 	}
 }
 
@@ -129,11 +137,23 @@ func findNamedFunctionBlock(fileText, functionName string) (*lineBlock, *EditBui
 
 	switch len(candidates) {
 	case 0:
-		return nil, &EditBuildFailure{Code: "missing_anchor", Message: fmt.Sprintf("Could not find function %q.", functionName)}
+		return nil, &EditBuildFailure{
+			Code: "missing_anchor",
+			Message: fmt.Sprintf(
+				"Could not find function %q in the target file. Fix: verify the exact function name, or target a symbol_id, or use an anchor/range target.",
+				functionName,
+			),
+		}
 	case 1:
 		return &candidates[0], nil
 	default:
-		return nil, &EditBuildFailure{Code: "ambiguous_target", Message: fmt.Sprintf("Function %q was ambiguous.", functionName)}
+		return nil, &EditBuildFailure{
+			Code: "ambiguous_target",
+			Message: fmt.Sprintf(
+				"Function %q matched multiple candidate locations. Fix: disambiguate with a symbol_id that includes a stable id, or use an anchor/range target.",
+				functionName,
+			),
+		}
 	}
 }
 

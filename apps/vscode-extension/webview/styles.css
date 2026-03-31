@@ -674,8 +674,14 @@ h1 {
   box-sizing: border-box;
 }
 .apply-step-done .apply-step-mark {
-  border-color: var(--vscode-testing-iconPassed, var(--vscode-notebookStatusSuccessIcon-foreground));
-  background: var(--vscode-testing-iconPassed, var(--vscode-notebookStatusSuccessIcon-foreground));
+  border-color: var(
+    --vscode-testing-iconPassed,
+    var(--vscode-notebookStatusSuccessIcon-foreground)
+  );
+  background: var(
+    --vscode-testing-iconPassed,
+    var(--vscode-notebookStatusSuccessIcon-foreground)
+  );
   position: relative;
   opacity: 0.95;
 }
@@ -769,7 +775,8 @@ h1 {
 }
 .skipped-card {
   opacity: 0.72;
-  border-left: 3px solid var(--vscode-disabledForeground, rgba(128, 128, 128, 0.45));
+  border-left: 3px solid
+    var(--vscode-disabledForeground, rgba(128, 128, 128, 0.45));
 }
 .skipped-summary {
   font-size: 12px;

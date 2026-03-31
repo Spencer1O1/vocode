@@ -55,14 +55,22 @@ test("voice transcript RPC queue exposes active pending id", () => {
 test("directive apply checklist rows get stable ids and update state", () => {
   const store = new MainPanelStore();
   const id = store.enqueueCommitted("edit file") as number;
-  store.appendDirectiveApplyChecklist(id, ["1. Edit foo.go", "2. Command: go test"]);
+  store.appendDirectiveApplyChecklist(id, [
+    "1. Edit foo.go",
+    "2. Command: go test",
+  ]);
   const row = store.getSnapshot().pending[0];
   assert.equal(row?.applyChecklist?.length, 2);
   assert.ok(
-    row?.applyChecklist?.every((c) => typeof c.id === "string" && c.id.length > 0),
+    row?.applyChecklist?.every(
+      (c) => typeof c.id === "string" && c.id.length > 0,
+    ),
   );
   store.setDirectiveApplyItemState(id, 0, "done");
-  assert.equal(store.getSnapshot().pending[0]?.applyChecklist?.[0]?.state, "done");
+  assert.equal(
+    store.getSnapshot().pending[0]?.applyChecklist?.[0]?.state,
+    "done",
+  );
 });
 
 test("directive apply checklist appends across repair batches", () => {
@@ -72,8 +80,14 @@ test("directive apply checklist appends across repair batches", () => {
   assert.equal(store.directiveApplyChecklistLength(id), 1);
   store.appendDirectiveApplyChecklist(id, ["2. b", "3. c"]);
   assert.equal(store.directiveApplyChecklistLength(id), 3);
-  assert.equal(store.getSnapshot().pending[0]?.applyChecklist?.[0]?.label, "1. a");
-  assert.equal(store.getSnapshot().pending[0]?.applyChecklist?.[2]?.label, "3. c");
+  assert.equal(
+    store.getSnapshot().pending[0]?.applyChecklist?.[0]?.label,
+    "1. a",
+  );
+  assert.equal(
+    store.getSnapshot().pending[0]?.applyChecklist?.[2]?.label,
+    "3. c",
+  );
 });
 
 test("markHandled stores optional agent summary", () => {

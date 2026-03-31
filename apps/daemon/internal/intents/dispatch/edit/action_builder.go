@@ -382,11 +382,17 @@ func targetPathFromTarget(target intents.EditTarget) string {
 func resolveEditSource(ctx EditExecutionContext, targetPath string) (string, string, *EditBuildFailure) {
 	path := ctx.ResolvePath(targetPath)
 	if path == "." || path == "" {
-		return "", "", &EditBuildFailure{Code: "unsupported_instruction", Message: "No file path available for edit target."}
+		return "", "", &EditBuildFailure{
+			Code: "unsupported_instruction",
+			Message: "No file path available for edit target. Fix: set an explicit target path, or ensure voice.transcript provides activeFile + workspaceRoot.",
+		}
 	}
 	fileText, err := ctx.GetFileText(path)
 	if err != nil {
-		return "", "", &EditBuildFailure{Code: "missing_anchor", Message: fmt.Sprintf("read target file %q: %v", path, err)}
+		return "", "", &EditBuildFailure{
+			Code:    "missing_anchor",
+			Message: fmt.Sprintf("Could not read target file %q: %v", path, err),
+		}
 	}
 	return path, fileText, nil
 }

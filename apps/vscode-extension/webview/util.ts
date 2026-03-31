@@ -94,7 +94,9 @@ export function normalizePanelState(raw: unknown): PanelState {
           const base: PanelState["recentHandled"][number] = {
             text: typeof r.text === "string" ? r.text : "",
             receivedAt:
-              typeof r.receivedAt === "string" ? r.receivedAt : new Date(0).toISOString(),
+              typeof r.receivedAt === "string"
+                ? r.receivedAt
+                : new Date(0).toISOString(),
           };
           if (typeof r.summary === "string" && r.summary.length > 0) {
             (base as { summary?: string }).summary = r.summary;

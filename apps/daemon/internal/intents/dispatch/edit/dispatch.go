@@ -19,7 +19,12 @@ func Dispatch(e *Engine, ctx EditExecutionContext, editIntent intents.EditIntent
 			result := protocol.NewEditDirectiveNoop(failure.Message)
 			return result, result.Validate()
 		}
-		return protocol.EditDirective{}, fmt.Errorf("edit dispatch failed: %s", failure.Message)
+		code := failure.Code
+		if code == "" {
+			code = "unknown"
+		}
+		// Include failure code so the repair loop can react deterministically.
+		return protocol.EditDirective{}, fmt.Errorf("edit dispatch failed (%s): %s", code, failure.Message)
 	}
 	result := protocol.NewEditDirectiveSuccess(actions)
 	return result, result.Validate()

@@ -227,11 +227,7 @@ function HistoryCard({ h }: { h: HandledRow }) {
   );
 }
 
-function HistorySection({
-  items,
-}: {
-  items: readonly HandledRow[];
-}) {
+function HistorySection({ items }: { items: readonly HandledRow[] }) {
   return (
     <>
       <h1 className="section-title">Recent</h1>
@@ -256,7 +252,10 @@ function SkippedCard({ h }: { h: HandledRow }) {
   return (
     <div className="card skipped-card">
       <div className="meta">
-        <span className="badge" title="Agent treated this line as not actionable">
+        <span
+          className="badge"
+          title="Agent treated this line as not actionable"
+        >
           Skipped
         </span>
         <span>{fmtTime(h.receivedAt)}</span>

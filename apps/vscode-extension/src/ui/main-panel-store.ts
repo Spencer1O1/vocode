@@ -277,7 +277,10 @@ export class MainPanelStore {
 
   markHandled(
     id: number,
-    options?: { summary?: string; transcriptOutcome?: "irrelevant" | "completed" },
+    options?: {
+      summary?: string;
+      transcriptOutcome?: "irrelevant" | "completed";
+    },
   ): void {
     const index = this.pending.findIndex((p) => p.id === id);
     if (index === -1) {
