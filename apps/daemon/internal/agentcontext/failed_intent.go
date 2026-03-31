@@ -6,7 +6,7 @@ import "vocoding.net/vocode/v2/apps/daemon/internal/intents"
 const (
 	PhasePreExecute = "pre_execute" // daemon rejected before dispatch (e.g. missing active file for edit)
 	PhaseDispatch   = "dispatch"    // dispatch.Handler returned an error for an executable
-	// PhaseExtension is when the extension reports a directive apply failure via lastBatchApply.
+	// PhaseExtension is when the host reports a directive apply failure during duplex apply.
 	PhaseExtension = "extension"
 )
 

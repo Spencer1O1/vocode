@@ -4,7 +4,7 @@ import type {
   EditDirective,
   PingResult,
   VoiceTranscriptDirective,
-  VoiceTranscriptResult,
+  VoiceTranscriptCompletion,
 } from "./types.generated";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -242,9 +242,9 @@ export function isVoiceTranscriptDirective(
   return false;
 }
 
-export function isVoiceTranscriptResult(
+export function isVoiceTranscriptCompletion(
   value: unknown,
-): value is VoiceTranscriptResult {
+): value is VoiceTranscriptCompletion {
   if (!isRecord(value) || typeof value.success !== "boolean") {
     return false;
   }

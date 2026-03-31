@@ -163,7 +163,7 @@ func validateNavigationAction(n *NavigationAction) error {
 	return nil
 }
 
-func (r VoiceTranscriptResult) Validate() error {
+func (r VoiceTranscriptCompletion) Validate() error {
 	if !r.Success && r.Summary != "" {
 		return errors.New("voice transcript result must not include summary when success=false")
 	}

@@ -14,7 +14,7 @@ import { ELEVENLABS_API_KEY_SECRET } from "./config/spawn-env";
 import { DaemonClient } from "./daemon/client";
 import { spawnDaemon } from "./daemon/spawn";
 import { attachTranscriptPipeline } from "./extension/transcript-pipeline";
-import { applyDirectives } from "./transcript/apply-result";
+import { applyDirectives } from "./transcript/apply-directives";
 import { directiveApplyLabel } from "./transcript/directive-label";
 import { MainPanelViewProvider, mainPanelViewType } from "./ui/main-panel";
 import { MainPanelStore } from "./ui/main-panel-store";

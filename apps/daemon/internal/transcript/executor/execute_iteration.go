@@ -23,7 +23,7 @@ func (e *Executor) runOneAgentLoopIteration(
 	extSkipped []intents.Intent,
 	st *agentLoopState,
 	caps ExecutionCaps,
-) (loopAdvance, protocol.VoiceTranscriptResult, bool) {
+) (loopAdvance, protocol.VoiceTranscriptCompletion, bool) {
 	succeededThisRPC := make([]intents.Intent, 0, len(extSucceeded)+len(st.completed))
 	succeededThisRPC = append(succeededThisRPC, extSucceeded...)
 	succeededThisRPC = append(succeededThisRPC, st.completed...)
@@ -36,44 +36,44 @@ func (e *Executor) runOneAgentLoopIteration(
 
 	turn, err := e.agent.NextTurn(context.Background(), turnCtx)
 	if err != nil {
-		return advanceContinue, protocol.VoiceTranscriptResult{Success: false}, true
+		return advanceContinue, protocol.VoiceTranscriptCompletion{Success: false}, true
 	}
 	if err := turn.Validate(); err != nil {
-		return advanceContinue, protocol.VoiceTranscriptResult{Success: false}, true
+		return advanceContinue, protocol.VoiceTranscriptCompletion{Success: false}, true
 	}
 
 	switch turn.Kind {
 	case agent.TurnIrrelevant:
 		st.transcriptSummary = strings.TrimSpace(turn.IrrelevantReason)
 		st.transcriptOutcome = "irrelevant"
-		return advanceBreakLoop, protocol.VoiceTranscriptResult{}, false
+		return advanceBreakLoop, protocol.VoiceTranscriptCompletion{}, false
 
 	case agent.TurnFinish:
 		st.transcriptSummary = strings.TrimSpace(turn.FinishSummary)
-		return advanceBreakLoop, protocol.VoiceTranscriptResult{}, false
+		return advanceBreakLoop, protocol.VoiceTranscriptCompletion{}, false
 
 	case agent.TurnGatherContext:
 		st.contextRounds++
 		st.consecutiveContextReq++
 		if caps.MaxContextRounds > 0 && st.contextRounds > caps.MaxContextRounds {
-			return advanceContinue, protocol.VoiceTranscriptResult{Success: false}, true
+			return advanceContinue, protocol.VoiceTranscriptCompletion{Success: false}, true
 		}
 		if caps.MaxConsecutiveContextReq > 0 && st.consecutiveContextReq > caps.MaxConsecutiveContextReq {
-			return advanceContinue, protocol.VoiceTranscriptResult{Success: false}, true
+			return advanceContinue, protocol.VoiceTranscriptCompletion{Success: false}, true
 		}
 		updated, err := gather.FulfillSpec(e.gather, params, st.gathered, turn.GatherContext)
 		if err != nil {
-			return advanceContinue, protocol.VoiceTranscriptResult{Success: false}, true
+			return advanceContinue, protocol.VoiceTranscriptCompletion{Success: false}, true
 		}
 		if caps.MaxContextBytes > 0 && agentcontext.EstimatedGatheredBytes(updated) > caps.MaxContextBytes {
-			return advanceContinue, protocol.VoiceTranscriptResult{Success: false}, true
+			return advanceContinue, protocol.VoiceTranscriptCompletion{Success: false}, true
 		}
 		st.gathered = updated
-		return advanceContinue, protocol.VoiceTranscriptResult{}, false
+		return advanceContinue, protocol.VoiceTranscriptCompletion{}, false
 
 	case agent.TurnIntents:
 		if caps.MaxIntentsPerBatch > 0 && len(turn.Intents) > caps.MaxIntentsPerBatch {
-			return advanceContinue, protocol.VoiceTranscriptResult{Success: false}, true
+			return advanceContinue, protocol.VoiceTranscriptCompletion{Success: false}, true
 		}
 		for i := range turn.Intents {
 			adv, res, abort := e.dispatchOneIntent(params, hostCursor, st, turn.Intents[i], caps)
@@ -82,19 +82,19 @@ func (e *Executor) runOneAgentLoopIteration(
 			}
 			switch adv {
 			case advanceContinue:
-				return advanceContinue, protocol.VoiceTranscriptResult{}, false
+				return advanceContinue, protocol.VoiceTranscriptCompletion{}, false
 			case advanceBreakLoop:
-				return advanceBreakLoop, protocol.VoiceTranscriptResult{}, false
+				return advanceBreakLoop, protocol.VoiceTranscriptCompletion{}, false
 			case advanceBatchIntentDone:
 				continue
 			default:
-				return advanceContinue, protocol.VoiceTranscriptResult{Success: false}, true
+				return advanceContinue, protocol.VoiceTranscriptCompletion{Success: false}, true
 			}
 		}
-		return advanceBreakLoop, protocol.VoiceTranscriptResult{}, false
+		return advanceBreakLoop, protocol.VoiceTranscriptCompletion{}, false
 
 	default:
-		return advanceContinue, protocol.VoiceTranscriptResult{Success: false}, true
+		return advanceContinue, protocol.VoiceTranscriptCompletion{Success: false}, true
 	}
 }
 
@@ -104,7 +104,7 @@ func (e *Executor) dispatchOneIntent(
 	st *agentLoopState,
 	next intents.Intent,
 	caps ExecutionCaps,
-) (loopAdvance, protocol.VoiceTranscriptResult, bool) {
+) (loopAdvance, protocol.VoiceTranscriptCompletion, bool) {
 	editCtx, preExecErr := buildEditExecutionContext(params, &next)
 	if preExecErr != "" {
 		if st.maxRetries > 0 {
@@ -115,9 +115,9 @@ func (e *Executor) dispatchOneIntent(
 			})
 			st.gathered = appendGatheredNote(st.gathered, fmt.Sprintf("daemon rejected %q intent before execution: %s; retry with corrected intent", next.Kind, preExecErr))
 			st.maxRetries--
-			return advanceContinue, protocol.VoiceTranscriptResult{}, false
+			return advanceContinue, protocol.VoiceTranscriptCompletion{}, false
 		}
-		return advanceContinue, protocol.VoiceTranscriptResult{Success: false}, true
+		return advanceContinue, protocol.VoiceTranscriptCompletion{Success: false}, true
 	}
 
 	out, err := e.intentHandler.Handle(dispatch.HandleInput{
@@ -134,9 +134,9 @@ func (e *Executor) dispatchOneIntent(
 			})
 			st.gathered = appendGatheredNote(st.gathered, fmt.Sprintf("daemon execution failed for %q intent: %v; retry with corrected intent", next.Kind, err))
 			st.maxRetries--
-			return advanceContinue, protocol.VoiceTranscriptResult{}, false
+			return advanceContinue, protocol.VoiceTranscriptCompletion{}, false
 		}
-		return advanceContinue, protocol.VoiceTranscriptResult{Success: false}, true
+		return advanceContinue, protocol.VoiceTranscriptCompletion{Success: false}, true
 	}
 
 	return e.applyDirective(out, next, st, caps)

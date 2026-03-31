@@ -13,7 +13,7 @@ export type DirectiveApplyOutcome = {
 };
 
 /**
- * Applies a daemon `VoiceTranscriptResult` to the workspace (edits, commands, navigation, undo).
+ * Applies a daemon directive batch to the workspace (edits, commands, navigation, undo).
  * Used by voice and by the manual “send transcript” command — not command-specific.
  * Returns one outcome per directive (stops after the first failure).
  */

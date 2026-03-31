@@ -8,8 +8,8 @@ import (
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
-func finalizeExecute(st *agentLoopState) (protocol.VoiceTranscriptResult, []protocol.VoiceTranscriptDirective, agentcontext.Gathered, *agentcontext.DirectiveApplyBatch, bool) {
-	result := protocol.VoiceTranscriptResult{
+func finalizeExecute(st *agentLoopState) (protocol.VoiceTranscriptCompletion, []protocol.VoiceTranscriptDirective, agentcontext.Gathered, *agentcontext.DirectiveApplyBatch, bool) {
+	result := protocol.VoiceTranscriptCompletion{
 		Success: true,
 		Summary: st.transcriptSummary,
 	}
@@ -21,7 +21,7 @@ func finalizeExecute(st *agentLoopState) (protocol.VoiceTranscriptResult, []prot
 	if len(dirs) > 0 {
 		bid, err := newDirectiveApplyBatchID()
 		if err != nil {
-			return protocol.VoiceTranscriptResult{Success: false}, nil, st.gathered, nil, true
+			return protocol.VoiceTranscriptCompletion{Success: false}, nil, st.gathered, nil, true
 		}
 		pending = &agentcontext.DirectiveApplyBatch{
 			ID:            bid,
@@ -29,7 +29,7 @@ func finalizeExecute(st *agentLoopState) (protocol.VoiceTranscriptResult, []prot
 		}
 	}
 	if err := result.Validate(); err != nil {
-		return protocol.VoiceTranscriptResult{Success: false}, nil, st.gathered, nil, true
+		return protocol.VoiceTranscriptCompletion{Success: false}, nil, st.gathered, nil, true
 	}
 	return result, dirs, st.gathered, pending, true
 }

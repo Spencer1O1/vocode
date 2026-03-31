@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { isVoiceTranscriptResult } from "./validators";
+import { isVoiceTranscriptCompletion } from "./validators";
 
-test("isVoiceTranscriptResult accepts success=true shape", () => {
-  assert.equal(isVoiceTranscriptResult({ success: true }), true);
+test("isVoiceTranscriptCompletion accepts success=true shape", () => {
+  assert.equal(isVoiceTranscriptCompletion({ success: true }), true);
 });
 
-test("isVoiceTranscriptResult accepts summary when success", () => {
+test("isVoiceTranscriptCompletion accepts summary when success", () => {
   assert.equal(
-    isVoiceTranscriptResult({
+    isVoiceTranscriptCompletion({
       success: true,
       summary: "Renamed the handler and fixed imports.",
     }),
@@ -17,9 +17,9 @@ test("isVoiceTranscriptResult accepts summary when success", () => {
   );
 });
 
-test("isVoiceTranscriptResult accepts transcriptOutcome when success", () => {
+test("isVoiceTranscriptCompletion accepts transcriptOutcome when success", () => {
   assert.equal(
-    isVoiceTranscriptResult({
+    isVoiceTranscriptCompletion({
       success: true,
       summary: "Not a coding request.",
       transcriptOutcome: "irrelevant",
@@ -28,9 +28,9 @@ test("isVoiceTranscriptResult accepts transcriptOutcome when success", () => {
   );
 });
 
-test("isVoiceTranscriptResult rejects transcriptOutcome when not success", () => {
+test("isVoiceTranscriptCompletion rejects transcriptOutcome when not success", () => {
   assert.equal(
-    isVoiceTranscriptResult({
+    isVoiceTranscriptCompletion({
       success: false,
       transcriptOutcome: "irrelevant",
     }),
@@ -38,9 +38,9 @@ test("isVoiceTranscriptResult rejects transcriptOutcome when not success", () =>
   );
 });
 
-test("isVoiceTranscriptResult rejects summary when not success", () => {
+test("isVoiceTranscriptCompletion rejects summary when not success", () => {
   assert.equal(
-    isVoiceTranscriptResult({
+    isVoiceTranscriptCompletion({
       success: false,
       summary: "oops",
     }),
@@ -48,13 +48,13 @@ test("isVoiceTranscriptResult rejects summary when not success", () => {
   );
 });
 
-test("isVoiceTranscriptResult allows success=false minimal shape", () => {
-  assert.equal(isVoiceTranscriptResult({ success: false }), true);
+test("isVoiceTranscriptCompletion allows success=false minimal shape", () => {
+  assert.equal(isVoiceTranscriptCompletion({ success: false }), true);
 });
 
-test("isVoiceTranscriptResult rejects extra keys", () => {
+test("isVoiceTranscriptCompletion rejects extra keys", () => {
   assert.equal(
-    isVoiceTranscriptResult({
+    isVoiceTranscriptCompletion({
       success: true,
       extra: 123,
     }),
@@ -62,9 +62,9 @@ test("isVoiceTranscriptResult rejects extra keys", () => {
   );
 });
 
-test("isVoiceTranscriptResult rejects extra keys (unexpected property)", () => {
+test("isVoiceTranscriptCompletion rejects extra keys (unexpected property)", () => {
   assert.equal(
-    isVoiceTranscriptResult({
+    isVoiceTranscriptCompletion({
       success: true,
       unexpected: "bad",
     }),
