@@ -96,12 +96,6 @@ async function sendTranscript(
       });
       return;
     }
-    if ((result.directives?.length ?? 0) > 0) {
-      services.mainPanelStore.recordCompletedTranscript(trimmedText, {
-        errorMessage: "Daemon returned directives unexpectedly.",
-      });
-      return;
-    }
 
     services.mainPanelStore.recordCompletedTranscript(trimmedText, {
       summary: result.summary?.trim() || undefined,

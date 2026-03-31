@@ -27,6 +27,34 @@ func (*Client) NextTurn(ctx context.Context, in agentcontext.TurnContext) (agent
 		return agent.TurnResult{Kind: agent.TurnFinish, FinishSummary: "stub model acknowledged prior host apply"}, nil
 	}
 
+	// Deterministic “real transcript” fixture for end-to-end integration tests.
+	// When the user asks about bubble sort, emit a single edit intent that fixes the buggy comparator
+	// between unique anchors in the active file.
+	if strings.Contains(strings.ToLower(in.TranscriptText), "bubble sort") {
+		return agent.TurnResult{
+			Kind: agent.TurnIntents,
+			Intents: []intents.Intent{
+				{
+					Kind: intents.IntentKindEdit,
+					Edit: &intents.EditIntent{
+						Kind: intents.EditIntentKindReplace,
+						Replace: &intents.ReplaceEditIntent{
+							Target: intents.EditTarget{
+								Kind: intents.EditTargetKindAnchor,
+								Anchor: &intents.AnchorTarget{
+									// Path omitted -> current active file (action builder uses active file by default).
+									Before: "// ANCHOR:bubble_sort_if_before",
+									After:  "// ANCHOR:bubble_sort_if_after",
+								},
+							},
+							NewText: "\n    if (arr[j] > arr[j+1]) {\n      const tmp = arr[j];\n      arr[j] = arr[j+1];\n      arr[j+1] = tmp;\n    }\n",
+						},
+					},
+				},
+			},
+		}, nil
+	}
+
 	active := strings.TrimSpace(in.Editor.ActiveFilePath)
 	if active == "" {
 		active = "test.js"

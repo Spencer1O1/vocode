@@ -9,8 +9,8 @@ import (
 )
 
 // DirectiveApplyBatch is one batch of directives the daemon returned and the host must apply.
-// Wire: [protocol.VoiceTranscriptResult.applyBatchId] matches [protocol.VoiceTranscriptParams.reportApplyBatchId];
-// [protocol.VoiceTranscriptParams.lastBatchApply] is parallel to [SourceIntents] and to result.directives.
+// Wire: [protocol.HostApplyParams.applyBatchId] is used to correlate the host's response
+// back to this batch during duplex apply inside the same voice.transcript RPC.
 type DirectiveApplyBatch struct {
 	ID            string
 	SourceIntents []intents.Intent
@@ -27,10 +27,10 @@ func (b *DirectiveApplyBatch) ConsumeHostApplyReport(
 		return nil, nil, nil, fmt.Errorf("directive apply batch: nil batch")
 	}
 	if strings.TrimSpace(reportBatchID) != b.ID {
-		return nil, nil, nil, fmt.Errorf("directive apply batch: reportApplyBatchId mismatch")
+		return nil, nil, nil, fmt.Errorf("directive apply batch: applyBatchId mismatch")
 	}
 	if len(items) != len(b.SourceIntents) {
-		return nil, nil, nil, fmt.Errorf("directive apply batch: lastBatchApply length mismatch")
+		return nil, nil, nil, fmt.Errorf("directive apply batch: apply items length mismatch")
 	}
 	var extSucc []intents.Intent
 	var extFail []FailedIntent

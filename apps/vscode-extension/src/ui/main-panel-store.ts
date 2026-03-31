@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 /**
  * Observable state for the main voice sidebar webview (Live / Applying / Recent / Skipped,
  * partial hypotheses, listening flag, audio meter). Daemon transcript application lives in
- * ../transcript/apply-result — this store is UI-only.
+ * ../transcript/apply-directives — this store is UI-only.
  */
 const DEFAULT_MAX_HANDLED = 30;
 const WAVEFORM_SAMPLES = 64;

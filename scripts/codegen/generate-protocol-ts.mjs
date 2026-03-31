@@ -48,7 +48,7 @@ const entries = [
   },
   {
     file: "voice-transcript.result.schema.json",
-    name: "VoiceTranscriptResult",
+    name: "VoiceTranscriptCompletion",
   },
   {
     file: "host-apply.params.schema.json",

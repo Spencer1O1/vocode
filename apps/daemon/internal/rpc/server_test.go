@@ -15,12 +15,12 @@ type voiceTranscriptServiceStub struct{}
 
 func (s *voiceTranscriptServiceStub) AcceptTranscript(
 	params protocol.VoiceTranscriptParams,
-) (protocol.VoiceTranscriptResult, bool) {
+) (protocol.VoiceTranscriptCompletion, bool) {
 	if strings.TrimSpace(params.Text) == "" {
-		return protocol.VoiceTranscriptResult{}, false
+		return protocol.VoiceTranscriptCompletion{}, false
 	}
 
-	return protocol.VoiceTranscriptResult{Success: true}, true
+	return protocol.VoiceTranscriptCompletion{Success: true}, true
 }
 
 func runSingleRequest(

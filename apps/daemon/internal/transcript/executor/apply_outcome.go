@@ -8,12 +8,12 @@ import (
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
-func (e *Executor) applyDirective(out dispatch.Directive, next intents.Intent, st *agentLoopState, caps ExecutionCaps) (loopAdvance, protocol.VoiceTranscriptResult, bool) {
+func (e *Executor) applyDirective(out dispatch.Directive, next intents.Intent, st *agentLoopState, caps ExecutionCaps) (loopAdvance, protocol.VoiceTranscriptCompletion, bool) {
 	if out.IsEmpty() {
-		return advanceContinue, protocol.VoiceTranscriptResult{Success: false}, true
+		return advanceContinue, protocol.VoiceTranscriptCompletion{Success: false}, true
 	}
 	if err := out.Validate(); err != nil {
-		return advanceContinue, protocol.VoiceTranscriptResult{Success: false}, true
+		return advanceContinue, protocol.VoiceTranscriptCompletion{Success: false}, true
 	}
 
 	st.maxRetries = caps.MaxIntentRetries
@@ -50,7 +50,7 @@ func (e *Executor) applyDirective(out dispatch.Directive, next intents.Intent, s
 		st.completed = append(st.completed, next)
 		appendSourceIntentForDirective(&st.batchSourceIntents, next)
 	default:
-		return advanceContinue, protocol.VoiceTranscriptResult{Success: false}, true
+		return advanceContinue, protocol.VoiceTranscriptCompletion{Success: false}, true
 	}
-	return advanceBatchIntentDone, protocol.VoiceTranscriptResult{}, false
+	return advanceBatchIntentDone, protocol.VoiceTranscriptCompletion{}, false
 }

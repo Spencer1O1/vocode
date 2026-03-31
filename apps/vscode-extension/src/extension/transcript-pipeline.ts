@@ -193,13 +193,6 @@ export function attachTranscriptPipeline(
           mainPanelStore.markError(pendingId, FAILED_TO_PROCESS_TRANSCRIPT);
           return;
         }
-        if ((result.directives?.length ?? 0) > 0) {
-          mainPanelStore.markError(
-            pendingId,
-            "Daemon returned directives unexpectedly.",
-          );
-          return;
-        }
 
         mainPanelStore.markHandled(pendingId, {
           summary: result.summary?.trim() || undefined,

@@ -119,10 +119,10 @@ func (e *Executor) Execute(
 	extSucceeded []intents.Intent,
 	extFailed []agentcontext.FailedIntent,
 	extSkipped []intents.Intent,
-) (protocol.VoiceTranscriptResult, agentcontext.Gathered, *agentcontext.DirectiveApplyBatch, bool) {
+) (protocol.VoiceTranscriptCompletion, []protocol.VoiceTranscriptDirective, agentcontext.Gathered, *agentcontext.DirectiveApplyBatch, bool) {
 	text := strings.TrimSpace(params.Text)
 	if text == "" {
-		return protocol.VoiceTranscriptResult{}, gatheredIn, nil, false
+		return protocol.VoiceTranscriptCompletion{}, nil, gatheredIn, nil, false
 	}
 	caps := e.effectiveCaps(params)
 	maxLoopIters := caps.MaxAgentTurns
@@ -149,7 +149,7 @@ func (e *Executor) Execute(
 			caps,
 		)
 		if abort {
-			return failRes, st.gathered, nil, true
+			return failRes, nil, st.gathered, nil, true
 		}
 		if adv == advanceBreakLoop {
 			brokeOK = true
@@ -158,7 +158,7 @@ func (e *Executor) Execute(
 	}
 
 	if !brokeOK {
-		return protocol.VoiceTranscriptResult{Success: false}, st.gathered, nil, true
+		return protocol.VoiceTranscriptCompletion{Success: false}, nil, st.gathered, nil, true
 	}
 	return finalizeExecute(st)
 }

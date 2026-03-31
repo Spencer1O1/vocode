@@ -9,7 +9,7 @@ type HandlerDefinition struct {
 
 type VoiceTranscriptService interface {
 	// AcceptTranscript returns ok=false for semantically invalid params.
-	AcceptTranscript(params protocol.VoiceTranscriptParams) (protocol.VoiceTranscriptResult, bool)
+	AcceptTranscript(params protocol.VoiceTranscriptParams) (protocol.VoiceTranscriptCompletion, bool)
 }
 
 func BuildHandlers(voiceService VoiceTranscriptService) []HandlerDefinition {

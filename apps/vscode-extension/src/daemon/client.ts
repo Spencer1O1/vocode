@@ -2,10 +2,10 @@ import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import type {
   PingParams,
   PingResult,
+  VoiceTranscriptCompletion,
   VoiceTranscriptParams,
-  VoiceTranscriptResult,
 } from "@vocode/protocol";
-import { isPingResult, isVoiceTranscriptResult } from "@vocode/protocol";
+import { isPingResult, isVoiceTranscriptCompletion } from "@vocode/protocol";
 
 import { RpcTransport } from "./rpc-transport";
 
@@ -43,11 +43,11 @@ export class DaemonClient {
 
   public transcript(
     params: VoiceTranscriptParams,
-  ): Promise<VoiceTranscriptResult> {
-    return this.sendRequest<VoiceTranscriptResult>(
+  ): Promise<VoiceTranscriptCompletion> {
+    return this.sendRequest<VoiceTranscriptCompletion>(
       "voice.transcript",
       params,
-      isVoiceTranscriptResult,
+      isVoiceTranscriptCompletion,
     );
   }
 

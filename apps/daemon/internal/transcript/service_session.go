@@ -5,12 +5,13 @@ import (
 	"time"
 
 	"vocoding.net/vocode/v2/apps/daemon/internal/agentcontext"
+	"vocoding.net/vocode/v2/apps/daemon/internal/intents"
 	"vocoding.net/vocode/v2/apps/daemon/internal/transcript/config"
 	"vocoding.net/vocode/v2/apps/daemon/internal/transcript/voicesession"
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
-func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (protocol.VoiceTranscriptResult, bool) {
+func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (protocol.VoiceTranscriptCompletion, bool) {
 	s.executeMu.Lock()
 	defer s.executeMu.Unlock()
 
@@ -35,10 +36,11 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 		vs = voicesession.Load(s.sessions, key, idleReset, nil)
 	}
 
-	extSucc, extFail, extSkipped, err := voicesession.ConsumeIncomingApplyReport(&params, &vs)
-	if err != nil {
-		return protocol.VoiceTranscriptResult{Success: false}, true
-	}
+	// Async host apply reports are not supported (duplex-only execution). PendingDirectiveApply
+	// is consumed immediately after each host.applyDirectives call within this RPC.
+	var extSucc []intents.Intent
+	var extFail []agentcontext.FailedIntent
+	var extSkipped []intents.Intent
 
 	activeFile := strings.TrimSpace(params.ActiveFile)
 	maxGatheredBytes := config.DefaultGatheredMaxBytes
@@ -75,7 +77,7 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 			maxGatheredExcerpts,
 		)
 
-		res, g1, pending, ok := s.executor.Execute(params, vs.Gathered, vs.IntentApplyHistory, extSucc, extFail, extSkipped)
+		res, dirs, g1, pending, ok := s.executor.Execute(params, vs.Gathered, vs.IntentApplyHistory, extSucc, extFail, extSkipped)
 		vs.Gathered = g1
 		if strings.TrimSpace(key) != "" {
 			vs.Gathered = agentcontext.ApplyGatheredRollingCap(vs.Gathered, activeFile, maxGatheredBytes, maxGatheredExcerpts)
@@ -88,10 +90,10 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 			} else {
 				voicesession.SaveKeyed(s.sessions, key, vs)
 			}
-			return protocol.VoiceTranscriptResult{Success: false}, false
+			return protocol.VoiceTranscriptCompletion{Success: false}, false
 		}
 
-		if !res.Success || len(res.Directives) == 0 {
+		if !res.Success || len(dirs) == 0 {
 			vs.PendingDirectiveApply = nil
 			// Persist before returning.
 			if strings.TrimSpace(key) == "" {
@@ -111,7 +113,7 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 			} else {
 				voicesession.SaveKeyed(s.sessions, key, vs)
 			}
-			return protocol.VoiceTranscriptResult{Success: false}, true
+			return protocol.VoiceTranscriptCompletion{Success: false}, true
 		}
 
 		vs.PendingDirectiveApply = pending
@@ -119,7 +121,7 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 		hostRes, err := s.hostApplyClient.ApplyDirectives(protocol.HostApplyParams{
 			ApplyBatchId: pending.ID,
 			ActiveFile:   params.ActiveFile,
-			Directives:   res.Directives,
+			Directives:   dirs,
 		})
 		if err != nil {
 			vs.PendingDirectiveApply = nil
@@ -128,7 +130,7 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 			} else {
 				voicesession.SaveKeyed(s.sessions, key, vs)
 			}
-			return protocol.VoiceTranscriptResult{Success: false}, true
+			return protocol.VoiceTranscriptCompletion{Success: false}, true
 		}
 
 		// Consume the host report to update IntentApplyHistory and compute delta
@@ -145,7 +147,7 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 			} else {
 				voicesession.SaveKeyed(s.sessions, key, vs)
 			}
-			return protocol.VoiceTranscriptResult{Success: false}, true
+			return protocol.VoiceTranscriptCompletion{Success: false}, true
 		}
 
 		appliedBatchesTotal++
@@ -160,5 +162,5 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 	} else {
 		voicesession.SaveKeyed(s.sessions, key, vs)
 	}
-	return protocol.VoiceTranscriptResult{Success: false}, true
+	return protocol.VoiceTranscriptCompletion{Success: false}, true
 }

@@ -34,17 +34,6 @@
       "type": "string",
       "description": "Internal-only key for persisting Gathered between RPCs (host assigns; user never manages it). Omit for ephemeral gathered."
     },
-    "reportApplyBatchId": {
-      "type": "string",
-      "description": "Must match the prior result's applyBatchId when lastBatchApply is present."
-    },
-    "lastBatchApply": {
-      "type": "array",
-      "description": "Apply outcome per directive index for the batch identified by reportApplyBatchId (same length as that batch's directives).",
-      "items": {
-        "$ref": "./voice-transcript.directive-apply-item.schema.json"
-      }
-    },
     "daemonConfig": {
       "type": "object",
       "additionalProperties": false,

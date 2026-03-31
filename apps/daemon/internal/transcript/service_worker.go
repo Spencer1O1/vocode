@@ -37,7 +37,7 @@ func (s *TranscriptService) runWorker() {
 				text := strings.TrimSpace(j.params.Text)
 				if text == "" {
 					j.resp <- transcriptAcceptResp{
-						result: protocol.VoiceTranscriptResult{Success: true},
+						result: protocol.VoiceTranscriptCompletion{Success: true},
 						ok:     true,
 					}
 					continue
@@ -76,7 +76,7 @@ func (s *TranscriptService) runWorker() {
 				}
 			} else {
 				j.resp <- transcriptAcceptResp{
-					result: protocol.VoiceTranscriptResult{Success: true},
+					result: protocol.VoiceTranscriptCompletion{Success: true},
 					ok:     true,
 				}
 			}

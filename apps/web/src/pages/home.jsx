@@ -1,56 +1,40 @@
-//animations from https://www.w3schools.com/w3css/default.asp
-
 import { useId, useState } from "react";
 
-/** Product copy — adjust URLs and details as the extension evolves */
-const EXTENSION = {
-  name: "Vocode",
-  tagline: "Voice-driven AI code editing inside VS Code.",
-  marketplaceUrl:
-    "https://marketplace.visualstudio.com/items?itemName=publisher.extension-id",
-  githubUrl: "https://github.com/your-org/your-extension-repo",
-  docsUrl: "https://github.com/your-org/your-extension-repo#readme",
-  marketplaceId: "publisher.extension-id",
-};
+import { INSTALL_CLI, INSTALL_TABS, SITE } from "../site.js";
 
-const OVERVIEW = [
-  "Vocode lets you speak code changes, and have them applied intelligently to your project using structured edits instead of raw text replacement.",
-];
-
-const BEBETTER = [
-  "Speaking code changes allows thought about the code beyond explaining it in terms of code and more natural language.",
-];
-
-const WRITEFASTER = [
-  "By speaking code changes, you can write faster without leaving the flow of your current task.",
-];
-
-const HOW_IT_WORKS = [
+const PILLARS = [
   {
-    title: "VS Code Extension (TypeScript)",
-    body: [
-      "Captures voice + user intent",
-      "Displays UI (transcripts, diffs, status)",
-      "Sends requests to the daemon",
-    ],
+    title: "Speak, don’t re-type",
+    body: "Dictate refactors, edits, and navigation without breaking flow. Vocode turns what you say into structured actions—not a wall of model text to paste and pray over.",
   },
   {
-    title: "Core Daemon (Go)",
-    body: [
-      "agent logic",
-      "code edits (AST/diff-based)",
-      "indexing (grep → symbols → AST)",
-      "command execution",
-      "transcript planning/orchestration",
-    ],
+    title: "Your editor, amplified",
+    body: "Stay in your editor. Keep your shortcuts, themes, and muscle memory. Voice becomes another input—fast when you want it, silent when you don’t.",
   },
   {
-    title: "Voice Sidecar (Go)",
-    body: [
-      "native microphone capture",
-      "STT provider integration",
-      "transcript event emission to the extension",
-    ],
+    title: "Built to ship",
+    body: "Safety and validation stay on the engine side; the editor stays deterministic. You get a repeatable loop: speak → review → apply—with room to grow into how your team works.",
+  },
+];
+
+const FEATURES = [
+  {
+    title: "Structured edits",
+    description:
+      "Changes map to real edit and command directives—so results align with your tree, your files, and your expectations.",
+    accent: "from-[#4f81ff]/25 to-transparent",
+  },
+  {
+    title: "Voice-native loop",
+    description:
+      "Microphone capture and transcription are first-class—tuned for short, actionable utterances while you code.",
+    accent: "from-cyan-500/15 to-transparent",
+  },
+  {
+    title: "Iterate in place",
+    description:
+      "Transcripts, batches, and outcomes stay beside your work so you can course-correct in seconds—not re-prompt from scratch.",
+    accent: "from-violet-500/15 to-transparent",
   },
 ];
 
@@ -60,8 +44,8 @@ function installStepsForIde(ide) {
     vscode: (
       <>
         Open <strong>Extensions</strong> (<kbd>Ctrl+Shift+X</kbd> /{" "}
-        <kbd>Cmd+Shift+X</kbd>) and install <strong>{EXTENSION.name}</strong>,
-        or use the CLI below.
+        <kbd>Cmd+Shift+X</kbd>) and install <strong>{SITE.name}</strong>, or use
+        the CLI below.
       </>
     ),
     vocodeide: <>coming soon</>,
@@ -78,7 +62,7 @@ function installStepsForIde(ide) {
       content: (
         <>
           Start or install the <strong>Vocode daemon</strong> per the docs so
-          your editor can connect to Vocode.
+          your editor can connect.
         </>
       ),
     },
@@ -86,54 +70,38 @@ function installStepsForIde(ide) {
       id: `${ide}-step-3`,
       content: (
         <>
-          Reload the window or restart the IDE if prompted, then open Vocode
-          from the command palette and confirm the connection.
+          Reload the window if prompted, open the Vocode panel, and confirm
+          you’re connected.
         </>
       ),
     },
   ];
 }
 
-const INSTALL_CLI = {
-  vscode: {
-    cmd: `code --install-extension ${EXTENSION.marketplaceId}`,
-    label: "CLI",
-  },
-  cursor: {
-    cmd: `cursor --install-extension ${EXTENSION.marketplaceId}`,
-    label: "CLI",
-  },
-  intellij: null,
-  neovim: {
-    cmd: `neovim --install-extension ${EXTENSION.marketplaceId}`,
-    label: "CLI (if available)",
-  },
-};
-
-const INSTALL_TABS = [
-  { id: "vscode", label: "VS Code" },
-  { id: "vocodeide", label: "Vocode IDE" },
-  { id: "intellij", label: "Intellij" },
-  { id: "neovim", label: "Neovim" },
-];
-
 function renderRichText(text) {
+  let seq = 0;
   const parts = text.split(/(\*\*[^*]+\*\*)/g);
   return parts.map((part) => {
+    const key = `rt-${seq++}`;
     const m = part.match(/^\*\*(.+)\*\*$/);
-    if (m) return <strong key={m[1]}>{m[1]}</strong>;
-    return part;
+    if (m) {
+      return <strong key={key}>{m[1]}</strong>;
+    }
+    return <span key={key}>{part}</span>;
   });
 }
 
-const btnBase =
-  "inline-flex items-center justify-center rounded-md border border-transparent px-[1.15rem] py-[0.65rem] text-[0.95rem] font-semibold transition-colors";
+const btnPrimary =
+  "inline-flex items-center justify-center rounded-md border border-transparent bg-[#4f81ff] px-6 py-3 text-[0.95rem] font-semibold text-white shadow-[0_0_32px_-10px_rgba(79,129,255,0.9)] transition-colors hover:bg-[#3d6fe6]";
+
+const btnGhost =
+  "inline-flex items-center justify-center rounded-md border border-white/20 bg-white/5 px-6 py-3 text-[0.95rem] font-semibold text-white transition-colors hover:border-white/35 hover:bg-white/10";
 
 const stepKbd =
   "[&_kbd]:rounded [&_kbd]:border [&_kbd]:border-white/20 [&_kbd]:bg-white/8 [&_kbd]:px-1.5 [&_kbd]:py-0.5 [&_kbd]:font-mono [&_kbd]:text-[0.85em]";
 
 const tabBtn =
-  "rounded-md border px-3 py-2 text-[0.9rem] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500";
+  "rounded-lg border px-3 py-2 text-[0.9rem] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4f81ff]";
 
 function HomePage() {
   const [installTab, setInstallTab] = useState("vscode");
@@ -141,126 +109,130 @@ function HomePage() {
 
   return (
     <>
-      <header className="mb-5 py-12 bg-[url(https://images.unsplash.com/photo-1617994452722-4145e196248b?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D)] bg-cover bg-center">
-        <h1
-          id="hero-title"
-          className="mb-3 text-[clamp(1.75rem,4vw,3.5rem)] font-normal leading-tight tracking-tight text-slate-100 w3-animate-opacity"
-        >
-          {EXTENSION.name}
-        </h1>
-        <p className="mb-4 text-xl font-semibold leading-snug text-sky-200 w3-animate-opacity">
-          {EXTENSION.tagline}
-        </p>
-        <div className="max-w-3xl w-screen mx-auto">
-          <div className=" text-left text-[clamp(0.5rem,4vw,1.25rem)]">
-            {OVERVIEW.filter((p) => p?.trim()).map((p) => (
-              <p
-                key={p}
-                className="mb-4 leading-relaxed last:mb-0 text-neutral-300"
-              >
-                {renderRichText(p)}
-              </p>
-            ))}
-          </div>
+      <section
+        className="relative overflow-hidden border-b border-white/[0.06]"
+        aria-labelledby="hero-title"
+      >
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          <div className="absolute -top-[55%] left-1/2 h-[min(900px,120vw)] w-[min(900px,120vw)] -translate-x-1/2 rounded-full bg-[#4f81ff]/18 blur-[100px]" />
+          <div className="absolute -bottom-32 right-[-10%] h-[420px] w-[420px] rounded-full bg-cyan-500/12 blur-[90px]" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,6,6,0)_0%,#060606_88%)]" />
         </div>
-      </header>
-      <div className="mx-auto max-w-6xl px-5 py-8 pb-12 text-left">
-        <section
-          className="mb-12 w3-animate-bottom"
-          aria-labelledby="help-heading"
-        >
-          <h2
-            id="help-heading"
-            className="mb-2 text-[1.4rem] tracking-tight font-semibold text-sky-400"
+
+        <div className="relative mx-auto max-w-6xl px-5 pb-24 pt-20 sm:pb-28 sm:pt-24 lg:pt-28">
+          <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium uppercase tracking-[0.14em] text-neutral-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#4f81ff] shadow-[0_0_8px_#4f81ff]" />
+            New programming surface
+          </p>
+          <h1
+            id="hero-title"
+            className="max-w-4xl text-left text-[clamp(2.25rem,6vw,3.75rem)] font-semibold leading-[1.08] tracking-tight text-white"
           >
-            How it will let you be a better developer
-          </h2>
-          <div className="max-w-3xl">
-            {BEBETTER.filter((p) => p?.trim()).map((p) => (
-              <p
-                key={p}
-                className="mb-4 leading-relaxed last:mb-0 text-neutral-300"
-              >
-                {renderRichText(p)}
-              </p>
-            ))}
+            Code at the speed
+            <br />
+            <span className="bg-gradient-to-r from-white via-[#7396ff] to-[#4f81ff] bg-clip-text text-transparent">
+              you speak
+            </span>
+            .
+          </h1>
+          <p className="mt-6 max-w-2xl text-left text-lg leading-relaxed text-neutral-400 sm:text-xl">
+            Vocode is voice-first agentic programming: speak intent, get
+            structured changes in{" "}
+            <strong className="font-medium text-neutral-200">
+              your favorite editor
+            </strong>
+            , and never snap out of the loop. This isn’t a demo repo—it’s the
+            paradigm you’ll wish you had years ago.
+          </p>
+          <div className="mt-10 flex flex-wrap items-center gap-4">
+            <a
+              className={btnPrimary}
+              href={SITE.marketplaceUrl}
+              rel="noopener noreferrer"
+            >
+              Start with VS Code
+            </a>
+            <a className={btnGhost} href={SITE.docsUrl}>
+              Read the docs
+            </a>
           </div>
+          <p className="mt-6 text-left text-sm text-neutral-500">
+            No account. Install the extension, run the engine locally, and
+            you’re in.
+          </p>
+        </div>
+      </section>
+
+      <div className="mx-auto max-w-6xl px-5 py-20 sm:py-24">
+        <section className="mb-20 text-left" aria-labelledby="pillars-heading">
+          <h2
+            id="pillars-heading"
+            className="mb-3 text-sm font-semibold uppercase tracking-[0.16em] text-[#4f81ff]"
+          >
+            Why teams will switch
+          </h2>
+          <p className="mb-12 max-w-2xl text-2xl font-medium leading-snug text-white sm:text-3xl">
+            {renderRichText(
+              "The editor isn’t going away—how you drive it is. **Speech** becomes precision tooling, not a party trick.",
+            )}
+          </p>
+          <ul className="grid gap-6 sm:grid-cols-3">
+            {PILLARS.map((item) => (
+              <li
+                key={item.title}
+                className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-6"
+              >
+                <h3 className="mb-3 text-base font-semibold text-white">
+                  {item.title}
+                </h3>
+                <p className="text-[0.95rem] leading-relaxed text-neutral-400">
+                  {renderRichText(item.body)}
+                </p>
+              </li>
+            ))}
+          </ul>
         </section>
 
-        <section
-          className="mb-12 w3-animate-bottom"
-          aria-labelledby="faster-heading"
-        >
+        <section className="mb-20 text-left" aria-labelledby="features-heading">
           <h2
-            id="faster-heading"
-            className="mb-2 text-[1.4rem] tracking-tight font-semibold text-sky-400"
+            id="features-heading"
+            className="mb-10 text-sm font-semibold uppercase tracking-[0.16em] text-neutral-500"
           >
-            Write Code Faster
+            Product surface
           </h2>
-          <div className="max-w-3xl">
-            {WRITEFASTER.filter((p) => p?.trim()).map((p) => (
-              <p
-                key={p}
-                className="mb-4 leading-relaxed last:mb-0 text-neutral-300"
-              >
-                {renderRichText(p)}
-              </p>
-            ))}
-          </div>
-        </section>
-
-        <section
-          className="mb-12 w3-animate-right"
-          aria-labelledby="how-heading"
-        >
-          <h2
-            id="how-heading"
-            className="mb-2 text-[1.4rem] tracking-tight font-semibold text-sky-400"
-          >
-            How it works
-          </h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            {HOW_IT_WORKS.map((step, i) => (
+          <div className="grid gap-5 md:grid-cols-3">
+            {FEATURES.map((f) => (
               <article
-                key={step.title}
-                className="flex items-start gap-4 rounded-[10px] border border-white/14 bg-black/20 p-4 sm:p-[1.15rem]"
+                key={f.title}
+                className={`relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br ${f.accent} p-6`}
               >
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[rgba(100,181,255,0.14)] text-[0.95rem] font-bold text-sky-200">
-                  {i + 1}
-                </span>
-                <div>
-                  <h3 className="mb-1.5 text-[1.05rem] text-sky-100">
-                    {step.title}
-                  </h3>
-                  {step.body.map((line) => (
-                    <p
-                      key={line}
-                      className="mb-2 text-[0.95rem] leading-snug text-neutral-400 last:mb-0"
-                    >
-                      {renderRichText(line)}
-                    </p>
-                  ))}
-                </div>
+                <h3 className="relative text-lg font-semibold text-white">
+                  {f.title}
+                </h3>
+                <p className="relative mt-2 text-[0.95rem] leading-relaxed text-neutral-400">
+                  {f.description}
+                </p>
               </article>
             ))}
           </div>
         </section>
 
-        <section className="mb-12" aria-labelledby="install-heading">
+        <section className="mb-20" aria-labelledby="install-heading">
           <h2
             id="install-heading"
-            className="mb-2 text-[1.4rem] font-semibold tracking-tight text-sky-400"
+            className="mb-2 text-left text-2xl font-semibold tracking-tight text-white"
           >
-            Install
+            Install in minutes
           </h2>
-          <p className="mb-4 max-w-3xl text-[0.95rem] text-neutral-400">
-            Pick your editor. The core flow is the same: install the plugin, run
-            the daemon, then connect from the IDE.
+          <p className="mb-8 max-w-2xl text-left text-neutral-400">
+            {renderRichText(
+              "Plug into your existing stack. Pick an editor—the core loop is the same: **extension + engine + microphone**.",
+            )}
           </p>
           <div
-            className="mb-4 flex flex-wrap gap-2 border-b border-white/15 pb-3"
+            className="mb-6 flex flex-wrap gap-2 border-b border-white/10 pb-4"
             role="tablist"
-            aria-label="Choose IDE for install instructions"
+            aria-label="Choose editor for install steps"
           >
             {INSTALL_TABS.map((t) => {
               const selected = installTab === t.id;
@@ -269,14 +241,14 @@ function HomePage() {
                   key={t.id}
                   type="button"
                   role="tab"
-                  id={`install-tab-${t.id}`}
+                  id={`home-install-tab-${t.id}`}
                   aria-selected={selected}
                   aria-controls={`${installPanelId}-${t.id}`}
                   tabIndex={selected ? 0 : -1}
                   className={`${tabBtn} ${
                     selected
-                      ? "border-sky-400/60 bg-sky-950/50 text-sky-100"
-                      : "border-white/15 bg-black/25 text-neutral-300 hover:border-sky-500/40 hover:bg-white/8"
+                      ? "border-[#4f81ff]/50 bg-[#4f81ff]/12 text-white"
+                      : "border-white/12 bg-black/30 text-neutral-400 hover:border-[#4f81ff]/35 hover:bg-white/5"
                   }`}
                   onClick={() => setInstallTab(t.id)}
                 >
@@ -294,84 +266,83 @@ function HomePage() {
                 key={t.id}
                 id={`${installPanelId}-${t.id}`}
                 role="tabpanel"
-                aria-labelledby={`install-tab-${t.id}`}
+                aria-labelledby={`home-install-tab-${t.id}`}
                 hidden={hidden}
                 className={hidden ? "hidden" : undefined}
               >
-                <ol className="m-0 list-none p-0">
+                <ol className="m-0 list-none p-0 text-left">
                   {steps.map((step, i) => (
                     <li
                       key={step.id}
-                      className="mb-4 flex items-start gap-4 leading-snug last:mb-0"
+                      className="mb-5 flex items-start gap-4 leading-snug last:mb-0"
                     >
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#007acc] text-[0.85rem] font-bold text-white">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#4f81ff] text-[0.8rem] font-bold text-white">
                         {i + 1}
                       </span>
-                      <span className={`pt-0.5 text-neutral-300 ${stepKbd}`}>
+                      <span className={`pt-1 text-neutral-300 ${stepKbd}`}>
                         {step.content}
                       </span>
                     </li>
                   ))}
                 </ol>
                 {cli ? (
-                  <p className="mt-5 text-sm text-neutral-400">
+                  <p className="mt-4 text-sm text-neutral-500">
                     {cli.label}:{" "}
-                    <code className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[0.82em] text-neutral-200">
+                    <code className="rounded-md bg-white/10 px-2 py-1 font-mono text-[0.82em] text-neutral-200">
                       {cli.cmd}
                     </code>
                   </p>
                 ) : (
-                  <p className="mt-5 text-sm text-neutral-400">coming soon</p>
+                  <p className="mt-4 text-sm text-neutral-500">coming soon</p>
                 )}
               </div>
             );
           })}
-          <div className="mt-5 flex flex-wrap gap-3">
+          <div className="mt-8 flex flex-wrap gap-3">
             <a
-              className={`${btnBase} bg-[#007acc] text-white shadow-sm hover:bg-[#0062a3]`}
-              href={EXTENSION.marketplaceUrl}
+              className={`${btnPrimary} px-5 py-2.5 text-sm`}
+              href={SITE.marketplaceUrl}
               rel="noopener noreferrer"
             >
-              Marketplace listing
+              Marketplace
             </a>
             <a
-              className={`${btnBase} border-sky-400/40 bg-white/10 text-sky-300 hover:border-sky-600 hover:bg-white/15`}
-              href={EXTENSION.githubUrl}
+              className={`${btnGhost} px-5 py-2.5 text-sm`}
+              href={SITE.githubUrl}
               rel="noopener noreferrer"
             >
-              Source on GitHub
+              Source
             </a>
           </div>
         </section>
 
         <section
-          className="rounded-xl bg-gradient-to-br from-[#1e1e1e] via-[#252526] to-[#1a2f44] p-8 text-center text-neutral-200"
-          aria-labelledby="bottom-cta"
+          className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#4f81ff]/20 via-[#0a0f1a] to-[#060606] px-8 py-14 text-center sm:px-12"
+          aria-labelledby="cta-heading"
         >
-          <h2
-            id="bottom-cta"
-            className="mb-2 text-[1.35rem] font-semibold text-sky-200"
+          <div
+            className="pointer-events-none absolute inset-0 opacity-60"
+            aria-hidden
           >
-            Learn more
+            <div className="absolute left-1/2 top-0 h-px w-3/4 max-w-lg -translate-x-1/2 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+          </div>
+          <h2
+            id="cta-heading"
+            className="relative text-2xl font-semibold tracking-tight text-white sm:text-3xl"
+          >
+            Try the way you’ll build next.
           </h2>
-          <p className="mx-auto mb-5 max-w-lg text-[0.95rem] leading-relaxed text-neutral-200/90">
-            Read setup for the daemon, privacy notes, and troubleshooting in the
-            project documentation.
+          <p className="relative mx-auto mt-4 max-w-xl text-neutral-300">
+            {renderRichText(
+              "If you’re tired of tab-dancing between chat and code, Vocode is the shortcut back to **shipping**.",
+            )}
           </p>
-          <div className="flex flex-wrap justify-center gap-3">
-            <a
-              className={`${btnBase} bg-[#007acc] text-white hover:bg-[#1c97ea]`}
-              href={EXTENSION.docsUrl}
-              rel="noopener noreferrer"
-            >
-              Documentation
+          <div className="relative mt-8 flex flex-wrap justify-center gap-4">
+            <a className={btnPrimary} href={SITE.marketplaceUrl}>
+              Get the extension
             </a>
-            <a
-              className={`${btnBase} border border-white/35 bg-transparent text-neutral-200 hover:border-white/55 hover:bg-white/8`}
-              href={EXTENSION.githubUrl}
-              rel="noopener noreferrer"
-            >
-              GitHub
+            <a className={btnGhost} href={SITE.githubUrl}>
+              Star on GitHub
             </a>
           </div>
         </section>

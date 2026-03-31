@@ -52,7 +52,7 @@ func (s *TranscriptService) SetHostApplyClient(client hostApplyClient) {
 }
 
 type transcriptAcceptResp struct {
-	result protocol.VoiceTranscriptResult
+	result protocol.VoiceTranscriptCompletion
 	ok     bool
 }
 
@@ -105,10 +105,10 @@ func NewService(
 
 func (s *TranscriptService) AcceptTranscript(
 	params protocol.VoiceTranscriptParams,
-) (protocol.VoiceTranscriptResult, bool) {
+) (protocol.VoiceTranscriptCompletion, bool) {
 	params.Text = strings.TrimSpace(params.Text)
 	if params.Text == "" {
-		return protocol.VoiceTranscriptResult{}, false
+		return protocol.VoiceTranscriptCompletion{}, false
 	}
 
 	if s.queue == nil {
@@ -125,7 +125,7 @@ func (s *TranscriptService) AcceptTranscript(
 	case s.queue <- job:
 	default:
 		job.resp <- transcriptAcceptResp{
-			result: protocol.VoiceTranscriptResult{
+			result: protocol.VoiceTranscriptCompletion{
 				Success: false,
 			},
 			ok: true,

@@ -115,5 +115,5 @@ It complements [`transcript-architecture-plan.md`](./transcript-architecture-pla
 
 - Pending batch + apply consume: `apps/daemon/internal/agentcontext/directive_apply_batch.go`, `apps/daemon/internal/transcript/voicesession/voicesession.go`
 - Executor loop: `apps/daemon/internal/transcript/executor/execute_iteration.go`, `apply_outcome.go`, `executor.go`
-- Extension apply: `apps/vscode-extension/src/transcript/apply-result.ts`
+- Extension apply: `apps/vscode-extension/src/transcript/apply-directives.ts`
 - Params schema: `packages/protocol/schema/voice-transcript.params.schema.json`, `voice-transcript.directive-apply-item.schema.json`
