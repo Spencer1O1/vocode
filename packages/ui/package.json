@@ -5,7 +5,6 @@
   "description": "Shared static assets and UI primitives for Vocode apps",
   "exports": {
     "./package.json": "./package.json",
-    "./assets/vocode_icon_color.svg": "./assets/vocode_icon_color.svg",
     "./assets/vocode_icon_black.svg": "./assets/vocode_icon_black.svg",
     "./assets/vocode_icon_white.svg": "./assets/vocode_icon_white.svg"
   },
