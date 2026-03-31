@@ -425,43 +425,70 @@ function SkippedSection({ items }: { items: readonly HandledRow[] }) {
 }
 
 function ChatSection({ state }: { state: PanelState }) {
-  const handled = Array.isArray(state.recentHandled) ? state.recentHandled : [];
-  const items = handled
-    .filter(
-      (h) => h.transcriptOutcome === "answer" && !!(h.answerText || h.summary),
-    )
-    .map((h) => ({
-      question: h.text,
-      answerText: h.answerText || h.summary || "",
-      receivedAt: h.receivedAt,
-    }));
+  const items = Array.isArray(state.qaHistory) ? state.qaHistory : [];
+  const latest = items[0];
+  const older = items.length > 1 ? items.slice(1) : [];
   return (
-    <>
+    <div className="chat-section">
       <h1>Chat</h1>
       <div className="stack">
-        {items.length === 0 ? <div className="empty" /> : null}
-        {items.map((qa) => (
-          <div
-            key={`qa-${qa.receivedAt}-${qa.question}`}
-            className="card history-card"
-          >
+        {!latest ? <div className="empty" /> : null}
+
+        {latest ? (
+          <div className="card history-card">
             <div className="meta">
               <span className="badge" title="Question">
                 Q
               </span>
-              <span className="muted-transcript">{qa.receivedAt}</span>
+              <span className="muted-transcript">
+                {fmtTime(latest.receivedAt)}
+              </span>
             </div>
-            <div className="text">{qa.question}</div>
+            <div className="text">{latest.question}</div>
             <div className="meta" style={{ marginTop: 8 }}>
               <span className="badge" title="Answer">
                 A
               </span>
             </div>
-            <div className="text history-summary">{qa.answerText}</div>
+            <div className="text history-summary">{latest.answerText}</div>
           </div>
-        ))}
+        ) : null}
+
+        {older.length > 0 ? (
+          <details className="history-directives">
+            <summary className="history-directives-summary">
+              <span className="history-directives-summary-label">
+                Previous ({older.length})
+              </span>
+            </summary>
+            <div className="stack">
+              {older.map((qa) => (
+                <div
+                  key={`qa-${qa.receivedAt}-${qa.question}`}
+                  className="card history-card"
+                >
+                  <div className="meta">
+                    <span className="badge" title="Question">
+                      Q
+                    </span>
+                    <span className="muted-transcript">
+                      {fmtTime(qa.receivedAt)}
+                    </span>
+                  </div>
+                  <div className="text">{qa.question}</div>
+                  <div className="meta" style={{ marginTop: 8 }}>
+                    <span className="badge" title="Answer">
+                      A
+                    </span>
+                  </div>
+                  <div className="text history-summary">{qa.answerText}</div>
+                </div>
+              ))}
+            </div>
+          </details>
+        ) : null}
       </div>
-    </>
+    </div>
   );
 }
 

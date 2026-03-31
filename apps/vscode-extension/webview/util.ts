@@ -40,7 +40,7 @@ export function normalizePanelState(raw: unknown): PanelState {
   }
   const o = raw as Record<string, unknown>;
   const am = (o.audioMeter as Record<string, unknown>) || {};
-  return {
+  const base: PanelState = {
     pending: Array.isArray(o.pending)
       ? o.pending.map((row) => {
           const r = row as Record<string, unknown>;
@@ -152,6 +152,64 @@ export function normalizePanelState(raw: unknown): PanelState {
       waveform: Array.isArray(am.waveform) ? (am.waveform as number[]) : [],
     },
   };
+
+  const cp = o.clarifyPrompt as Record<string, unknown> | undefined;
+  if (
+    cp &&
+    typeof cp.question === "string" &&
+    typeof cp.originalTranscript === "string"
+  ) {
+    base.clarifyPrompt = {
+      question: cp.question,
+      originalTranscript: cp.originalTranscript,
+    };
+  }
+
+  const ss = o.searchState as Record<string, unknown> | undefined;
+  if (ss && Array.isArray(ss.results) && typeof ss.activeIndex === "number") {
+    base.searchState = {
+      results: ss.results
+        .map((r) => r as Record<string, unknown>)
+        .filter(
+          (r) =>
+            typeof r.path === "string" &&
+            typeof r.line === "number" &&
+            typeof r.character === "number" &&
+            typeof r.preview === "string",
+        )
+        .map((r) => ({
+          path: r.path as string,
+          line: r.line as number,
+          character: r.character as number,
+          preview: r.preview as string,
+        })),
+      activeIndex: ss.activeIndex as number,
+    };
+  }
+
+  const as = o.answerState as Record<string, unknown> | undefined;
+  if (as && typeof as.question === "string" && typeof as.answerText === "string") {
+    base.answerState = { question: as.question, answerText: as.answerText };
+  }
+
+  const qh = o.qaHistory;
+  if (Array.isArray(qh)) {
+    base.qaHistory = qh
+      .map((x) => x as Record<string, unknown>)
+      .filter(
+        (x) =>
+          typeof x.question === "string" &&
+          typeof x.answerText === "string" &&
+          typeof x.receivedAt === "string",
+      )
+      .map((x) => ({
+        question: x.question as string,
+        answerText: x.answerText as string,
+        receivedAt: x.receivedAt as string,
+      }));
+  }
+
+  return base;
 }
 
 export function emptyState(): PanelState {

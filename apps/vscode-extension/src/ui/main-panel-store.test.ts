@@ -166,6 +166,22 @@ test("markHandled sets answerState when transcript outcome is answer", () => {
   );
 });
 
+test("markHandled stores Q/A in qaHistory and does not add to recentHandled", () => {
+  const store = new MainPanelStore();
+  const id = store.enqueueCommitted("what is a closure") as number;
+  store.markHandled(id, {
+    transcriptOutcome: "answer",
+    answerText: "A closure is a function plus its lexical environment.",
+  });
+  const snap = store.getSnapshot();
+  assert.equal(snap.qaHistory?.[0]?.question, "what is a closure");
+  assert.equal(
+    snap.qaHistory?.[0]?.answerText,
+    "A closure is a function plus its lexical environment.",
+  );
+  assert.equal(snap.recentHandled.length, 0);
+});
+
 test("recordCompletedTranscript appends done entry without pending", () => {
   const store = new MainPanelStore();
   store.recordCompletedTranscript("manual line", { summary: "Done." });

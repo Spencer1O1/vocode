@@ -73,7 +73,12 @@ export type MainPanelSnapshot = {
     readonly text: string;
     readonly receivedAt: Date;
     readonly summary?: string;
-    readonly transcriptOutcome?: "irrelevant" | "completed" | "clarify" | "search" | "answer";
+    readonly transcriptOutcome?:
+      | "irrelevant"
+      | "completed"
+      | "clarify"
+      | "search"
+      | "answer";
     readonly answerText?: string;
     readonly errorMessage?: string;
     /** Agent marked transcript as irrelevant / non-actionable; listed in the Skipped section. */
@@ -106,7 +111,12 @@ export class MainPanelStore {
     text: string;
     receivedAt: Date;
     summary?: string;
-    transcriptOutcome?: "irrelevant" | "completed" | "clarify" | "search" | "answer";
+    transcriptOutcome?:
+      | "irrelevant"
+      | "completed"
+      | "clarify"
+      | "search"
+      | "answer";
     answerText?: string;
     errorMessage?: string;
     skipped?: true;
@@ -403,7 +413,10 @@ export class MainPanelStore {
     }
     // Accept explicit transcriptOutcome="answer". If answerText is missing, fall back to summary
     // (daemon also copies answerText into summary for UI compatibility).
-    if (options?.transcriptOutcome === "answer" || options?.answerText?.trim()) {
+    if (
+      options?.transcriptOutcome === "answer" ||
+      options?.answerText?.trim()
+    ) {
       const ans = options?.answerText?.trim() ?? summary;
       if (ans) {
         this.answerState = { question: removed.text, answerText: ans };
@@ -412,29 +425,36 @@ export class MainPanelStore {
           answerText: ans,
           receivedAt: removed.receivedAt,
         });
+        console.error("[vocode][qa] stored answer", {
+          question: removed.text,
+          answerChars: ans.length,
+          qaHistoryLen: this.qaHistory.length,
+        });
         while (this.qaHistory.length > this.maxHandled) {
           this.qaHistory.pop();
         }
       }
     }
-    this.recentHandled.unshift({
-      text: removed.text,
-      receivedAt: removed.receivedAt,
-      ...(summary ? { summary } : {}),
-      ...(options?.transcriptOutcome ? { transcriptOutcome: options.transcriptOutcome } : {}),
-      ...(options?.answerText?.trim()
-        ? { answerText: options.answerText.trim() }
-        : options?.transcriptOutcome === "answer" && summary
-          ? { answerText: summary }
+    // Don't put answers into Recent — they belong in Chat.
+    if (options?.transcriptOutcome !== "answer") {
+      this.recentHandled.unshift({
+        text: removed.text,
+        receivedAt: removed.receivedAt,
+        ...(summary ? { summary } : {}),
+        ...(options?.transcriptOutcome
+          ? { transcriptOutcome: options.transcriptOutcome }
           : {}),
-      ...(skipped ? { skipped } : {}),
-      ...(removed.applyChecklist !== undefined &&
-      removed.applyChecklist.length > 0
-        ? {
-            applyChecklist: removed.applyChecklist.map((item) => ({ ...item })),
-          }
-        : {}),
-    });
+        ...(skipped ? { skipped } : {}),
+        ...(removed.applyChecklist !== undefined &&
+        removed.applyChecklist.length > 0
+          ? {
+              applyChecklist: removed.applyChecklist.map((item) => ({
+                ...item,
+              })),
+            }
+          : {}),
+      });
+    }
     while (this.recentHandled.length > this.maxHandled) {
       this.recentHandled.pop();
     }
@@ -484,7 +504,10 @@ export class MainPanelStore {
         activeIndex: Math.max(0, options.activeSearchIndex ?? 0),
       };
     }
-    if (options?.transcriptOutcome === "answer" || options?.answerText?.trim()) {
+    if (
+      options?.transcriptOutcome === "answer" ||
+      options?.answerText?.trim()
+    ) {
       const ans = options?.answerText?.trim() ?? summary;
       if (ans) {
         this.answerState = { question: normalized, answerText: ans };
@@ -493,27 +516,31 @@ export class MainPanelStore {
           answerText: ans,
           receivedAt: new Date(),
         });
+        console.error("[vocode][qa] stored answer (manual)", {
+          question: normalized,
+          answerChars: ans.length,
+          qaHistoryLen: this.qaHistory.length,
+        });
         while (this.qaHistory.length > this.maxHandled) {
           this.qaHistory.pop();
         }
       }
     }
-    this.recentHandled.unshift({
-      text: normalized,
-      receivedAt: new Date(),
-      ...(err !== undefined && err !== ""
-        ? { errorMessage: err }
-        : summary
-          ? { summary }
+    if (options?.transcriptOutcome !== "answer") {
+      this.recentHandled.unshift({
+        text: normalized,
+        receivedAt: new Date(),
+        ...(err !== undefined && err !== ""
+          ? { errorMessage: err }
+          : summary
+            ? { summary }
+            : {}),
+        ...(options?.transcriptOutcome
+          ? { transcriptOutcome: options.transcriptOutcome }
           : {}),
-      ...(options?.transcriptOutcome ? { transcriptOutcome: options.transcriptOutcome } : {}),
-      ...(options?.answerText?.trim()
-        ? { answerText: options.answerText.trim() }
-        : options?.transcriptOutcome === "answer" && summary
-          ? { answerText: summary }
-          : {}),
-      ...(skipped ? { skipped } : {}),
-    });
+        ...(skipped ? { skipped } : {}),
+      });
+    }
     while (this.recentHandled.length > this.maxHandled) {
       this.recentHandled.pop();
     }

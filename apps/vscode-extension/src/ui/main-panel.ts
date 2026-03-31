@@ -185,6 +185,14 @@ export class MainPanelViewProvider
       return;
     }
     const snapshot = this.store.getSnapshot();
+    console.error("[vocode][panel] postState", {
+      qaHistoryLen: Array.isArray((snapshot as any).qaHistory)
+        ? ((snapshot as any).qaHistory as unknown[]).length
+        : 0,
+      recentHandledLen: Array.isArray((snapshot as any).recentHandled)
+        ? ((snapshot as any).recentHandled as unknown[]).length
+        : 0,
+    });
     const plain = JSON.parse(JSON.stringify(snapshot)) as Record<
       string,
       unknown

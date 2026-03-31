@@ -574,6 +574,9 @@ h1 {
   text-transform: uppercase;
   color: var(--vscode-descriptionForeground);
 }
+.chat-section {
+  margin-bottom: 18px;
+}
 .stack {
   display: flex;
   flex-direction: column;
