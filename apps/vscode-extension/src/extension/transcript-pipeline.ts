@@ -263,7 +263,8 @@ export function attachTranscriptPipeline(
         console.error("[vocode][pipeline] handled transcript", {
           transcriptOutcome: result.transcriptOutcome,
           hasAnswerText:
-            typeof result.answerText === "string" && result.answerText.length > 0,
+            typeof result.answerText === "string" &&
+            result.answerText.length > 0,
           summaryChars:
             typeof result.summary === "string" ? result.summary.length : 0,
         });

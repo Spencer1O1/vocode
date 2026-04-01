@@ -174,8 +174,5 @@
       ]
     }
   },
-  "oneOf": [
-    { "$ref": "#/$defs/AsControl" },
-    { "$ref": "#/$defs/AsTranscript" }
-  ]
+  "oneOf": [{ "$ref": "#/$defs/AsControl" }, { "$ref": "#/$defs/AsTranscript" }]
 }

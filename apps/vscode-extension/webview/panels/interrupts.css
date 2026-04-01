@@ -1,0 +1,109 @@
+.interrupt-panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: var(--pad);
+}
+
+.interrupt-panel-kicker {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--vscode-descriptionForeground);
+}
+
+.interrupt-panel-card {
+  padding: 14px 14px 16px;
+}
+
+.interrupt-panel-lead {
+  margin: 8px 0 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--vscode-foreground);
+}
+
+.interrupt-panel-divider {
+  height: 1px;
+  margin: 14px 0 12px;
+  background: var(--vscode-widget-border, rgba(128, 128, 128, 0.25));
+}
+
+.interrupt-panel-label {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vscode-descriptionForeground);
+}
+
+.interrupt-panel-transcript {
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.interrupt-panel-footnote {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--vscode-descriptionForeground);
+}
+
+.interrupt-panel-results {
+  gap: 12px;
+}
+
+.interrupt-search-card {
+  padding: 12px 14px;
+}
+
+.interrupt-search-preview {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.interrupt-search-hint {
+  text-align: left;
+  margin-top: 10px;
+}
+
+.interrupt-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+
+.interrupt-secondary-btn {
+  font: inherit;
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--vscode-button-border, transparent);
+  background: var(
+    --vscode-button-secondaryBackground,
+    var(--vscode-input-background)
+  );
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  cursor: pointer;
+  text-align: center;
+}
+
+.interrupt-secondary-btn:hover {
+  background: var(
+    --vscode-button-secondaryHoverBackground,
+    var(--vscode-toolbar-hoverBackground)
+  );
+}
+
+.interrupt-secondary-btn:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+

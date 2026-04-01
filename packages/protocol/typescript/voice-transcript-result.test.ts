@@ -45,7 +45,12 @@ test("isVoiceTranscriptCompletion accepts search outcome with searchResults", ()
       success: true,
       transcriptOutcome: "search",
       searchResults: [
-        { path: "c:\\\\x.ts", line: 0, character: 1, preview: "function test() {}" },
+        {
+          path: "c:\\\\x.ts",
+          line: 0,
+          character: 1,
+          preview: "function test() {}",
+        },
       ],
       activeSearchIndex: 0,
     }),

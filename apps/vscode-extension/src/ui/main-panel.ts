@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 
+import type { ExtensionServices } from "../commands/services";
 import {
   applyVocodePanelConfigPatch,
   buildVocodePanelConfigMessage,
@@ -10,7 +11,6 @@ import {
   elevenLabsApiKeyIsConfigured,
   OPENAI_API_KEY_SECRET,
 } from "../config/spawn-env";
-import type { ExtensionServices } from "../commands/services";
 import { sendTranscriptControlRequest } from "../extension/transcript-control";
 import type { MainPanelStore } from "./main-panel-store";
 

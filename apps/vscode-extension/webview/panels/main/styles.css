@@ -1,0 +1,321 @@
+#main-root {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.panel-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chat-thread {
+  max-height: min(320px, 42vh);
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 2px 0 6px;
+}
+
+.chat-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chat-row {
+  display: flex;
+  width: 100%;
+}
+
+.chat-row-user {
+  justify-content: flex-end;
+}
+
+.chat-row-agent {
+  justify-content: flex-start;
+}
+
+.chat-bubble {
+  max-width: min(92%, 380px);
+  padding: 8px 11px;
+  border-radius: 12px;
+  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.22));
+}
+
+.chat-bubble-user {
+  background: var(
+    --vscode-list-activeSelectionBackground,
+    var(--vscode-input-background)
+  );
+  border-color: var(
+    --vscode-list-focusOutline,
+    var(--vscode-widget-border, rgba(128, 128, 128, 0.28))
+  );
+}
+
+.chat-bubble-agent {
+  background: var(--vscode-input-background);
+}
+
+.chat-bubble-text {
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.chat-bubble-meta {
+  margin-top: 4px;
+  font-size: 10px;
+  text-align: right;
+  color: var(--vscode-descriptionForeground);
+  opacity: 0.88;
+}
+
+.chat-row-agent .chat-bubble-meta {
+  text-align: left;
+}
+
+.applying-primary-card {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.applying-queue-block {
+  margin-top: 2px;
+}
+
+.applying-subhead {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vscode-descriptionForeground);
+}
+
+.applying-queue-stack {
+  gap: 8px;
+}
+
+.applying-queued-card {
+  opacity: 0.82;
+  border-style: dashed;
+}
+
+.applying-queued-card .text {
+  color: var(--vscode-descriptionForeground);
+}
+
+.card.done {
+  opacity: 0.85;
+}
+
+.card.done.failed {
+  opacity: 1;
+  border-left: 3px solid var(--vscode-errorForeground);
+}
+
+.card.summary {
+  border-left: 3px solid
+    var(
+      --vscode-notificationsInfoIcon-foreground,
+      var(--vscode-textLink-foreground)
+    );
+  background: var(
+    --vscode-editor-inactiveSelectionBackground,
+    var(--vscode-input-background)
+  );
+}
+
+.summary-for {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  margin-top: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.error-detail {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--vscode-errorForeground);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.card.pending {
+  border-left: 3px solid var(--vscode-progressBar-background);
+}
+
+.card.processing {
+  border-left: 3px solid var(--vscode-textLink-foreground);
+}
+
+.card.pending-compact {
+  padding: 7px 10px;
+  box-shadow: none;
+  opacity: 0.9;
+}
+
+.card.pending-compact .meta {
+  margin-bottom: 4px;
+  font-size: 9px;
+}
+
+.card.pending-compact .badge {
+  font-size: 9px;
+  padding: 1px 5px;
+}
+
+.pending-compact-text {
+  font-size: 11px;
+  line-height: 1.35;
+  display: -webkit-box;
+  line-clamp: 3;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.apply-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.2));
+}
+
+.apply-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--vscode-foreground);
+}
+
+.apply-step-mark {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border-radius: 4px;
+  border: 1px solid var(--vscode-checkbox-border, var(--vscode-widget-border));
+  background: var(--vscode-checkbox-background, var(--vscode-input-background));
+  box-sizing: border-box;
+}
+
+.apply-step-done .apply-step-mark {
+  border-color: var(
+    --vscode-testing-iconPassed,
+    var(--vscode-notebookStatusSuccessIcon-foreground)
+  );
+  background: var(
+    --vscode-testing-iconPassed,
+    var(--vscode-notebookStatusSuccessIcon-foreground)
+  );
+  position: relative;
+  opacity: 0.95;
+}
+
+.apply-step-done .apply-step-mark::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3px;
+  height: 7px;
+  border: solid var(--vscode-button-foreground, var(--vscode-editor-background));
+  border-width: 0 2px 2px 0;
+  transform: translate(-50%, -55%) rotate(45deg);
+  box-sizing: border-box;
+}
+
+.apply-step-active .apply-step-mark {
+  border-color: var(--vscode-focusBorder, var(--vscode-textLink-foreground));
+  animation: apply-pulse 1.1s ease-in-out infinite;
+}
+
+.apply-step-pending .apply-step-mark {
+  opacity: 0.65;
+}
+
+.apply-step-unimplemented .apply-step-mark,
+.apply-step-retry .apply-step-mark {
+  border-style: dashed;
+  opacity: 0.55;
+  background: transparent;
+}
+
+.apply-step-label {
+  flex: 1;
+  line-height: 1.35;
+  min-width: 0;
+}
+
+.apply-step-unimplemented .apply-step-label,
+.apply-step-retry .apply-step-label {
+  color: var(--vscode-descriptionForeground);
+}
+
+.apply-step-failed .apply-step-mark {
+  border-color: var(--vscode-errorForeground);
+  background: transparent;
+  position: relative;
+}
+
+.apply-step-failed .apply-step-mark::after {
+  content: "×";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 700;
+  color: var(--vscode-errorForeground);
+  transform: translate(-50%, -55%);
+}
+
+.apply-step-failed .apply-step-label {
+  color: var(--vscode-errorForeground);
+}
+
+@keyframes apply-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
+    opacity: 0.65;
+  }
+  50% {
+    box-shadow: 0 0 0 2px
+      var(--vscode-focusBorder, rgba(100, 160, 255, 0.35));
+    opacity: 1;
+  }
+}
+
+.history-card .history-summary {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.history-card .text {
+  margin-top: 0;
+}
+
+.skipped-card {
+  opacity: 0.72;
+  border-left: 3px solid
+    var(--vscode-disabledForeground, rgba(128, 128, 128, 0.45));
+}
+
+.skipped-summary {
+  font-size: 12px;
+}
+

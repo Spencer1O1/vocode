@@ -130,9 +130,7 @@ test("markHandled stores contextSessionId for daemon cancel RPCs", () => {
   store.markHandled(id2, {
     transcriptOutcome: "search",
     contextSessionId: "ctx-search-1",
-    searchResults: [
-      { path: "a.ts", line: 0, character: 0, preview: "hit" },
-    ],
+    searchResults: [{ path: "a.ts", line: 0, character: 0, preview: "hit" }],
     activeSearchIndex: 0,
   });
   assert.equal(store.searchContextSessionId(), "ctx-search-1");
