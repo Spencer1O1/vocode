@@ -350,59 +350,6 @@ export class MainPanelStore {
     };
   }
 
-  /**
-   * Whether a committed utterance is just search navigation (next/back/ordinal/result N),
-   * which should update the active hit but not appear in history.
-   */
-  private isSearchNavigationUtterance(text: string): boolean {
-    const t = text.trim().toLowerCase();
-    if (!t) return false;
-    if (t === "next" || t === "forward") return true;
-    if (t === "back" || t === "prev" || t === "previous") return true;
-
-    // Bare ordinal/digit.
-    if (/^\d+$/.test(t)) return true;
-    const bareWord = t.replace(/[.,;:!?]/g, "");
-    if (
-      bareWord === "one" ||
-      bareWord === "two" ||
-      bareWord === "three" ||
-      bareWord === "four" ||
-      bareWord === "five" ||
-      bareWord === "six" ||
-      bareWord === "seven" ||
-      bareWord === "eight" ||
-      bareWord === "nine" ||
-      bareWord === "ten" ||
-      bareWord === "first" ||
-      bareWord === "second" ||
-      bareWord === "third" ||
-      bareWord === "fourth" ||
-      bareWord === "fifth" ||
-      bareWord === "sixth" ||
-      bareWord === "seventh" ||
-      bareWord === "eighth" ||
-      bareWord === "ninth" ||
-      bareWord === "tenth"
-    ) {
-      return true;
-    }
-
-    // Phrases like "result 3", "select result two", "go to result 4".
-    if (t.includes("result")) {
-      if (/\b\d+\b/.test(t)) return true;
-      if (
-        /\b(one|two|three|four|five|six|seven|eight|nine|ten)\b/.test(t) ||
-        /\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\b/.test(
-          t,
-        )
-      ) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   markProcessing(id: number): void {
     const item = this.pending.find((p) => p.id === id);
     if (item) {
@@ -509,8 +456,7 @@ export class MainPanelStore {
     const hideFromHistory =
       options?.transcriptOutcome === "answer" ||
       options?.transcriptOutcome === "clarify" ||
-      (options?.transcriptOutcome === "search" &&
-        this.isSearchNavigationUtterance(removed.text));
+      options?.transcriptOutcome === "search";
     if (!hideFromHistory) {
       this.recentHandled.unshift({
         text: removed.text,
@@ -596,7 +542,11 @@ export class MainPanelStore {
         }
       }
     }
-    if (options?.transcriptOutcome !== "answer") {
+    const hideFromManualHistory =
+      options?.transcriptOutcome === "answer" ||
+      options?.transcriptOutcome === "clarify" ||
+      options?.transcriptOutcome === "search";
+    if (!hideFromManualHistory) {
       this.recentHandled.unshift({
         text: normalized,
         receivedAt: new Date(),

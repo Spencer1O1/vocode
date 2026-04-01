@@ -176,8 +176,8 @@ test("search navigation utterances do not appear in Recent/History", () => {
     searchResults: [{ path: "a.ts", line: 0, character: 0, preview: "hit" }],
     activeSearchIndex: 0,
   });
-  // The original search query is meaningful and can be in history.
-  assert.equal(store.getSnapshot().recentHandled[0]?.text, "find foo");
+  // Search flows are not edits; don't add them to history.
+  assert.equal(store.getSnapshot().recentHandled.length, 0);
 
   const nav = store.enqueueCommitted("next") as number;
   store.markHandled(nav, {
@@ -185,8 +185,7 @@ test("search navigation utterances do not appear in Recent/History", () => {
     searchResults: [{ path: "b.ts", line: 1, character: 0, preview: "hit2" }],
     activeSearchIndex: 0,
   });
-  // "next" should not be appended.
-  assert.ok(store.getSnapshot().recentHandled.every((h) => h.text !== "next"));
+  assert.equal(store.getSnapshot().recentHandled.length, 0);
 });
 
 test("markHandled sets answerState when transcript outcome is answer", () => {

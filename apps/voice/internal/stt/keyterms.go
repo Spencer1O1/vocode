@@ -69,6 +69,8 @@ var sttKeytermsVocodeDirectives = []string{
 	"go to definition",
 	"undo that",
 	// stems (reuse across phrasings)
+	"find",
+	"look for",
 	"goto",
 	"undo",
 	"redo",
