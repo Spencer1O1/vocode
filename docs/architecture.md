@@ -87,7 +87,7 @@ Does not own:
 
 ## Edit directive shape (`EditDirective`)
 
-There is **no** `edit.dispatch` or **`command.run`** JSON-RPC method; the extension does not call them. `VoiceTranscriptResult` carries execution `directives` for edit/command/navigation.
+There is **no** `edit.dispatch` or **`command.run`** JSON-RPC method; the extension does not call them. The daemon sends execution `directives` to the extension via `host.applyDirectives` during `voice.transcript`, and `voice.transcript` returns a `VoiceTranscriptCompletion` (classification + UI disposition + optional search/Q&A payloads).
 
 **`EditDirective`** must be one explicit variant:
 

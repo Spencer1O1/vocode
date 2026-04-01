@@ -12,13 +12,14 @@ Agents must preserve these boundaries to keep behavior predictable and to avoid 
 
 One “turn” starts when the extension calls the daemon RPC:
 
-`voice.transcript(text, activeFile?)` → `VoiceTranscriptResult`
+`voice.transcript(text, activeFile?)` → `VoiceTranscriptCompletion`
 
 ### What the daemon guarantees
 
 1. The daemon runs an iterative agent loop (`Agent.NextTurn` → `TurnResult`: irrelevant / finish / gather-context / `intents[]`).
 2. Executable items in `intents[]` are dispatched with `intents/dispatch.Handler.Handle`. Gather-context turns call `internal/gather` from the transcript executor, not dispatch.
-3. The daemon returns a `VoiceTranscriptResult` with ordered `directives` and, when `directives` is non-empty, an `applyBatchId` that correlates the next host apply report. The daemon holds at most one open `DirectiveApplyBatch` per `VoiceSession` (`SourceIntents` parallel to `directives`) until the host reports via `lastBatchApply` / `reportApplyBatchId`. Per-`contextSessionId` state lives in `VoiceSessionStore`, subject to idle reset (`VOCODE_DAEMON_SESSION_IDLE_RESET_MS`: unset → 30m default, `0` → off) and a rolling byte/excerpt cap (active-file excerpt is retained).
+3. The daemon owns the **apply/repair loop**: it sends directive batches to the extension via `host.applyDirectives` (with an `applyBatchId`) and consumes per-directive outcomes to repair until done (bounded by a repair cap).
+4. The daemon returns a `VoiceTranscriptCompletion` containing:\n+   - `success`\n+   - optional `summary`\n+   - `transcriptOutcome` (e.g. `search`, `search_control`, `clarify`, `clarify_control`, `irrelevant`, `answer`)\n+   - `uiDisposition` (`shown | skipped | hidden`) telling the host where to log the completion\n+   - optional `searchResults` + `activeSearchIndex` for search flows\n+   - optional `answerText` for Q/A\n+   Per-`contextSessionId` state lives in `VoiceSessionStore`, subject to idle reset (`VOCODE_DAEMON_SESSION_IDLE_RESET_MS`: unset → 30m default, `0` → off) and a rolling byte/excerpt cap (active-file excerpt is retained).
 4. Each directive is exactly one of:
    - `kind: "edit"` with an `editDirective` (a single explicit variant of `EditDirective`)
    - `kind: "command"` with `commandDirective` (daemon-validated command shape; extension executes)
@@ -26,11 +27,7 @@ One “turn” starts when the extension calls the daemon RPC:
 
 ### What the extension guarantees
 
-1. The extension iterates `VoiceTranscriptResult.directives` sequentially.
-2. For `edit` results, it applies daemon-provided edit actions mechanically using `workspace.applyEdit`.
-3. For `command` results, it runs the command parameters using an allowlisted runner (no additional semantic policy).
-4. If any result fails, the extension stops processing remaining results.
-5. On the next `voice.transcript`, it sends the same `contextSessionId` while voice is active (so gathered context continues), plus `reportApplyBatchId` (prior `applyBatchId`) and `lastBatchApply` (one entry per directive: `status` `ok` | `failed` | `skipped`, optional `message`; tail entries use `skipped` after the first failure) so the daemon can feed extension outcomes back into the agent loop.
+1. The extension implements the `host.applyDirectives` RPC: it applies directives sequentially and returns one outcome row per directive (`status: ok | failed | skipped`, optional `message`). Tail rows use `skipped` after the first failure.\n+2. For `edit` directives, it applies daemon-provided edit actions mechanically using `workspace.applyEdit`.\n+3. For `command` directives, it runs the command parameters using an allowlisted runner (no additional semantic policy).\n+4. If any directive fails, the extension stops processing remaining directives in that batch.\n+5. The extension treats `VoiceTranscriptCompletion.uiDisposition` as authoritative for UI logging (no host-side heuristics).
 
 ### Invariant: no mixed-state payloads
 

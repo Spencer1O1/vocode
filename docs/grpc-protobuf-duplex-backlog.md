@@ -18,7 +18,7 @@ Implement a duplex gRPC stream (one stream per committed transcript / `contextSe
 2. Host->Daemon messages: `ApplyOutcomeBatch`
    - `applyBatchId`
    - `items[]` with `status: ok|failed|skipped` and optional `message`
-3. Daemon completes by sending a final `VoiceTranscriptResult` (with `success=true` and no directives).
+3. Daemon completes by sending a final `VoiceTranscriptCompletion` (with `success=true` plus classification fields like `transcriptOutcome` and `uiDisposition`).
 
 ## Mapping from current JSON-RPC
 - `host.applyDirectives` request.params becomes `DirectiveBatch`

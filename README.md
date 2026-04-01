@@ -137,10 +137,27 @@ Current intent `kind` values (executable unless noted):
 - `edit`, `command`, `navigate`, `undo`
 - `request_context` (control), `done` (control)
 
-`voice.transcript` returns `VoiceTranscriptResult`:
-- `success: true` when the daemon finished successfully
-- `directives[]` (ordered execution directives with `edit`, `command`, or `navigate`)
-- `success: false` when the daemon rejects/aborts the transcript before emitting directives
+`voice.transcript` uses a duplex apply loop:
+- the daemon sends directive batches to the extension via `host.applyDirectives`
+- the extension applies directives and returns per-directive outcomes
+- the daemon continues planning/repair until done
+
+`voice.transcript` returns `VoiceTranscriptCompletion`:
+- `success: true` when the daemon finished successfully (apply/repair loop completed)
+- optional `summary` for UI
+- `transcriptOutcome` (e.g. `search`, `search_control`, `clarify`, `clarify_control`, `irrelevant`, `answer`)
+- `uiDisposition` (`shown | skipped | hidden`) for host UI logging
+- optional `searchResults` + `activeSearchIndex` for search flows
+- optional `answerText` for Q/A
+
+`transcriptOutcome` + `uiDisposition` quick guide:
+- `search` → `hidden` (search is a panel flow, not Edit history)
+- `search_control` → `hidden` (next/back/pick/close while search is active)
+- `clarify` → `hidden` (clarify prompt is a panel flow)
+- `clarify_control` → `hidden` (cancel/close while clarify is active)
+- `irrelevant` → `skipped` (unless a search session is active, then `hidden` to avoid spam)
+- `answer` → `hidden` (shown in Chat, not history)
+- normal edit/apply completion → `shown`
 
 ### Agent loop troubleshooting
 

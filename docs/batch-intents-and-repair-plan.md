@@ -4,7 +4,7 @@ This document is the **exact checklist** for implementing: (1) **multiple intent
 
 It complements [`transcript-architecture-plan.md`](./transcript-architecture-plan.md) (wire, session, gathered).
 
-**Implemented in tree:** Phase 1–5 core, executor **batch advance** fix (`advanceBatchIntentDone` so multi-item `TurnIntents` runs all items), executor **tests**, **Anthropic** Messages client, **OpenAI** client (strict **`json_schema`** turn envelope), `VOCODE_DAEMON_VOICE_LOG_TRANSCRIPT` + daemon logger line, VS Code `vocode.daemonVoiceLogTranscript` / Anthropic model+base URL settings, plus a daemon-owned **apply/repair loop** that applies directive batches via `host.applyDirectives` until directives are empty (cap: `vocode.maxTranscriptRepairRpcs`). Caps: `VOCODE_DAEMON_VOICE_MAX_INTENTS_PER_BATCH` (unset → 16; **0 → no cap**). **Remaining:** optional `VoiceTranscriptResult` field for irrelevant vs summary, full extension UI E2E, prompt tuning from real transcripts.
+**Implemented in tree:** Phase 1–5 core, executor **batch advance** fix (`advanceBatchIntentDone` so multi-item `TurnIntents` runs all items), executor **tests**, **Anthropic** Messages client, **OpenAI** client (strict **`json_schema`** turn envelope), `VOCODE_DAEMON_VOICE_LOG_TRANSCRIPT` + daemon logger line, VS Code `vocode.daemonVoiceLogTranscript` / Anthropic model+base URL settings, plus a daemon-owned **apply/repair loop** that applies directive batches via `host.applyDirectives` until directives are empty (cap: `vocode.maxTranscriptRepairRpcs`). Caps: `VOCODE_DAEMON_VOICE_MAX_INTENTS_PER_BATCH` (unset → 16; **0 → no cap**). **Remaining:** full extension UI E2E, prompt tuning from real transcripts.
 
 ---
 
@@ -18,7 +18,7 @@ It complements [`transcript-architecture-plan.md`](./transcript-architecture-pla
 ### Input contract (daemon → model on repair RPCs)
 
 - When sending the model back after a failure (or after any apply report), include **full cumulative context** of everything **attempted across all batches since the user’s utterance** (or since a defined “transcript turn” boundary): every intent that was planned, with **per-intent status** — succeeded on host, failed (attempted), or not executed (skipped because a prior directive in that batch failed).
-- The model uses that **full history** to decide how to fix the plan; it still **outputs only the outstanding tail** for the next `VoiceTranscriptResult`.
+- The model uses that **full history** to decide how to fix the plan; it still **outputs only the outstanding tail** for the next directive batch.
 
 ### Host contract (unchanged)
 
@@ -30,7 +30,7 @@ It complements [`transcript-architecture-plan.md`](./transcript-architecture-pla
 
 - [x] **Max intents per batch:** `VOCODE_DAEMON_VOICE_MAX_INTENTS_PER_BATCH`; unset → 16; **0 → no cap** (VS Code `vocode.daemonVoiceMaxIntentsPerBatch`).
 - [x] **Cumulative history boundary:** same `contextSessionId` (or ephemeral session) until idle reset; history appends on each host `lastBatchApply` consume.
-- [x] **Irrelevant →** `success: true`, zero directives, reason → `VoiceTranscriptResult.summary` (executor).
+- [x] **Irrelevant →** `success: true`, no directives sent, reason → `VoiceTranscriptCompletion.summary` with `transcriptOutcome=\"irrelevant\"` and `uiDisposition=\"skipped\"`.
 - [x] **request_context** before **intents[]**: same RPC via executor loop (documented in `prompt.System()`).
 
 ---
@@ -87,10 +87,10 @@ It complements [`transcript-architecture-plan.md`](./transcript-architecture-pla
 ## Phase 6 — Extension & protocol integration checks
 
 - [x] Duplex apply shape: extension handles `host.applyDirectives` and returns per-directive `{status, message}` items (used for daemon repair).
-- [x] **`VoiceTranscriptResult` validator:** protocol test for **seven-directive** batch + shared `applyBatchId`.
+- [x] **`VoiceTranscriptCompletion` validator:** protocol tests for completion shape (including outcomes + `uiDisposition`).
 - [x] Directive dispatch failures propagate richer `lastBatchApply[i].message` (edit/command/navigation/undo) instead of a generic string.
 - [x] Daemon-owned automatic repair loop runs internal apply/repair iterations until directives are empty (cap: `VOCODE_DAEMON_VOICE_MAX_REPAIR_RPCS`).
-- [ ] Optional UI: **irrelevant** — *current thinking (not final):* grayed out in a **collapsed** section, using `VoiceTranscriptResult.summary` for the reason; **later:** optional **force-apply** / re-run path if something was misclassified. **Done:** show summary (same `summary` field); layout TBD.
+- [ ] Optional UI: **irrelevant** — *current thinking (not final):* grayed out in a **collapsed** section, using `VoiceTranscriptCompletion.summary` for the reason; **later:** optional **force-apply** / re-run path if something was misclassified. Layout TBD.
 
 ---
 
