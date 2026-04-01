@@ -15,7 +15,6 @@ func DefaultSessionIdleReset() time.Duration {
 const (
 	DefaultGatheredMaxBytes    = 120_000
 	DefaultGatheredMaxExcerpts = 12
-	DefaultMaxRepairSteps      = 8
 
 	DefaultTranscriptQueueSize   = 10
 	DefaultTranscriptCoalesceMs  = 750

@@ -497,7 +497,7 @@ export class MainPanelStore {
   }
 
   /**
-   * Records a completed transcript that did not go through the pending queue (e.g. manual send).
+   * Records a completed transcript without a pending row (tests and rare callers).
    * Shown under Done; optional summary appears in the Summary section; optional errorMessage shows a failed card.
    */
 

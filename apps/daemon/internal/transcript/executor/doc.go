@@ -1,6 +1,7 @@
-// Package executor runs one voice.transcript agent loop: iterative [agent.Agent.NextTurn], context rounds,
-// batched intents per turn (each executable step returns advanceBatchIntentDone until the batch finishes),
-// retries, and dispatch into intents/dispatch.
+// Package executor implements the narrow-model voice.transcript pipeline: transcript classification
+// (prompt/classifier), scope intent (prompt/scope_intent), then scoped edit or other deterministic
+// directive builders (format, rename, search, etc.). The daemon applies host directives in a single
+// shot per utterance—no iterative intent/repair loop inside this package.
 //
-// Files: executor.go (entry), agent_loop_state.go, execute_iteration.go, apply_outcome.go, execute_finalize.go, helpers.go.
+// Entry: executor.go, helpers.go.
 package executor

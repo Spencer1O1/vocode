@@ -25,6 +25,16 @@ export class VoiceSessionController {
     this.contextSessionUUID = null;
   }
 
+  /**
+   * Allocates a daemon `contextSessionId` when voice is off so manual “Send transcript” matches
+   * the voice RPC (gathered context keyed across sends). Does not start a voice session.
+   */
+  ensureContextSessionForManualTranscript(): void {
+    if (this.contextSessionUUID === null) {
+      this.contextSessionUUID = randomUUID();
+    }
+  }
+
   /** Opaque id: same value on each transcript while listening so gathered context accumulates in the daemon. */
   contextSessionId(): string | undefined {
     return this.contextSessionUUID ?? undefined;

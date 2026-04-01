@@ -16,18 +16,29 @@ One “turn” starts when the extension calls the daemon RPC:
 
 ### What the daemon guarantees
 
-1. The daemon runs an iterative agent loop (`Agent.NextTurn` → `TurnResult`: irrelevant / finish / gather-context / `intents[]`).
-2. Executable items in `intents[]` are dispatched with `intents/dispatch.Handler.Handle`. Gather-context turns call `internal/gather` from the transcript executor, not dispatch.
-3. The daemon owns the **apply/repair loop**: it sends directive batches to the extension via `host.applyDirectives` (with an `applyBatchId`) and consumes per-directive outcomes to repair until done (bounded by a repair cap).
-4. The daemon returns a `VoiceTranscriptCompletion` containing:\n+   - `success`\n+   - optional `summary`\n+   - `transcriptOutcome` (e.g. `search`, `search_control`, `clarify`, `clarify_control`, `irrelevant`, `answer`)\n+   - `uiDisposition` (`shown | skipped | hidden`) telling the host where to log the completion\n+   - optional `searchResults` + `activeSearchIndex` for search flows\n+   - optional `answerText` for Q/A\n+   Per-`contextSessionId` state lives in `VoiceSessionStore`, subject to idle reset (`VOCODE_DAEMON_SESSION_IDLE_RESET_MS`: unset → 30m default, `0` → off) and a rolling byte/excerpt cap (active-file excerpt is retained).
-4. Each directive is exactly one of:
+1. For `voice.transcript`, the daemon runs a **narrow-model** pipeline in `internal/transcript/executor` (classifier → scope intent → scoped edit / format / rename / search / …), not an iterative `intents[]` loop.
+2. **Single-shot apply per utterance**: at most one `executor.Execute` and one `host.applyDirectives` batch for that RPC. On `stale_range` or other apply failures, the daemon returns failure; the user re-speaks (99-like)—no daemon-side repair retries.
+3. Optional **gather** (`internal/gather`) enriches context for prompts; it does not participate in directive apply.
+4. The daemon returns a `VoiceTranscriptCompletion` containing:
+   - `success`
+   - optional `summary`
+   - `transcriptOutcome` (e.g. `search`, `search_control`, `clarify`, `clarify_control`, `irrelevant`, `answer`)
+   - `uiDisposition` (`shown | skipped | hidden`) telling the host where to log the completion
+   - optional `searchResults` + `activeSearchIndex` for search flows
+   - optional `answerText` for Q/A  
+   Per-`contextSessionId` state lives in `VoiceSessionStore`, subject to idle reset (`VOCODE_DAEMON_SESSION_IDLE_RESET_MS`: unset → 30m default, `0` → off) and a rolling byte/excerpt cap (active-file excerpt is retained).
+5. Each directive is exactly one of:
    - `kind: "edit"` with an `editDirective` (a single explicit variant of `EditDirective`)
    - `kind: "command"` with `commandDirective` (daemon-validated command shape; extension executes)
    - `kind: "navigate"` with `navigationDirective` (extension applies deterministic UI navigation)
 
 ### What the extension guarantees
 
-1. The extension implements the `host.applyDirectives` RPC: it applies directives sequentially and returns one outcome row per directive (`status: ok | failed | skipped`, optional `message`). Tail rows use `skipped` after the first failure.\n+2. For `edit` directives, it applies daemon-provided edit actions mechanically using `workspace.applyEdit`.\n+3. For `command` directives, it runs the command parameters using an allowlisted runner (no additional semantic policy).\n+4. If any directive fails, the extension stops processing remaining directives in that batch.\n+5. The extension treats `VoiceTranscriptCompletion.uiDisposition` as authoritative for UI logging (no host-side heuristics).
+1. The extension implements the `host.applyDirectives` RPC: it applies directives sequentially and returns one outcome row per directive (`status: ok | failed | skipped`, optional `message`). Tail rows use `skipped` after the first failure.
+2. For `edit` directives, it applies daemon-provided edit actions mechanically using `workspace.applyEdit`.
+3. For `command` directives, it runs the command parameters using an allowlisted runner (no additional semantic policy).
+4. If any directive fails, the extension stops processing remaining directives in that batch.
+5. The extension treats `VoiceTranscriptCompletion.uiDisposition` as authoritative for UI logging (no host-side heuristics).
 
 ### Invariant: no mixed-state payloads
 
@@ -45,8 +56,8 @@ One “turn” starts when the extension calls the daemon RPC:
 
 - Meaning and safety decisions (semantic validation, deterministic failure/noop behavior)
 - Action construction and orchestration
-- Converting intents into protocol-shaped result variants
-- Deterministic “what to do next” ordering via the dispatcher
+- Converting model output into protocol-shaped `directives` and completions
+- Deterministic ordering of directives within a single batch
 
 ### Extension owns
 
@@ -90,11 +101,8 @@ One rule should have one owner. Duplicating ownership is a regression risk.
 
 ### Daemon
 
-- Agent/runtime: `apps/daemon/internal/agent` (`ModelClient` / `Agent.NextTurn` take `agentcontext.TurnContext` from `model_client.go`). JSON parsing: `apps/daemon/internal/agent/turnjson`; prompts: `apps/daemon/internal/agent/prompt`. Providers: `openai` (`VOCODE_AGENT_PROVIDER=openai`, `OPENAI_API_KEY`, optional `VOCODE_OPENAI_MODEL` / `VOCODE_OPENAI_BASE_URL`); `anthropic` (`VOCODE_AGENT_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, optional `VOCODE_ANTHROPIC_MODEL` / `VOCODE_ANTHROPIC_BASE_URL`). Transcript debug log line: `VOCODE_DAEMON_VOICE_LOG_TRANSCRIPT=1` (needs daemon logger). Model turn input types: `apps/daemon/internal/agentcontext` (`TurnContext`, `EditorSnapshot`, `Gathered`, `GatherContextSpec`, `VoiceSessionStore`, `FailedIntent`, `ComposeTurnContext`). Turn-level gather fulfillment: `apps/daemon/internal/gather` (`Provider`, `FulfillSpec`). Tree-sitter tag parsing + cursor containment: `apps/daemon/internal/symbols/tags`
-- Intent types + validation: `apps/daemon/internal/intents`
-- Voice transcript (`apps/daemon/internal/transcript/`): root `service*.go` (RPC, run path, coalesce worker); subpackages `transcript/executor` (agent loop → `intents/dispatch`), `transcript/voicesession` (session + apply report), `transcript/config` (env); see `transcript/doc.go`
-- Intent model + validation: `apps/daemon/internal/intents/` (`package intents` — `Intent` is **executable-only** (edit / command / navigate / undo); turn-level `irrelevant` / `done` / `request_context` live on `agent.TurnResult`, not `Intent`)
-- Intent dispatch (`apps/daemon/internal/intents/dispatch/`): `dispatch.go` defines `Handler` + `Handle` (executable `Intent` → directives only). Turn-level gather-context runs in `transcript/executor` via `internal/gather`, not dispatch. `dispatch/command|navigation|undo|edit/` mirror extension `src/directives/`. `command`, `navigation`, and `undo` expose `Dispatch` in each `dispatch.go`; `edit` uses `Engine` + `DispatchEdit` in `engine.go` / `edit/dispatch.go` (stateful builder)
+- Agent/runtime: `apps/daemon/internal/agent` — transcript/scoped-edit model calls (`ModelClient`: `ClassifyTranscript`, `ScopeIntent`, `ScopedEdit`, …). Prompts: `apps/daemon/internal/agent/prompt`. Providers: `openai` (`VOCODE_AGENT_PROVIDER=openai`, `OPENAI_API_KEY`, optional `VOCODE_OPENAI_MODEL` / `VOCODE_OPENAI_BASE_URL`); `anthropic` (`VOCODE_AGENT_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, optional `VOCODE_ANTHROPIC_MODEL` / `VOCODE_ANTHROPIC_BASE_URL`). Transcript debug log line: `VOCODE_DAEMON_VOICE_LOG_TRANSCRIPT=1` (needs daemon logger). Context types: `apps/daemon/internal/agentcontext` (`Gathered`, sessions, apply batches). Context fulfillment: `apps/daemon/internal/gather` (`Provider`, `FulfillSpec`). Tree-sitter tag parsing + cursor containment: `apps/daemon/internal/symbols/tags`
+- Voice transcript (`apps/daemon/internal/transcript/`): root `service*.go` (RPC, run path, coalesce worker); `transcript/executor` (narrow pipeline → protocol directives); `transcript/voicesession` (session + apply report); `transcript/config` (env); see `transcript/doc.go`
 
 ### Extension
 
@@ -119,27 +127,24 @@ One rule should have one owner. Duplicating ownership is a regression risk.
 
 ### Add a new edit capability
 
-1. Add/extend `EditIntentKind` + validation in `apps/daemon/internal/intents`.
-2. Update `apps/daemon/internal/intents/dispatch/edit/ActionBuilder` to map intent + file snapshot → protocol edit actions.
-3. Update the extension mechanical apply logic if you introduce a new protocol action kind.
-4. Add tests in the owning layers:
-   - daemon: intent parsing/validation + action building
+1. Extend `internal/agent` prompts/parsing and `internal/transcript/executor` to emit the new edit shape.
+2. Update the extension mechanical apply logic if you introduce a new protocol action kind.
+3. Add tests in the owning layers:
+   - daemon: executor/transcript tests for the new path
    - extension: mechanical apply behavior for the new action kind
    - protocol: validator acceptance/rejection if you updated schemas
 
 ### Add a new command capability
 
-1. Ensure the model can emit a `CommandIntent` that maps to protocol `commandDirective`.
-2. Update daemon allowlist in `apps/daemon/internal/intents/dispatch/command/policy.go`.
+1. Ensure the narrow pipeline can produce a validated `commandDirective`.
+2. Update daemon command validation / allowlist where it lives (executor or helper).
 3. Update extension allowlist in `apps/vscode-extension/src/directives/command/execute-command.ts`.
 4. Keep execution semantics in the extension; keep command-shape validation in the daemon.
 
-### Change intent/result ordering semantics
+### Change directive ordering semantics
 
-- Ordering is contractually sequential: the dispatcher iterates intents in order and the extension processes returned results in order.
-- If failure semantics change, update both:
-  - daemon: when it stops producing later results
-  - extension: when it stops processing returned results
+- Ordering is contractually sequential within one batch: the extension processes directives in order.
+- If failure semantics change, update both daemon batch construction and extension stop-on-failure behavior.
 
 ## Developer Playbooks (Short Summary)
 
@@ -168,7 +173,7 @@ Rules:
 
 Rules:
 - Handlers must stay thin.
-- Transport must not run the agent loop or interpret intents.
+- Transport must not run the transcript executor or interpret model output.
 - If a request crosses multiple daemon domains, route through app-level orchestration.
 
 ### Add a new edit action type
@@ -176,7 +181,7 @@ Rules:
 1. Add action schema in `packages/protocol/schema`.
 2. Wire the action union schema updates.
 3. Regenerate TS/Go protocol types with `pnpm codegen`.
-4. Implement daemon action building/validation in `apps/daemon/internal/intents/dispatch/edit`.
+4. Implement daemon action building/validation in `apps/daemon/internal/transcript/executor`.
 5. Implement extension mechanical apply logic for the new action kind.
 6. Add tests:
    - daemon action-building + validation tests
@@ -187,17 +192,15 @@ Rules:
 - Daemon decides whether an action is safe/valid to emit.
 - Extension only applies actions deterministically (no semantic policy).
 
-### Add a new edit-intent capability
+### Add a new voice-scoped edit capability
 
-1. Extend agent edit intent handling/validation in `apps/daemon/internal/agent`.
-2. Ensure the agent emits deterministic `EditIntent`; edit-building failures are handled inside the daemon.
-3. Ensure `edit.Engine.DispatchEdit` maps intent + file snapshot to the correct `EditDirective` variants.
-4. Add agent tests for supported/unsupported instruction expectations and failure codes.
+1. Extend agent prompt + structured parsing in `apps/daemon/internal/agent`.
+2. Map parsed output to `EditDirective` / actions in `apps/daemon/internal/transcript/executor`.
+3. Add executor/transcript tests for supported/unsupported instruction expectations and failure reasons.
 
 Rules:
-- The agent should fail closed when intent is unclear.
-- Edits layer should not parse natural language.
-- Keep failure codes intentional and tested.
+- Fail closed when the instruction is unclear.
+- Keep natural language in prompts; keep directive emission deterministic given parsed output.
 
 ## Contributor Checklist (Boundary Safety)
 
@@ -205,7 +208,7 @@ Before merging:
 
 - `internal/app` remains composition + orchestration owner.
 - `internal/rpc` remains transport/routing only (thin handlers).
-- `edit.Engine.DispatchEdit` wraps `BuildActions` into protocol `EditDirective` (not an RPC).
+- `internal/transcript/executor` builds protocol `EditDirective` / other directives for `host.applyDirectives` (not a separate edit RPC).
 - Extension contains only mechanical apply + UI-level orchestration; no semantic policy duplication.
 - Protocol schema/types/validators/runtime behavior stay aligned.
 - Tests cover variant invariants and boundary behavior.
@@ -236,7 +239,7 @@ These are the scripts you should run for cleanliness and correctness:
 ## Anti-patterns (regression risks)
 
 - Handler performing agent-side reasoning or target resolution.
-- `internal/intents/dispatch/edit` orchestrating `internal/agent`.
+- Daemon repair retries on `stale_range` inside a single `voice.transcript` RPC (single-shot only).
 - Extension re-deciding semantic policy already owned by daemon.
 - Ambiguous/overloaded result shapes (breaks runtime validators and tests).
 - Adding “temporary” policy logic in the extension to unblock daemon work.
@@ -247,6 +250,6 @@ When touching architecture-sensitive code, add tests in the owning layer:
 
 - RPC/tests: transport behavior + invalid-result rejection.
 - Agent tests: supported parsing + unsupported/failure code expectations.
-- Edits tests: action building and safety validation behavior.
+- Transcript/executor tests: directive building and safety validation behavior.
 - Extension tests: mechanical apply behavior + runtime shape handling.
 

@@ -16,13 +16,11 @@ Expected daemon flow:
 `cmd/vocoded/main.go`  
 → `internal/app` (composition root)  
 → `internal/rpc` (transport/routing only)  
-→ `internal/transcript` — `Executor` runs one `voice.transcript`: `agent.NextTurn` → `TurnResult`, gather-context via `internal/gather`, executable steps via `intents/dispatch.Handler.Handle`
-→ `internal/agent` — model adapter (`NextTurn`, `TurnResult`, `turnjson`, finish-summary limits)
-→ `internal/agentcontext` — per-turn gathered IDE state (`Gathered`, `GatherContextSpec`, sessions, apply history)
-→ `internal/gather` — fulfills `GatherContextSpec` (symbols, excerpts, usages); not executable `Intent` dispatch
-→ `internal/intents` — executable `Intent` only (edit / command / navigate / undo, `Intent.Validate`, JSON `kind` + payloads)
-→ `internal/intents/dispatch` — `Handler.Handle` maps executable `Intent` → protocol directives only (`edit.Engine.DispatchEdit`, `command|navigation|undo`)
-→ `internal/intents/dispatch/edit` — `Engine` (`BuildActions`, `DispatchEdit` → protocol edit results; not an RPC)
+→ `internal/transcript` — `voice.transcript` handling, session state (search/clarify), **single-shot** host apply per utterance (no daemon repair loop)
+→ `internal/transcript/executor` — narrow model pipeline: classifier → scope intent → scoped edit / format / rename / search / etc., producing protocol `directives`
+→ `internal/agent` — model adapter for those prompts (`ClassifyTranscript`, `ScopeIntent`, `ScopedEdit`, …)
+→ `internal/agentcontext` — gathered IDE state (`Gathered`, sessions, apply batches)
+→ `internal/gather` — fulfills context specs (symbols, excerpts, usages); not part of directive apply
 
 ### Extension (`apps/vscode-extension`)
 
@@ -149,11 +147,11 @@ Rules:
 1. Add action schema in `packages/protocol/schema`.
 2. Wire action union schema updates.
 3. Regenerate TS/Go protocol types and keep validators aligned.
-4. Implement daemon action builder logic in `internal/intents/dispatch/edit`.
-5. Add daemon validation for action safety/uniqueness.
+4. Implement daemon emission in `internal/transcript/executor` (or a small helper it calls), producing the new `EditAction` shape inside an `EditDirective`.
+5. Add daemon validation for action safety/uniqueness where applicable.
 6. Implement extension mechanical apply logic for the new action kind.
 7. Add tests:
-   - daemon action-building + validation tests
+   - daemon executor / transcript tests
    - extension action-application tests
    - protocol validator acceptance/rejection tests
 8. Ensure extension apply logic remains mechanical (no semantic policy added).
@@ -163,22 +161,18 @@ Rules:
 - Daemon decides whether action is safe/valid to emit.
 - Extension only performs deterministic mechanical apply + sanity checks.
 
-### How to add a new edit-intent capability
+### How to add a new voice edit capability
 
-1. Extend `internal/agent` edit intent handling (or model output validation) as needed.
-2. Return deterministic `EditIntent`; edit-building failures are handled inside the daemon and never reach the extension.
-3. Keep intent-level semantics in agent, not in `internal/intents/dispatch/edit`.
-4. Ensure `edit.Engine.DispatchEdit` maps intent + file snapshot to `EditDirective` variants.
-5. Add agent tests for:
-   - supported instruction parsing
-   - unsupported instruction failures
-   - expected failure codes
+1. Extend `internal/agent` (prompt + structured result parsing) as needed.
+2. Map the model output to protocol `directives` inside `internal/transcript/executor`; failures stay in the daemon.
+3. Keep natural-language interpretation in the agent prompts, not in the extension.
+4. Add tests under `internal/transcript/executor` and/or `internal/transcript` for the new path.
 
 Rules:
 
-- The agent should fail closed when intent is unclear.
-- Edits layer should not parse natural language.
-- Keep failure codes intentional and test them.
+- The model path should fail closed when the instruction is unclear.
+- Executor should remain deterministic given parsed model output.
+- Keep failure reasons intentional and test them.
 
 ## Testing expectations for boundary safety
 
@@ -186,13 +180,13 @@ When touching architecture-sensitive code, include tests in the owning layer:
 
 - **RPC tests**: handler/server transport behavior and invalid-result rejection.
 - **Agent tests**: supported parsing + unsupported/failure code expectations.
-- **Edits tests**: action construction and safety validation behavior.
+- **Transcript/executor tests**: directive construction and safety validation behavior.
 - **Extension tests**: mechanical apply behavior and runtime shape handling.
 
 ## Anti-patterns
 
 - Handler performing agent-side reasoning or target resolution
-- `internal/intents/dispatch/edit` orchestrating `internal/agent`
+- Extension or RPC layer re-running repair loops that belong in product policy (voice is single-shot per utterance)
 - Extension re-deciding daemon semantic policy
 - Ambiguous/overloaded result shapes
 - Placeholder layers/files with no active usage
@@ -205,7 +199,7 @@ Before merging:
 - `main.go` remains bootstrap-only
 - `internal/app` remains composition + orchestration owner
 - `internal/rpc` remains transport/routing only
-- `edit.Engine.DispatchEdit` wraps `BuildActions` into protocol `EditDirective` (not an RPC)
+- `internal/transcript/executor` produces protocol `EditDirective` / other directives for `host.applyDirectives` (not a separate edit RPC)
 - Extension contains only mechanical apply + UI policy
 - Protocol schema/types/validators/runtime behavior stay aligned
 - Tests cover variant invariants and boundary behavior

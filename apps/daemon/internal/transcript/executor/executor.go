@@ -72,98 +72,21 @@ func (e *Executor) Execute(
 		return protocol.VoiceTranscriptCompletion{Success: true, TranscriptOutcome: "answer", UiDisposition: "hidden", AnswerText: ans, Summary: ans}, nil, gatheredIn, nil, true, ""
 	case agent.TranscriptSearch:
 		query := strings.TrimSpace(clsRes.SearchQuery)
-		root := workspace.EffectiveWorkspaceRoot(params.WorkspaceRoot, params.ActiveFile)
-		if strings.TrimSpace(root) == "" {
-			return protocol.VoiceTranscriptCompletion{Success: false}, nil, gatheredIn, nil, true, "search requires workspaceRoot or activeFile"
+		if query == "" {
+			if q, ok := searchLikeQueryFromText(text); ok {
+				query = q
+			}
 		}
-		hits, err := rgSearch(root, query, 20)
-		if err != nil {
-			return protocol.VoiceTranscriptCompletion{Success: false}, nil, gatheredIn, nil, true, fmt.Sprintf("search failed: %v", err)
+		if query == "" {
+			return protocol.VoiceTranscriptCompletion{Success: false}, nil, gatheredIn, nil, true, "search classification missing searchQuery"
 		}
-		if len(hits) == 0 {
-			return protocol.VoiceTranscriptCompletion{Success: true, Summary: fmt.Sprintf("no matches for %q", query), TranscriptOutcome: "search", UiDisposition: "hidden"}, nil, gatheredIn, nil, true, ""
-		}
-
-		first := hits[0]
-		wireHits := make([]struct {
-			Path      string `json:"path"`
-			Line      int64  `json:"line"`
-			Character int64  `json:"character"`
-			Preview   string `json:"preview"`
-		}, 0, len(hits))
-		for _, h := range hits {
-			wireHits = append(wireHits, struct {
-				Path      string `json:"path"`
-				Line      int64  `json:"line"`
-				Character int64  `json:"character"`
-				Preview   string `json:"preview"`
-			}{
-				Path:      h.Path,
-				Line:      int64(h.Line0),
-				Character: int64(h.Char0),
-				Preview:   h.Preview,
-			})
-		}
-
-		open := protocol.VoiceTranscriptDirective{
-			Kind: "navigate",
-			NavigationDirective: &protocol.NavigationDirective{
-				Kind: "success",
-				Action: &protocol.NavigationAction{
-					Kind: "open_file",
-					OpenFile: &struct {
-						Path string `json:"path"`
-					}{Path: first.Path},
-				},
-			},
-		}
-		sel := protocol.VoiceTranscriptDirective{
-			Kind: "navigate",
-			NavigationDirective: &protocol.NavigationDirective{
-				Kind: "success",
-				Action: &protocol.NavigationAction{
-					Kind: "select_range",
-					SelectRange: &struct {
-						Target struct {
-							Path      string `json:"path,omitempty"`
-							StartLine int64  `json:"startLine"`
-							StartChar int64  `json:"startChar"`
-							EndLine   int64  `json:"endLine"`
-							EndChar   int64  `json:"endChar"`
-						} `json:"target"`
-					}{
-						Target: struct {
-							Path      string `json:"path,omitempty"`
-							StartLine int64  `json:"startLine"`
-							StartChar int64  `json:"startChar"`
-							EndLine   int64  `json:"endLine"`
-							EndChar   int64  `json:"endChar"`
-						}{
-							Path:      first.Path,
-							StartLine: int64(first.Line0),
-							StartChar: int64(first.Char0),
-							EndLine:   int64(first.Line0),
-							EndChar:   int64(first.Char0 + first.Len),
-						},
-					},
-				},
-			},
-		}
-		batchID, err := newDirectiveApplyBatchID()
-		if err != nil {
-			return protocol.VoiceTranscriptCompletion{Success: false}, nil, gatheredIn, nil, true, fmt.Sprintf("failed to create applyBatchId: %v", err)
-		}
-		pending := &agentcontext.DirectiveApplyBatch{ID: batchID, NumDirectives: 2}
-		z := int64(0)
-		return protocol.VoiceTranscriptCompletion{
-			Success:           true,
-			Summary:           fmt.Sprintf("found %d matches for %q; opened first", len(hits), query),
-			TranscriptOutcome: "search",
-			UiDisposition:     "hidden",
-			SearchResults:     wireHits,
-			ActiveSearchIndex: &z,
-		}, []protocol.VoiceTranscriptDirective{open, sel}, gatheredIn, pending, true, ""
+		return workspaceSearch(params, gatheredIn, query)
 	default:
+		// Model may pick "instruction" when the user clearly asked to find something in the repo
+		// (e.g. cursor already on a match). Still run ripgrep + search UI so other files show up.
+		if q, ok := searchLikeQueryFromText(text); ok {
+			return workspaceSearch(params, gatheredIn, q)
+		}
 		// continue as instruction
 	}
 
@@ -345,6 +268,137 @@ func (e *Executor) Execute(
 	}
 	pending := &agentcontext.DirectiveApplyBatch{ID: batchID, NumDirectives: 1}
 	return protocol.VoiceTranscriptCompletion{Success: true, Summary: "scoped edit", UiDisposition: "shown"}, []protocol.VoiceTranscriptDirective{dir}, g, pending, true, ""
+}
+
+// searchLikeQueryFromText extracts a literal ripgrep query when the utterance is clearly workspace search.
+// Prefix match is case-insensitive; the returned string keeps the original spelling after the prefix.
+func searchLikeQueryFromText(text string) (string, bool) {
+	t := strings.TrimSpace(text)
+	if t == "" {
+		return "", false
+	}
+	lower := strings.ToLower(t)
+	// Longer prefixes first ("search for" before "search").
+	prefixes := []string{
+		"search for ",
+		"find ",
+		"search ",
+		"where is ",
+		"where's ",
+		"locate ",
+	}
+	for _, p := range prefixes {
+		if strings.HasPrefix(lower, p) {
+			q := strings.TrimSpace(t[len(p):])
+			if q == "" {
+				return "", false
+			}
+			return q, true
+		}
+	}
+	return "", false
+}
+
+func workspaceSearch(
+	params protocol.VoiceTranscriptParams,
+	gatheredIn agentcontext.Gathered,
+	query string,
+) (protocol.VoiceTranscriptCompletion, []protocol.VoiceTranscriptDirective, agentcontext.Gathered, *agentcontext.DirectiveApplyBatch, bool, string) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return protocol.VoiceTranscriptCompletion{Success: false}, nil, gatheredIn, nil, true, "empty search query"
+	}
+	root := workspace.EffectiveWorkspaceRoot(params.WorkspaceRoot, params.ActiveFile)
+	if strings.TrimSpace(root) == "" {
+		return protocol.VoiceTranscriptCompletion{Success: false}, nil, gatheredIn, nil, true, "search requires workspaceRoot or activeFile"
+	}
+	hits, err := rgSearch(root, query, 20)
+	if err != nil {
+		return protocol.VoiceTranscriptCompletion{Success: false}, nil, gatheredIn, nil, true, fmt.Sprintf("search failed: %v", err)
+	}
+	if len(hits) == 0 {
+		return protocol.VoiceTranscriptCompletion{Success: true, Summary: fmt.Sprintf("no matches for %q", query), TranscriptOutcome: "search", UiDisposition: "hidden"}, nil, gatheredIn, nil, true, ""
+	}
+
+	first := hits[0]
+	wireHits := make([]struct {
+		Path      string `json:"path"`
+		Line      int64  `json:"line"`
+		Character int64  `json:"character"`
+		Preview   string `json:"preview"`
+	}, 0, len(hits))
+	for _, h := range hits {
+		wireHits = append(wireHits, struct {
+			Path      string `json:"path"`
+			Line      int64  `json:"line"`
+			Character int64  `json:"character"`
+			Preview   string `json:"preview"`
+		}{
+			Path:      h.Path,
+			Line:      int64(h.Line0),
+			Character: int64(h.Char0),
+			Preview:   h.Preview,
+		})
+	}
+
+	open := protocol.VoiceTranscriptDirective{
+		Kind: "navigate",
+		NavigationDirective: &protocol.NavigationDirective{
+			Kind: "success",
+			Action: &protocol.NavigationAction{
+				Kind: "open_file",
+				OpenFile: &struct {
+					Path string `json:"path"`
+				}{Path: first.Path},
+			},
+		},
+	}
+	sel := protocol.VoiceTranscriptDirective{
+		Kind: "navigate",
+		NavigationDirective: &protocol.NavigationDirective{
+			Kind: "success",
+			Action: &protocol.NavigationAction{
+				Kind: "select_range",
+				SelectRange: &struct {
+					Target struct {
+						Path      string `json:"path,omitempty"`
+						StartLine int64  `json:"startLine"`
+						StartChar int64  `json:"startChar"`
+						EndLine   int64  `json:"endLine"`
+						EndChar   int64  `json:"endChar"`
+					} `json:"target"`
+				}{
+					Target: struct {
+						Path      string `json:"path,omitempty"`
+						StartLine int64  `json:"startLine"`
+						StartChar int64  `json:"startChar"`
+						EndLine   int64  `json:"endLine"`
+						EndChar   int64  `json:"endChar"`
+					}{
+						Path:      first.Path,
+						StartLine: int64(first.Line0),
+						StartChar: int64(first.Char0),
+						EndLine:   int64(first.Line0),
+						EndChar:   int64(first.Char0 + first.Len),
+					},
+				},
+			},
+		},
+	}
+	batchID, err := newDirectiveApplyBatchID()
+	if err != nil {
+		return protocol.VoiceTranscriptCompletion{Success: false}, nil, gatheredIn, nil, true, fmt.Sprintf("failed to create applyBatchId: %v", err)
+	}
+	pending := &agentcontext.DirectiveApplyBatch{ID: batchID, NumDirectives: 2}
+	z := int64(0)
+	return protocol.VoiceTranscriptCompletion{
+		Success:           true,
+		Summary:           fmt.Sprintf("found %d matches for %q; opened first", len(hits), query),
+		TranscriptOutcome: "search",
+		UiDisposition:     "hidden",
+		SearchResults:     wireHits,
+		ActiveSearchIndex: &z,
+	}, []protocol.VoiceTranscriptDirective{open, sel}, gatheredIn, pending, true, ""
 }
 
 type rgHit struct {
@@ -568,10 +622,6 @@ func resolveScopedTarget(params protocol.VoiceTranscriptParams, fileText string,
 	}
 	lines := strings.Split(fileText, "\n")
 	lastLine := len(lines) - 1
-	lastChar := 0
-	if lastLine >= 0 {
-		lastChar = len(lines[lastLine])
-	}
 	// Default: whole file.
 	startLine, endLine := 0, lastLine
 
@@ -644,13 +694,17 @@ func resolveScopedTarget(params protocol.VoiceTranscriptParams, fileText string,
 	if lastLine >= 0 && startLine <= endLine {
 		text = strings.Join(lines[startLine:endLine+1], "\n")
 	}
+	endChar := 0
+	if endLine >= 0 && endLine < len(lines) {
+		endChar = len(lines[endLine])
+	}
 	t := agentcontext.ResolvedTarget{
 		Path: filepath.Clean(active),
 		Range: agentcontext.Range{
 			StartLine: startLine,
 			StartChar: 0,
 			EndLine:   endLine,
-			EndChar:   lastChar,
+			EndChar:   endChar,
 		},
 	}
 	return t, text, nil

@@ -160,6 +160,83 @@ func TestExecutor_ScopedEdit_NamedSymbol_PicksSmallestRange(t *testing.T) {
 	if act.Range.StartLine != 2 || act.Range.EndLine != 3 {
 		t.Fatalf("expected smallest foo range (2..3), got %+v", *act.Range)
 	}
+	// EndChar must be the width of the target end line, not the file's last line.
+	if want := int64(len("l3")); act.Range.EndChar != want {
+		t.Fatalf("expected EndChar=%d (len of end line), got %d", want, act.Range.EndChar)
+	}
+}
+
+func TestExecutor_ScopedEdit_CurrentFunction_EndCharMatchesTargetEndLine(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	active := filepath.Join(dir, "scoped-fn.ts")
+	// Function `f` ends at line 3 ("}"). Last line is much longer — old bug used last-line length as EndChar.
+	src := "preamble\nfunc f() {\n  return 1;\n}\nthis_is_a_much_longer_trailing_line_than_the_closing_brace\n"
+	if err := os.WriteFile(active, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	a := agent.New(fakeModel{
+		classifier: agent.TranscriptClassifierResult{Kind: agent.TranscriptInstruction},
+		scope:      agent.ScopeIntentResult{ScopeKind: agent.ScopeCurrentFunction},
+		edit:       agent.ScopedEditResult{ReplacementText: "func f() {\n  return 2;\n}\n"},
+	})
+	ex := executor.New(a, executor.Options{})
+	res, dirs, _, _, ok, reason := ex.Execute(protocol.VoiceTranscriptParams{
+		Text:          "change return in this function",
+		ActiveFile:    active,
+		WorkspaceRoot: dir,
+		CursorPosition: &struct {
+			Line      int64 `json:"line"`
+			Character int64 `json:"character"`
+		}{Line: 2, Character: 2},
+		ActiveFileSymbols: []struct {
+			Name string `json:"name"`
+			Kind string `json:"kind"`
+			Range struct {
+				StartLine int64 `json:"startLine"`
+				StartChar int64 `json:"startChar"`
+				EndLine   int64 `json:"endLine"`
+				EndChar   int64 `json:"endChar"`
+			} `json:"range"`
+			SelectionRange struct {
+				StartLine int64 `json:"startLine"`
+				StartChar int64 `json:"startChar"`
+				EndLine   int64 `json:"endLine"`
+				EndChar   int64 `json:"endChar"`
+			} `json:"selectionRange"`
+		}{
+			{
+				Name: "f",
+				Kind: "function",
+				Range: struct {
+					StartLine int64 `json:"startLine"`
+					StartChar int64 `json:"startChar"`
+					EndLine   int64 `json:"endLine"`
+					EndChar   int64 `json:"endChar"`
+				}{StartLine: 1, StartChar: 0, EndLine: 3, EndChar: 1},
+				SelectionRange: struct {
+					StartLine int64 `json:"startLine"`
+					StartChar int64 `json:"startChar"`
+					EndLine   int64 `json:"endLine"`
+					EndChar   int64 `json:"endChar"`
+				}{StartLine: 1, StartChar: 0, EndLine: 1, EndChar: 1},
+			},
+		},
+	}, agentcontext.Gathered{})
+	if !ok || !res.Success || reason != "" {
+		t.Fatalf("expected success, got ok=%v success=%v reason=%q", ok, res.Success, reason)
+	}
+	act := dirs[0].EditDirective.Actions[0]
+	if act.Kind != "replace_range" || act.Range == nil {
+		t.Fatalf("expected replace_range, got %+v", act)
+	}
+	if act.Range.StartLine != 1 || act.Range.EndLine != 3 {
+		t.Fatalf("expected function lines 1..3, got %+v", *act.Range)
+	}
+	if want := int64(len("}")); act.Range.EndChar != want {
+		t.Fatalf("expected EndChar=%d (len of closing brace line), got %d", want, act.Range.EndChar)
+	}
 }
 
 func TestExecutor_RenameHeuristic_ProducesRenameDirective(t *testing.T) {

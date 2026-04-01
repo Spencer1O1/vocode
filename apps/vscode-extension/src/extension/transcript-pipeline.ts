@@ -1,10 +1,8 @@
-import type { VoiceTranscriptParams } from "@vocode/protocol";
 import * as vscode from "vscode";
 
 import type { ExtensionServices } from "../commands/services";
-import { FAILED_TO_PROCESS_TRANSCRIPT } from "../transcript/messages";
-import { transcriptWorkspaceRoot } from "../transcript/workspace-root";
 import type { VoiceSidecarConfigPatch } from "../voice/client";
+import { runDaemonTranscriptForPendingId } from "./run-daemon-transcript";
 
 /**
  * Binds voice sidecar events and transcript → daemon → apply flow to the given
@@ -150,8 +148,6 @@ export function attachTranscriptPipeline(
       return;
     }
 
-    const activeFile = editor.document.uri.fsPath;
-    const sel = editor.selection;
     const text = clarifyTextToSend ?? evt.text;
 
     if (inFlightTranscripts === 0) {
@@ -161,115 +157,16 @@ export function attachTranscriptPipeline(
 
     mainPanelStore.markProcessing(pendingId);
 
-    const vocodeCfg = vscode.workspace.getConfiguration("vocode");
-    const daemonConfig: NonNullable<VoiceTranscriptParams["daemonConfig"]> = {
-      maxPlannerTurns: vocodeCfg.get<number>("maxPlannerTurns", 8),
-      maxIntentsPerBatch: vocodeCfg.get<number>("maxIntentsPerBatch", 16),
-      maxIntentDispatchRetries: vocodeCfg.get<number>(
-        "maxIntentDispatchRetries",
-        2,
-      ),
-      maxContextRounds: vocodeCfg.get<number>("maxContextRounds", 2),
-      maxContextBytes: vocodeCfg.get<number>("maxContextBytes", 12000),
-      maxConsecutiveContextRequests: vocodeCfg.get<number>(
-        "maxConsecutiveContextRequests",
-        3,
-      ),
-      maxTranscriptRepairRpcs: vocodeCfg.get<number>(
-        "maxTranscriptRepairRpcs",
-        8,
-      ),
-      sessionIdleResetMs: vocodeCfg.get<number>("sessionIdleResetMs", 1800000),
-      // Daemon defaults; these caps are not user-configurable today.
-      maxGatheredBytes: 120_000,
-      maxGatheredExcerpts: 12,
-    };
-    const baseParams = {
-      text,
-      activeFile,
-      workspaceRoot: transcriptWorkspaceRoot(activeFile),
-      cursorPosition: {
-        line: editor.selection.active.line,
-        character: editor.selection.active.character,
-      },
-      activeSelection: {
-        startLine: sel.start.line,
-        startChar: sel.start.character,
-        endLine: sel.end.line,
-        endChar: sel.end.character,
-      },
-      contextSessionId: voiceSession.contextSessionId(),
-      daemonConfig,
-    };
-
     void (async () => {
-      mainPanelStore.beginVoiceTranscriptRpc(pendingId);
       try {
-        const docSymbols = (await vscode.commands.executeCommand(
-          "vscode.executeDocumentSymbolProvider",
-          editor.document.uri,
-        )) as vscode.DocumentSymbol[] | undefined;
-
-        const flattenSymbols = (
-          syms: vscode.DocumentSymbol[] | undefined,
-          out: VoiceTranscriptParams["activeFileSymbols"],
-        ) => {
-          if (!syms) return;
-          for (const s of syms) {
-            out?.push({
-              name: s.name,
-              kind: String(s.kind),
-              range: {
-                startLine: s.range.start.line,
-                startChar: s.range.start.character,
-                endLine: s.range.end.line,
-                endChar: s.range.end.character,
-              },
-              selectionRange: {
-                startLine: s.selectionRange.start.line,
-                startChar: s.selectionRange.start.character,
-                endLine: s.selectionRange.end.line,
-                endChar: s.selectionRange.end.character,
-              },
-            });
-            if (s.children?.length) flattenSymbols(s.children, out);
-          }
-        };
-
-        const paramsWithSymbols: VoiceTranscriptParams = {
-          ...baseParams,
-          activeFileSymbols: (() => {
-            const out: NonNullable<VoiceTranscriptParams["activeFileSymbols"]> =
-              [];
-            flattenSymbols(docSymbols, out);
-            return out;
-          })(),
-        };
-
-        const result = await client.transcript(paramsWithSymbols);
-
-        if (!result.success) {
-          mainPanelStore.markError(pendingId, FAILED_TO_PROCESS_TRANSCRIPT);
-          return;
-        }
-
-        mainPanelStore.markHandled(pendingId, {
-          summary: result.summary?.trim() || undefined,
-          transcriptOutcome: result.transcriptOutcome,
-          uiDisposition: result.uiDisposition,
-          searchResults: result.searchResults,
-          activeSearchIndex: result.activeSearchIndex ?? null,
-          answerText: result.answerText ?? null,
-          contextSessionId: paramsWithSymbols.contextSessionId,
-        });
-      } catch (err) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Unknown error while running the transcript.";
-        mainPanelStore.markError(pendingId, message);
+        await runDaemonTranscriptForPendingId(
+          services,
+          client,
+          editor,
+          pendingId,
+          text,
+        );
       } finally {
-        mainPanelStore.endVoiceTranscriptRpc(pendingId);
         inFlightTranscripts = Math.max(0, inFlightTranscripts - 1);
         if (voiceSession.isRunning() && inFlightTranscripts === 0) {
           voiceStatus.setListening();

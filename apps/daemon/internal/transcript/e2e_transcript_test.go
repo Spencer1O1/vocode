@@ -221,9 +221,7 @@ func TestVoiceTranscript_DuplexApply_RepairsAndEditsBubbleSort(t *testing.T) {
 			SessionIdleResetMs             *int64 `json:"sessionIdleResetMs,omitempty"`
 			MaxGatheredBytes               *int64 `json:"maxGatheredBytes,omitempty"`
 			MaxGatheredExcerpts            *int64 `json:"maxGatheredExcerpts,omitempty"`
-		}{
-			MaxTranscriptRepairRpcs: ptrInt64(4),
-		},
+		}{},
 		// A non-empty session id exercises the normal session store path.
 		ContextSessionId: "e2e-bubble-sort",
 		// Cursor optional for this stub path.
@@ -251,7 +249,7 @@ func TestVoiceTranscript_DuplexApply_RepairsAndEditsBubbleSort(t *testing.T) {
 	}
 }
 
-func TestVoiceTranscript_RetriesOnStaleRange(t *testing.T) {
+func TestVoiceTranscript_StaleRangeFailsSingleShot(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -269,21 +267,7 @@ func TestVoiceTranscript_RetriesOnStaleRange(t *testing.T) {
 		Text:          "Fix f",
 		ActiveFile:    active,
 		WorkspaceRoot: dir,
-		DaemonConfig: &struct {
-			MaxPlannerTurns                *int64 `json:"maxPlannerTurns,omitempty"`
-			MaxIntentsPerBatch             *int64 `json:"maxIntentsPerBatch,omitempty"`
-			MaxIntentDispatchRetries       *int64 `json:"maxIntentDispatchRetries,omitempty"`
-			MaxContextRounds               *int64 `json:"maxContextRounds,omitempty"`
-			MaxContextBytes                *int64 `json:"maxContextBytes,omitempty"`
-			MaxConsecutiveContextRequests  *int64 `json:"maxConsecutiveContextRequests,omitempty"`
-			MaxTranscriptRepairRpcs        *int64 `json:"maxTranscriptRepairRpcs,omitempty"`
-			SessionIdleResetMs             *int64 `json:"sessionIdleResetMs,omitempty"`
-			MaxGatheredBytes               *int64 `json:"maxGatheredBytes,omitempty"`
-			MaxGatheredExcerpts            *int64 `json:"maxGatheredExcerpts,omitempty"`
-		}{
-			MaxTranscriptRepairRpcs: ptrInt64(2),
-		},
-		ContextSessionId: "stale-range-retry",
+		ContextSessionId: "stale-range-single-shot",
 		CursorPosition: &struct {
 			Line      int64 `json:"line"`
 			Character int64 `json:"character"`
@@ -291,15 +275,14 @@ func TestVoiceTranscript_RetriesOnStaleRange(t *testing.T) {
 	}
 
 	res, ok, reason := svc.AcceptTranscript(params)
-	if !ok || !res.Success {
-		t.Fatalf("expected success, got ok=%v success=%v reason=%q summary=%q", ok, res.Success, reason, res.Summary)
+	if res.Success {
+		t.Fatalf("expected transcript failure after stale_range, got success=true ok=%v reason=%q summary=%q", ok, reason, res.Summary)
 	}
-	if host.calls < 2 {
-		t.Fatalf("expected at least 2 host apply calls, got %d", host.calls)
+	if !strings.Contains(reason, "stale_range") && !strings.Contains(reason, "host apply failed") {
+		t.Fatalf("expected host apply failure reason, got %q", reason)
 	}
-}
-
-func ptrInt64(v int64) *int64 {
-	return &v
+	if host.calls != 1 {
+		t.Fatalf("expected exactly 1 host apply call (no retries), got %d", host.calls)
+	}
 }
 

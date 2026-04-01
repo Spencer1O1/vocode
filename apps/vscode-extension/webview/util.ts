@@ -99,25 +99,32 @@ export function normalizePanelState(raw: unknown): PanelState {
   }
 
   const ss = o.searchState as Record<string, unknown> | undefined;
-  if (ss && Array.isArray(ss.results) && typeof ss.activeIndex === "number") {
-    base.searchState = {
-      results: ss.results
-        .map((r) => r as Record<string, unknown>)
-        .filter(
-          (r) =>
-            typeof r.path === "string" &&
-            typeof r.line === "number" &&
-            typeof r.character === "number" &&
-            typeof r.preview === "string",
-        )
-        .map((r) => ({
-          path: r.path as string,
-          line: r.line as number,
-          character: r.character as number,
-          preview: r.preview as string,
-        })),
-      activeIndex: ss.activeIndex as number,
-    };
+  if (ss && Array.isArray(ss.results)) {
+    const results = ss.results
+      .map((r) => r as Record<string, unknown>)
+      .filter(
+        (r) =>
+          typeof r.path === "string" &&
+          typeof r.line === "number" &&
+          typeof r.character === "number" &&
+          typeof r.preview === "string",
+      )
+      .map((r) => ({
+        path: r.path as string,
+        line: r.line as number,
+        character: r.character as number,
+        preview: r.preview as string,
+      }));
+    if (results.length > 0) {
+      const activeIndex =
+        typeof ss.activeIndex === "number" && Number.isFinite(ss.activeIndex)
+          ? ss.activeIndex
+          : 0;
+      base.searchState = {
+        results,
+        activeIndex,
+      };
+    }
   }
 
   const as = o.answerState as Record<string, unknown> | undefined;

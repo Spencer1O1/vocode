@@ -429,126 +429,50 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 		return res, true, ""
 	}
 
-	maxRepairSteps := config.DefaultMaxRepairSteps
-	if dc != nil && dc.MaxTranscriptRepairRpcs != nil {
-		maxRepairSteps = int(*dc.MaxTranscriptRepairRpcs)
+	// Single-shot execution (99-like): one executor pass and at most one host apply; no repair retries.
+	vs.Gathered = agentcontext.ApplyGatheredRollingCap(
+		vs.Gathered,
+		activeFile,
+		maxGatheredBytes,
+		maxGatheredExcerpts,
+	)
+
+	res, dirs, g1, pending, ok, reason := s.executor.Execute(params, vs.Gathered)
+	vs.Gathered = g1
+	if strings.TrimSpace(key) != "" {
+		vs.Gathered = agentcontext.ApplyGatheredRollingCap(vs.Gathered, activeFile, maxGatheredBytes, maxGatheredExcerpts)
 	}
-	if maxRepairSteps < 1 {
-		maxRepairSteps = 1
+
+	if !ok {
+		if strings.TrimSpace(key) == "" {
+			voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
+		} else {
+			voicesession.SaveKeyed(s.sessions, key, vs)
+		}
+		if strings.TrimSpace(reason) == "" {
+			reason = "executor rejected transcript params"
+		}
+		return protocol.VoiceTranscriptCompletion{Success: false}, false, reason
 	}
 
-	var lastApplyErr error
-	for stepI := 0; stepI < maxRepairSteps; stepI++ {
-		vs.Gathered = agentcontext.ApplyGatheredRollingCap(
-			vs.Gathered,
-			activeFile,
-			maxGatheredBytes,
-			maxGatheredExcerpts,
-		)
+	// When a search session is active, irrelevant utterances should not spam "Skipped".
+	if res.TranscriptOutcome == "irrelevant" && len(vs.SearchResults) > 0 {
+		res.UiDisposition = "hidden"
+	} else if strings.TrimSpace(res.UiDisposition) == "" {
+		res.UiDisposition = defaultUiDisposition(res.TranscriptOutcome, len(vs.SearchResults) > 0, res.Success)
+	}
 
-		res, dirs, g1, pending, ok, reason := s.executor.Execute(params, vs.Gathered)
-		vs.Gathered = g1
-		if strings.TrimSpace(key) != "" {
-			vs.Gathered = agentcontext.ApplyGatheredRollingCap(vs.Gathered, activeFile, maxGatheredBytes, maxGatheredExcerpts)
+	if !res.Success || len(dirs) == 0 {
+		vs.PendingDirectiveApply = nil
+		if strings.TrimSpace(key) == "" {
+			voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
+		} else {
+			voicesession.SaveKeyed(s.sessions, key, vs)
 		}
-
-		if !ok {
-			if strings.TrimSpace(key) == "" {
-				voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
-			} else {
-				voicesession.SaveKeyed(s.sessions, key, vs)
-			}
-			if strings.TrimSpace(reason) == "" {
-				reason = "executor rejected transcript params"
-			}
-			return protocol.VoiceTranscriptCompletion{Success: false}, false, reason
+		if !res.Success && strings.TrimSpace(reason) != "" {
+			return res, ok, reason
 		}
-
-		// When a search session is active, irrelevant utterances should not spam "Skipped".
-		if res.TranscriptOutcome == "irrelevant" && len(vs.SearchResults) > 0 {
-			res.UiDisposition = "hidden"
-		} else if strings.TrimSpace(res.UiDisposition) == "" {
-			res.UiDisposition = defaultUiDisposition(res.TranscriptOutcome, len(vs.SearchResults) > 0, res.Success)
-		}
-
-		if !res.Success || len(dirs) == 0 {
-			vs.PendingDirectiveApply = nil
-			if strings.TrimSpace(key) == "" {
-				voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
-			} else {
-				voicesession.SaveKeyed(s.sessions, key, vs)
-			}
-			if !res.Success && strings.TrimSpace(reason) != "" {
-				return res, ok, reason
-			}
-			// Persist search results when the daemon returned them (even with no directives).
-			if res.TranscriptOutcome == "search" && len(res.SearchResults) > 0 {
-				vs.SearchResults = wireHitsToVoiceSession(res.SearchResults)
-				if res.ActiveSearchIndex != nil {
-					vs.ActiveSearchIndex = int(*res.ActiveSearchIndex)
-				} else {
-					vs.ActiveSearchIndex = 0
-				}
-				if strings.TrimSpace(key) == "" {
-					voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
-				} else {
-					voicesession.SaveKeyed(s.sessions, key, vs)
-				}
-			}
-			// Persist clarify state so follow-up utterances can be interpreted on the daemon.
-			if res.TranscriptOutcome == "clarify" && strings.TrimSpace(res.Summary) != "" {
-				vs.ClarifyQuestion = strings.TrimSpace(res.Summary)
-				vs.ClarifyOriginalTranscript = strings.TrimSpace(params.Text)
-				if strings.TrimSpace(key) == "" {
-					voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
-				} else {
-					voicesession.SaveKeyed(s.sessions, key, vs)
-				}
-			}
-			return res, ok, ""
-		}
-
-		if pending == nil || s.hostApplyClient == nil {
-			vs.PendingDirectiveApply = nil
-			if strings.TrimSpace(key) == "" {
-				voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
-			} else {
-				voicesession.SaveKeyed(s.sessions, key, vs)
-			}
-			return protocol.VoiceTranscriptCompletion{Success: false}, true, "daemon has directives but no host apply client is configured"
-		}
-
-		vs.PendingDirectiveApply = pending
-		hostRes, err := s.hostApplyClient.ApplyDirectives(protocol.HostApplyParams{
-			ApplyBatchId: pending.ID,
-			ActiveFile:   params.ActiveFile,
-			Directives:   dirs,
-		})
-		if err != nil {
-			vs.PendingDirectiveApply = nil
-			if strings.TrimSpace(key) == "" {
-				voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
-			} else {
-				voicesession.SaveKeyed(s.sessions, key, vs)
-			}
-			return protocol.VoiceTranscriptCompletion{Success: false}, true, "host.applyDirectives failed: " + err.Error()
-		}
-		if err := voicesession.ConsumeHostApplyReport(pending.ID, hostRes.Items, &vs); err != nil {
-			lastApplyErr = err
-			// Retry only for explicit stale-range failures.
-			if strings.Contains(err.Error(), "stale_range") && stepI+1 < maxRepairSteps {
-				continue
-			}
-			vs.PendingDirectiveApply = nil
-			if strings.TrimSpace(key) == "" {
-				voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
-			} else {
-				voicesession.SaveKeyed(s.sessions, key, vs)
-			}
-			return protocol.VoiceTranscriptCompletion{Success: false}, true, "host apply failed: " + err.Error()
-		}
-
-		// Persist search results when the daemon returned them (even with directives).
+		// Persist search results when the daemon returned them (even with no directives).
 		if res.TranscriptOutcome == "search" && len(res.SearchResults) > 0 {
 			vs.SearchResults = wireHitsToVoiceSession(res.SearchResults)
 			if res.ActiveSearchIndex != nil {
@@ -556,18 +480,74 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 			} else {
 				vs.ActiveSearchIndex = 0
 			}
+			if strings.TrimSpace(key) == "" {
+				voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
+			} else {
+				voicesession.SaveKeyed(s.sessions, key, vs)
+			}
 		}
+		// Persist clarify state so follow-up utterances can be interpreted on the daemon.
+		if res.TranscriptOutcome == "clarify" && strings.TrimSpace(res.Summary) != "" {
+			vs.ClarifyQuestion = strings.TrimSpace(res.Summary)
+			vs.ClarifyOriginalTranscript = strings.TrimSpace(params.Text)
+			if strings.TrimSpace(key) == "" {
+				voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
+			} else {
+				voicesession.SaveKeyed(s.sessions, key, vs)
+			}
+		}
+		return res, ok, ""
+	}
 
+	if pending == nil || s.hostApplyClient == nil {
+		vs.PendingDirectiveApply = nil
 		if strings.TrimSpace(key) == "" {
 			voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
 		} else {
 			voicesession.SaveKeyed(s.sessions, key, vs)
 		}
-		return res, ok, ""
+		return protocol.VoiceTranscriptCompletion{Success: false}, true, "daemon has directives but no host apply client is configured"
 	}
 
-	if lastApplyErr != nil {
-		return protocol.VoiceTranscriptCompletion{Success: false}, true, "host apply failed: " + lastApplyErr.Error()
+	vs.PendingDirectiveApply = pending
+	hostRes, err := s.hostApplyClient.ApplyDirectives(protocol.HostApplyParams{
+		ApplyBatchId: pending.ID,
+		ActiveFile:   params.ActiveFile,
+		Directives:   dirs,
+	})
+	if err != nil {
+		vs.PendingDirectiveApply = nil
+		if strings.TrimSpace(key) == "" {
+			voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
+		} else {
+			voicesession.SaveKeyed(s.sessions, key, vs)
+		}
+		return protocol.VoiceTranscriptCompletion{Success: false}, true, "host.applyDirectives failed: " + err.Error()
 	}
-	return protocol.VoiceTranscriptCompletion{Success: false}, true, "maxTranscriptRepairRpcs exceeded"
+	if err := voicesession.ConsumeHostApplyReport(pending.ID, hostRes.Items, &vs); err != nil {
+		vs.PendingDirectiveApply = nil
+		if strings.TrimSpace(key) == "" {
+			voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
+		} else {
+			voicesession.SaveKeyed(s.sessions, key, vs)
+		}
+		return protocol.VoiceTranscriptCompletion{Success: false}, true, "host apply failed: " + err.Error()
+	}
+
+	// Persist search results when the daemon returned them (even with directives).
+	if res.TranscriptOutcome == "search" && len(res.SearchResults) > 0 {
+		vs.SearchResults = wireHitsToVoiceSession(res.SearchResults)
+		if res.ActiveSearchIndex != nil {
+			vs.ActiveSearchIndex = int(*res.ActiveSearchIndex)
+		} else {
+			vs.ActiveSearchIndex = 0
+		}
+	}
+
+	if strings.TrimSpace(key) == "" {
+		voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
+	} else {
+		voicesession.SaveKeyed(s.sessions, key, vs)
+	}
+	return res, ok, ""
 }

@@ -14,7 +14,7 @@ export type DirectiveApplyOutcome = {
 
 /**
  * Applies a daemon directive batch to the workspace (edits, commands, navigation, undo).
- * Used by voice and by the manual “send transcript” command — not command-specific.
+ * Used for every `voice.transcript` path (voice commits and command-palette send).
  * Returns one outcome per directive (stops after the first failure).
  */
 export type ApplyTranscriptProgressEvent = {

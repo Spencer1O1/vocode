@@ -9,21 +9,15 @@ users describe changes naturally; the system turns them into structured actions 
 
 ## Current Implemented Slice
 
-The daemon builds **`EditAction[]`** from a structured **`EditIntent`** plus the active file snapshot. Integration is covered by **Go tests** (`internal/intents/dispatch/edit`, `internal/intents`); there is no `edit.dispatch` RPC. The **agent** emits iterative **`intents.Intent`** values (control vs executable; JSON wire uses top-level `kind`) and the daemon handles one iteration at a time with per-turn feedback.
+For **`voice.transcript`**, the daemon uses a **narrow-model** pipeline in **`internal/transcript/executor`**: classification, scope intent (current file / function / symbol / clarify), then scoped edit or other deterministic directive builders. It produces protocol **`directives`** (`edit`, `navigate`, `rename`, …) consumed by the extension via **`host.applyDirectives`**. There is no `edit.dispatch` RPC. Integration is covered by **Go tests** under **`internal/transcript/executor`** and **`internal/transcript`**.
 
-The **`internal/intents/dispatch/edit`** layer supports these intent kinds:
+The executor supports (among others):
 
-- **Insert statement in current function**
-  - Only succeeds when the active file contains exactly one supported function-shaped block.
-  - The inserted statement is appended just before that function's closing brace.
-- **Replace anchored block** (`before` / `after` / `newText`)
-  - Both anchors must resolve uniquely in the active file.
-  - Ambiguous or missing anchors produce a structured failure instead of guessing.
-- **Append import if missing**
-  - Supported for Go files and top-of-file JS/TS import sections.
-  - If the import already exists, the daemon returns a structured no-change response.
+- **Scoped replace** (`replace_range` on a resolved file range, often whole-line–normalized for UTF-16 safety)
+- **Replace anchored block** (`before` / `after` / `newText`) when the model returns anchor-based edits
+- **Format / rename / search** flows that map to the corresponding protocol directive shapes
 
-These rules intentionally fail closed when the daemon cannot map the instruction to a unique edit.
+These rules intentionally fail closed when the daemon cannot map the instruction safely.
 
 **`EditDirective`** (protocol) remains the explicit outcome shape for tests and future callers:
 
