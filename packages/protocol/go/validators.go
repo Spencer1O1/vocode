@@ -175,7 +175,7 @@ func (r VoiceTranscriptCompletion) Validate() error {
 	}
 
 	out := strings.TrimSpace(r.TranscriptOutcome)
-	if out != "" && out != "irrelevant" && out != "completed" && out != "clarify" && out != "search" && out != "answer" {
+	if out != "" && out != "irrelevant" && out != "completed" && out != "clarify" && out != "clarify_control" && out != "search" && out != "search_control" && out != "answer" {
 		return fmt.Errorf("voice transcript result: invalid transcriptOutcome %q", r.TranscriptOutcome)
 	}
 	if out == "answer" {
@@ -186,7 +186,7 @@ func (r VoiceTranscriptCompletion) Validate() error {
 			return errors.New("voice transcript result: answerText exceeds max length")
 		}
 	}
-	if out == "search" {
+	if out == "search" || out == "search_control" {
 		if r.SearchResults != nil && len(r.SearchResults) > 0 {
 			for _, h := range r.SearchResults {
 				if strings.TrimSpace(h.Path) == "" {

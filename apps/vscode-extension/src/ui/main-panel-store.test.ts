@@ -112,6 +112,25 @@ test("dismissSearchState clears search hit list", () => {
   assert.equal(store.getSnapshot().searchState, undefined);
 });
 
+test("markHandled search_control without searchResults clears search (voice cancel)", () => {
+  const store = new MainPanelStore();
+  const id1 = store.enqueueCommitted("find foo") as number;
+  store.markHandled(id1, {
+    transcriptOutcome: "search",
+    uiDisposition: "hidden",
+    searchResults: [{ path: "a.ts", line: 0, character: 0, preview: "hit" }],
+    activeSearchIndex: 0,
+  });
+  assert.ok(store.getSnapshot().searchState);
+  const id2 = store.enqueueCommitted("cancel") as number;
+  store.markHandled(id2, {
+    transcriptOutcome: "search_control",
+    uiDisposition: "hidden",
+    summary: "Search session closed",
+  });
+  assert.equal(store.getSnapshot().searchState, undefined);
+});
+
 test("markHandled stores contextSessionId for daemon cancel RPCs", () => {
   const store = new MainPanelStore();
   const id = store.enqueueCommitted("fix thing") as number;

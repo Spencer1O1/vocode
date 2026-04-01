@@ -428,17 +428,27 @@ export class MainPanelStore {
       this.emit();
       return;
     }
-    if (
-      (options?.transcriptOutcome === "search" ||
-        options?.transcriptOutcome === "search_control") &&
-      options.searchResults
-    ) {
-      const prevCtx = this.searchState?.contextSessionId;
-      this.searchState = {
-        results: options.searchResults,
-        activeIndex: Math.max(0, options.activeSearchIndex ?? 0),
-        contextSessionId: options.contextSessionId ?? prevCtx,
-      };
+    if (options?.transcriptOutcome === "search") {
+      if (options.searchResults && options.searchResults.length > 0) {
+        const prevCtx = this.searchState?.contextSessionId;
+        this.searchState = {
+          results: options.searchResults,
+          activeIndex: Math.max(0, options.activeSearchIndex ?? 0),
+          contextSessionId: options.contextSessionId ?? prevCtx,
+        };
+      }
+    } else if (options?.transcriptOutcome === "search_control") {
+      if (options.searchResults && options.searchResults.length > 0) {
+        const prevCtx = this.searchState?.contextSessionId;
+        this.searchState = {
+          results: options.searchResults,
+          activeIndex: Math.max(0, options.activeSearchIndex ?? 0),
+          contextSessionId: options.contextSessionId ?? prevCtx,
+        };
+      } else {
+        // Daemon closes search (e.g. "cancel") without resending the hit list.
+        this.searchState = undefined;
+      }
     }
     // Accept explicit transcriptOutcome="answer". If answerText is missing, fall back to summary
     // (daemon also copies answerText into summary for UI compatibility).
@@ -539,17 +549,26 @@ export class MainPanelStore {
         : options?.transcriptOutcome === "irrelevant"
           ? (true as const)
           : undefined;
-    if (
-      (options?.transcriptOutcome === "search" ||
-        options?.transcriptOutcome === "search_control") &&
-      options.searchResults
-    ) {
-      const prevCtx = this.searchState?.contextSessionId;
-      this.searchState = {
-        results: options.searchResults,
-        activeIndex: Math.max(0, options.activeSearchIndex ?? 0),
-        contextSessionId: options.contextSessionId ?? prevCtx,
-      };
+    if (options?.transcriptOutcome === "search") {
+      if (options.searchResults && options.searchResults.length > 0) {
+        const prevCtx = this.searchState?.contextSessionId;
+        this.searchState = {
+          results: options.searchResults,
+          activeIndex: Math.max(0, options.activeSearchIndex ?? 0),
+          contextSessionId: options.contextSessionId ?? prevCtx,
+        };
+      }
+    } else if (options?.transcriptOutcome === "search_control") {
+      if (options.searchResults && options.searchResults.length > 0) {
+        const prevCtx = this.searchState?.contextSessionId;
+        this.searchState = {
+          results: options.searchResults,
+          activeIndex: Math.max(0, options.activeSearchIndex ?? 0),
+          contextSessionId: options.contextSessionId ?? prevCtx,
+        };
+      } else {
+        this.searchState = undefined;
+      }
     }
     if (
       options?.transcriptOutcome === "answer" ||
