@@ -4,6 +4,7 @@ import type { TranscriptApplyContext } from "../../transcript/context";
 import type { DirectiveDispatchOutcome } from "../dispatch";
 import { recordAppliedEditUndoPaths } from "../undo/transcript-undo-ledger";
 import { dispatchEditResultWorkspaceEdit } from "./dispatch-workspace-edit";
+import { highlightEditedLines } from "./edit-highlight";
 
 /** Applies one edit directive; records undo paths for the transcript ledger. */
 export async function dispatchEdit(
@@ -27,6 +28,7 @@ export async function dispatchEdit(
       };
     }
     recordAppliedEditUndoPaths(applyOutcome.undoStackOrderPaths);
+    highlightEditedLines(applyOutcome.appliedEdits);
     for (const loc of applyOutcome.appliedEdits) {
       if (!loc.editId) continue;
       ctx.editLocations[loc.editId] = {
