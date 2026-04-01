@@ -35,7 +35,8 @@ export function highlightEditedLines(
         (range) =>
           new vscode.Range(
             new vscode.Position(range.startLine, 0),
-            new vscode.Position(range.endLine, 0),
+            new vscode.Position(range.endLine, Number.MAX_SAFE_INTEGER),
+
           ),
       );
 
