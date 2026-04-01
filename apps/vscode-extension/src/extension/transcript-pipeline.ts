@@ -256,18 +256,11 @@ export function attachTranscriptPipeline(
         mainPanelStore.markHandled(pendingId, {
           summary: result.summary?.trim() || undefined,
           transcriptOutcome: result.transcriptOutcome,
+          uiDisposition: result.uiDisposition,
           searchResults: result.searchResults,
           activeSearchIndex: result.activeSearchIndex ?? null,
           answerText: result.answerText ?? null,
           contextSessionId: paramsWithSymbols.contextSessionId,
-        });
-        console.error("[vocode][pipeline] handled transcript", {
-          transcriptOutcome: result.transcriptOutcome,
-          hasAnswerText:
-            typeof result.answerText === "string" &&
-            result.answerText.length > 0,
-          summaryChars:
-            typeof result.summary === "string" ? result.summary.length : 0,
         });
       } catch (err) {
         const message =

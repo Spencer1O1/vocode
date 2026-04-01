@@ -142,6 +142,7 @@ async function sendTranscript(
     services.mainPanelStore.recordCompletedTranscript(trimmedText, {
       summary: result.summary?.trim() || undefined,
       transcriptOutcome: result.transcriptOutcome,
+      uiDisposition: result.uiDisposition,
       searchResults: result.searchResults,
       activeSearchIndex: result.activeSearchIndex ?? null,
       answerText: result.answerText ?? null,

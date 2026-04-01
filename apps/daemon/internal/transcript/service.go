@@ -113,7 +113,7 @@ func (s *TranscriptService) AcceptTranscript(
 	case s.queue <- job:
 	default:
 		job.resp <- transcriptAcceptResp{
-			result: protocol.VoiceTranscriptCompletion{Success: false},
+			result: protocol.VoiceTranscriptCompletion{Success: false, UiDisposition: "hidden"},
 			ok:     true,
 			reason: "voice.transcript queue is full",
 		}

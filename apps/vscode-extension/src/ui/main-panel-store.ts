@@ -59,7 +59,9 @@ export type MainPanelSnapshot = {
       | "irrelevant"
       | "completed"
       | "clarify"
+      | "clarify_control"
       | "search"
+      | "search_control"
       | "answer";
     readonly answerText?: string;
     readonly errorMessage?: string;
@@ -95,7 +97,9 @@ export class MainPanelStore {
       | "irrelevant"
       | "completed"
       | "clarify"
+      | "clarify_control"
       | "search"
+      | "search_control"
       | "answer";
     answerText?: string;
     errorMessage?: string;
@@ -376,6 +380,7 @@ export class MainPanelStore {
     return this.voiceTranscriptRpcOrder[0];
   }
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: intentionally exhaustive state reducer
   markHandled(
     id: number,
     options?: {
@@ -384,8 +389,11 @@ export class MainPanelStore {
         | "irrelevant"
         | "completed"
         | "clarify"
+        | "clarify_control"
         | "search"
+        | "search_control"
         | "answer";
+      uiDisposition?: "shown" | "skipped" | "hidden";
       searchResults?: readonly {
         path: string;
         line: number;
@@ -420,7 +428,11 @@ export class MainPanelStore {
       this.emit();
       return;
     }
-    if (options?.transcriptOutcome === "search" && options.searchResults) {
+    if (
+      (options?.transcriptOutcome === "search" ||
+        options?.transcriptOutcome === "search_control") &&
+      options.searchResults
+    ) {
       const prevCtx = this.searchState?.contextSessionId;
       this.searchState = {
         results: options.searchResults,
@@ -442,22 +454,31 @@ export class MainPanelStore {
           answerText: ans,
           receivedAt: removed.receivedAt,
         });
-        console.error("[vocode][qa] stored answer", {
-          question: removed.text,
-          answerChars: ans.length,
-          qaHistoryLen: this.qaHistory.length,
-        });
         while (this.qaHistory.length > this.maxHandled) {
           this.qaHistory.pop();
         }
       }
     }
+    const disp: "shown" | "skipped" | "hidden" = (() => {
+      if (options?.uiDisposition) return options.uiDisposition;
+      // Back-compat fallback if daemon doesn't send uiDisposition yet.
+      switch (options?.transcriptOutcome) {
+        case "irrelevant":
+          return "skipped";
+        case "search":
+        case "search_control":
+        case "clarify":
+        case "clarify_control":
+        case "answer":
+          return "hidden";
+        default:
+          return "shown";
+      }
+    })();
+
     // Don't put answers into Recent — they belong in Chat.
-    const hideFromHistory =
-      options?.transcriptOutcome === "answer" ||
-      options?.transcriptOutcome === "clarify" ||
-      options?.transcriptOutcome === "search";
-    if (!hideFromHistory) {
+    const shouldLogToRecent = disp !== "hidden" && options?.transcriptOutcome !== "answer";
+    if (shouldLogToRecent) {
       this.recentHandled.unshift({
         text: removed.text,
         receivedAt: removed.receivedAt,
@@ -465,7 +486,7 @@ export class MainPanelStore {
         ...(options?.transcriptOutcome
           ? { transcriptOutcome: options.transcriptOutcome }
           : {}),
-        ...(skipped ? { skipped } : {}),
+        ...(disp === "skipped" || skipped ? { skipped: true as const } : {}),
       });
     }
     while (this.recentHandled.length > this.maxHandled) {
@@ -478,6 +499,8 @@ export class MainPanelStore {
    * Records a completed transcript that did not go through the pending queue (e.g. manual send).
    * Shown under Done; optional summary appears in the Summary section; optional errorMessage shows a failed card.
    */
+
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: intentionally exhaustive state reducer
   recordCompletedTranscript(
     text: string,
     options?: {
@@ -487,8 +510,11 @@ export class MainPanelStore {
         | "irrelevant"
         | "completed"
         | "clarify"
+        | "clarify_control"
         | "search"
+        | "search_control"
         | "answer";
+      uiDisposition?: "shown" | "skipped" | "hidden";
       searchResults?: readonly {
         path: string;
         line: number;
@@ -512,7 +538,11 @@ export class MainPanelStore {
         : options?.transcriptOutcome === "irrelevant"
           ? (true as const)
           : undefined;
-    if (options?.transcriptOutcome === "search" && options.searchResults) {
+    if (
+      (options?.transcriptOutcome === "search" ||
+        options?.transcriptOutcome === "search_control") &&
+      options.searchResults
+    ) {
       const prevCtx = this.searchState?.contextSessionId;
       this.searchState = {
         results: options.searchResults,
@@ -532,21 +562,32 @@ export class MainPanelStore {
           answerText: ans,
           receivedAt: new Date(),
         });
-        console.error("[vocode][qa] stored answer (manual)", {
-          question: normalized,
-          answerChars: ans.length,
-          qaHistoryLen: this.qaHistory.length,
-        });
         while (this.qaHistory.length > this.maxHandled) {
           this.qaHistory.pop();
         }
       }
     }
-    const hideFromManualHistory =
-      options?.transcriptOutcome === "answer" ||
-      options?.transcriptOutcome === "clarify" ||
-      options?.transcriptOutcome === "search";
-    if (!hideFromManualHistory) {
+    const disp: "shown" | "skipped" | "hidden" = (() => {
+      if (options?.uiDisposition) return options.uiDisposition;
+      // Back-compat fallback if daemon doesn't send uiDisposition yet.
+      switch (options?.transcriptOutcome) {
+        case "irrelevant":
+          return "skipped";
+        case "search":
+        case "search_control":
+        case "clarify":
+        case "clarify_control":
+        case "answer":
+          return "hidden";
+        default:
+          return "shown";
+      }
+    })();
+
+    // Don't put answers into Recent — they belong in Chat.
+    const shouldLogToRecent =
+      disp !== "hidden" && options?.transcriptOutcome !== "answer";
+    if (shouldLogToRecent) {
       this.recentHandled.unshift({
         text: normalized,
         receivedAt: new Date(),
@@ -558,7 +599,7 @@ export class MainPanelStore {
         ...(options?.transcriptOutcome
           ? { transcriptOutcome: options.transcriptOutcome }
           : {}),
-        ...(skipped ? { skipped } : {}),
+        ...(disp === "skipped" || skipped ? { skipped: true as const } : {}),
       });
     }
     while (this.recentHandled.length > this.maxHandled) {

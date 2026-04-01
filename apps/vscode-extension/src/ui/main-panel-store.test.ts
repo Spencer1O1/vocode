@@ -66,6 +66,7 @@ test("markHandled sets skipped when transcript outcome is irrelevant", () => {
   store.markHandled(id, {
     summary: "Not a coding task.",
     transcriptOutcome: "irrelevant",
+    uiDisposition: "skipped",
   });
   const h = store.getSnapshot().recentHandled[0];
   assert.equal(h?.skipped, true);
@@ -95,6 +96,7 @@ test("dismissSearchState clears search hit list", () => {
   const id = store.enqueueCommitted("find foo") as number;
   store.markHandled(id, {
     transcriptOutcome: "search",
+    uiDisposition: "hidden",
     searchResults: [
       {
         path: "a.ts",
@@ -129,6 +131,7 @@ test("markHandled stores contextSessionId for daemon cancel RPCs", () => {
   const id2 = store.enqueueCommitted("find foo") as number;
   store.markHandled(id2, {
     transcriptOutcome: "search",
+    uiDisposition: "hidden",
     contextSessionId: "ctx-search-1",
     searchResults: [{ path: "a.ts", line: 0, character: 0, preview: "hit" }],
     activeSearchIndex: 0,
@@ -141,13 +144,15 @@ test("markHandled preserves search contextSessionId when follow-up omits it", ()
   const id = store.enqueueCommitted("find foo") as number;
   store.markHandled(id, {
     transcriptOutcome: "search",
+    uiDisposition: "hidden",
     contextSessionId: "ctx-keep",
     searchResults: [{ path: "a.ts", line: 0, character: 0, preview: "h" }],
     activeSearchIndex: 0,
   });
   const id2 = store.enqueueCommitted("next") as number;
   store.markHandled(id2, {
-    transcriptOutcome: "search",
+    transcriptOutcome: "search_control",
+    uiDisposition: "hidden",
     searchResults: [{ path: "b.ts", line: 1, character: 0, preview: "h2" }],
     activeSearchIndex: 0,
   });
@@ -168,11 +173,31 @@ test("markHandled sets clarifyPrompt when transcript outcome is clarify", () => 
   assert.equal(snap.recentHandled.length, 0);
 });
 
-test("search navigation utterances do not appear in Recent/History", () => {
+test("uiDisposition=hidden prevents adding items to Recent while clarify is active", () => {
+  const store = new MainPanelStore();
+  const id = store.enqueueCommitted("fix thing") as number;
+  store.markHandled(id, {
+    summary: "Which file?",
+    transcriptOutcome: "clarify",
+    uiDisposition: "hidden",
+  });
+  assert.ok(store.getSnapshot().clarifyPrompt);
+
+  const filler = store.enqueueCommitted("uh") as number;
+  store.markHandled(filler, { transcriptOutcome: "irrelevant", uiDisposition: "hidden" });
+  assert.equal(store.getSnapshot().recentHandled.length, 0);
+
+  // Explicit cancel still appends a skipped row.
+  store.abortClarifyAsSkipped();
+  assert.equal(store.getSnapshot().recentHandled[0]?.skipped, true);
+});
+
+test("uiDisposition=hidden keeps search/search_control out of Recent/History", () => {
   const store = new MainPanelStore();
   const id = store.enqueueCommitted("find foo") as number;
   store.markHandled(id, {
     transcriptOutcome: "search",
+    uiDisposition: "hidden",
     searchResults: [{ path: "a.ts", line: 0, character: 0, preview: "hit" }],
     activeSearchIndex: 0,
   });
@@ -181,10 +206,28 @@ test("search navigation utterances do not appear in Recent/History", () => {
 
   const nav = store.enqueueCommitted("next") as number;
   store.markHandled(nav, {
-    transcriptOutcome: "search",
+    transcriptOutcome: "search_control",
+    uiDisposition: "hidden",
     searchResults: [{ path: "b.ts", line: 1, character: 0, preview: "hit2" }],
     activeSearchIndex: 0,
   });
+  assert.equal(store.getSnapshot().recentHandled.length, 0);
+});
+
+test("uiDisposition=hidden prevents skipped spam while searchState is active", () => {
+  const store = new MainPanelStore();
+  const id = store.enqueueCommitted("find foo") as number;
+  store.markHandled(id, {
+    transcriptOutcome: "search",
+    uiDisposition: "hidden",
+    searchResults: [{ path: "a.ts", line: 0, character: 0, preview: "hit" }],
+    activeSearchIndex: 0,
+  });
+  assert.ok(store.getSnapshot().searchState);
+
+  // Simulate daemon returning uiDisposition=hidden (e.g. during active search navigation flow).
+  const nav = store.enqueueCommitted("next") as number;
+  store.markHandled(nav, { transcriptOutcome: "irrelevant", uiDisposition: "hidden" });
   assert.equal(store.getSnapshot().recentHandled.length, 0);
 });
 

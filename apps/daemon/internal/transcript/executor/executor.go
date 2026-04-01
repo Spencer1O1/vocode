@@ -64,12 +64,12 @@ func (e *Executor) Execute(
 	}
 	switch clsRes.Kind {
 	case agent.TranscriptIrrelevant:
-		return protocol.VoiceTranscriptCompletion{Success: true, TranscriptOutcome: "irrelevant"}, nil, gatheredIn, nil, true, ""
+		return protocol.VoiceTranscriptCompletion{Success: true, TranscriptOutcome: "irrelevant", UiDisposition: "skipped"}, nil, gatheredIn, nil, true, ""
 	case agent.TranscriptQuestion:
 		ans := strings.TrimSpace(clsRes.AnswerText)
 		// Put the answer in both answerText (structured) and summary (UI fallback).
 		// Summary is what the panel shows even if answer-specific UI isn't available yet.
-		return protocol.VoiceTranscriptCompletion{Success: true, TranscriptOutcome: "answer", AnswerText: ans, Summary: ans}, nil, gatheredIn, nil, true, ""
+		return protocol.VoiceTranscriptCompletion{Success: true, TranscriptOutcome: "answer", UiDisposition: "hidden", AnswerText: ans, Summary: ans}, nil, gatheredIn, nil, true, ""
 	case agent.TranscriptSearch:
 		query := strings.TrimSpace(clsRes.SearchQuery)
 		root := workspace.EffectiveWorkspaceRoot(params.WorkspaceRoot, params.ActiveFile)
@@ -81,7 +81,7 @@ func (e *Executor) Execute(
 			return protocol.VoiceTranscriptCompletion{Success: false}, nil, gatheredIn, nil, true, fmt.Sprintf("search failed: %v", err)
 		}
 		if len(hits) == 0 {
-			return protocol.VoiceTranscriptCompletion{Success: true, Summary: fmt.Sprintf("no matches for %q", query), TranscriptOutcome: "search"}, nil, gatheredIn, nil, true, ""
+			return protocol.VoiceTranscriptCompletion{Success: true, Summary: fmt.Sprintf("no matches for %q", query), TranscriptOutcome: "search", UiDisposition: "hidden"}, nil, gatheredIn, nil, true, ""
 		}
 
 		first := hits[0]
@@ -159,6 +159,7 @@ func (e *Executor) Execute(
 			Success:           true,
 			Summary:           fmt.Sprintf("found %d matches for %q; opened first", len(hits), query),
 			TranscriptOutcome: "search",
+			UiDisposition:     "hidden",
 			SearchResults:     wireHits,
 			ActiveSearchIndex: &z,
 		}, []protocol.VoiceTranscriptDirective{open, sel}, gatheredIn, pending, true, ""
@@ -192,7 +193,7 @@ func (e *Executor) Execute(
 			},
 		}
 		pending := &agentcontext.DirectiveApplyBatch{ID: batchID, NumDirectives: 1}
-		return protocol.VoiceTranscriptCompletion{Success: true, Summary: cad.summary}, []protocol.VoiceTranscriptDirective{dir}, gatheredIn, pending, true, ""
+		return protocol.VoiceTranscriptCompletion{Success: true, Summary: cad.summary, UiDisposition: "shown"}, []protocol.VoiceTranscriptDirective{dir}, gatheredIn, pending, true, ""
 	}
 	// Heuristic: host formatting.
 	if fd, ok := parseFormat(text, params); ok {
@@ -218,7 +219,7 @@ func (e *Executor) Execute(
 			},
 		}
 		pending := &agentcontext.DirectiveApplyBatch{ID: batchID, NumDirectives: 1}
-		return protocol.VoiceTranscriptCompletion{Success: true, Summary: fd.summary}, []protocol.VoiceTranscriptDirective{dir}, gatheredIn, pending, true, ""
+		return protocol.VoiceTranscriptCompletion{Success: true, Summary: fd.summary, UiDisposition: "shown"}, []protocol.VoiceTranscriptDirective{dir}, gatheredIn, pending, true, ""
 	}
 	// Heuristic: deterministic rename when utterance looks like "rename X to Y".
 	if newName, ok := parseRenameNewName(text); ok {
@@ -249,7 +250,7 @@ func (e *Executor) Execute(
 			},
 		}
 		pending := &agentcontext.DirectiveApplyBatch{ID: batchID, NumDirectives: 1}
-		return protocol.VoiceTranscriptCompletion{Success: true, Summary: "rename"}, []protocol.VoiceTranscriptDirective{dir}, agentcontext.SeedGatheredActiveFile(gatheredIn, active), pending, true, ""
+		return protocol.VoiceTranscriptCompletion{Success: true, Summary: "rename", UiDisposition: "shown"}, []protocol.VoiceTranscriptDirective{dir}, agentcontext.SeedGatheredActiveFile(gatheredIn, active), pending, true, ""
 	}
 
 	active := strings.TrimSpace(params.ActiveFile)
@@ -291,7 +292,7 @@ func (e *Executor) Execute(
 		if q == "" {
 			q = "Which function or file should I edit?"
 		}
-		return protocol.VoiceTranscriptCompletion{Success: true, Summary: q, TranscriptOutcome: "clarify"}, nil, g, nil, true, ""
+		return protocol.VoiceTranscriptCompletion{Success: true, Summary: q, TranscriptOutcome: "clarify", UiDisposition: "hidden"}, nil, g, nil, true, ""
 	}
 
 	target, targetText, err := resolveScopedTarget(params, fileText, scopeRes)
@@ -343,7 +344,7 @@ func (e *Executor) Execute(
 		return protocol.VoiceTranscriptCompletion{Success: false}, nil, g, nil, true, fmt.Sprintf("failed to create applyBatchId: %v", err)
 	}
 	pending := &agentcontext.DirectiveApplyBatch{ID: batchID, NumDirectives: 1}
-	return protocol.VoiceTranscriptCompletion{Success: true, Summary: "scoped edit"}, []protocol.VoiceTranscriptDirective{dir}, g, pending, true, ""
+	return protocol.VoiceTranscriptCompletion{Success: true, Summary: "scoped edit", UiDisposition: "shown"}, []protocol.VoiceTranscriptDirective{dir}, g, pending, true, ""
 }
 
 type rgHit struct {

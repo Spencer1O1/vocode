@@ -12,32 +12,38 @@ import (
 )
 
 var (
-	searchNavNextRe   = regexp.MustCompile(`\b(next|forward)\b`)
-	searchNavBackRe   = regexp.MustCompile(`\b(back|prev|previous)\b`)
-	searchNavResultRe = regexp.MustCompile(`\bresult\b`)
-	searchNavEditRe   = regexp.MustCompile(`\bedit\b`)
-	searchNavSelectRe = regexp.MustCompile(`\b(select|choose|pick)\b`)
-	searchNavGoRe     = regexp.MustCompile(`\b(go|jump|open|show)\b`)
-	searchNavIntRe    = regexp.MustCompile(`\b\d+\b`)
+	searchControlNextRe   = regexp.MustCompile(`\b(next|forward)\b`)
+	searchControlBackRe   = regexp.MustCompile(`\b(back|prev|previous)\b`)
+	searchControlExitRe   = regexp.MustCompile(`\b(cancel|exit|close|stop|done)\b`)
+	searchControlResultRe = regexp.MustCompile(`\bresult\b`)
+	searchControlEditRe   = regexp.MustCompile(`\bedit\b`)
+	searchControlSelectRe = regexp.MustCompile(`\b(select|choose|pick)\b`)
+	searchControlGoRe     = regexp.MustCompile(`\b(go|jump|open|show)\b`)
+	searchControlIntRe    = regexp.MustCompile(`\b\d+\b`)
+
+	clarifyControlExitRe = regexp.MustCompile(`\b(cancel|exit|close|stop|done)\b`)
 )
 
-func parseSearchNavigation(text string) (kind string, ordinal int, ok bool) {
+func parseSearchControl(text string) (kind string, ordinal int, ok bool) {
 	t := strings.TrimSpace(strings.ToLower(text))
 	if t == "" {
 		return "", 0, false
 	}
-	if searchNavNextRe.MatchString(t) {
+	if searchControlExitRe.MatchString(t) {
+		return "exit", 0, true
+	}
+	if searchControlNextRe.MatchString(t) {
 		return "next", 0, true
 	}
-	if searchNavBackRe.MatchString(t) {
+	if searchControlBackRe.MatchString(t) {
 		return "back", 0, true
 	}
 
 	// "edit result N" and "select result N" should both behave like "result N" (jump+select).
-	hasResult := searchNavResultRe.MatchString(t)
-	hasEdit := searchNavEditRe.MatchString(t)
-	hasSelect := searchNavSelectRe.MatchString(t)
-	hasGo := searchNavGoRe.MatchString(t)
+	hasResult := searchControlResultRe.MatchString(t)
+	hasEdit := searchControlEditRe.MatchString(t)
+	hasSelect := searchControlSelectRe.MatchString(t)
+	hasGo := searchControlGoRe.MatchString(t)
 
 	// Bare ordinal only if the whole utterance is essentially "3" / "three" / "third".
 	if isBareOrdinal(t) {
@@ -98,7 +104,7 @@ func isBareOrdinal(t string) bool {
 		return false
 	}
 	// Digits only (optionally surrounded by punctuation/whitespace).
-	if searchNavIntRe.MatchString(t) && len(strings.Fields(t)) == 1 {
+	if searchControlIntRe.MatchString(t) && len(strings.Fields(t)) == 1 {
 		return true
 	}
 	switch strings.Trim(t, ".,;:!?") {
@@ -212,6 +218,8 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 			vs.SearchResults = nil
 			vs.ActiveSearchIndex = 0
 			vs.PendingDirectiveApply = nil
+			vs.ClarifyQuestion = ""
+			vs.ClarifyOriginalTranscript = ""
 			if strings.TrimSpace(key) == "" {
 				voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
 			} else {
@@ -221,8 +229,11 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 				Success:           true,
 				Summary:           "Search session closed",
 				TranscriptOutcome: "completed",
+				UiDisposition:     "hidden",
 			}, true, ""
 		case "cancel_clarify":
+			vs.ClarifyQuestion = ""
+			vs.ClarifyOriginalTranscript = ""
 			if strings.TrimSpace(key) == "" {
 				voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
 			} else {
@@ -232,10 +243,66 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 				Success:           true,
 				Summary:           "Clarification cancelled",
 				TranscriptOutcome: "completed",
+				UiDisposition:     "hidden",
 			}, true, ""
 		default:
 			return protocol.VoiceTranscriptCompletion{Success: false}, false, "unknown controlRequest"
 		}
+	}
+
+	defaultUiDisposition := func(outcome string, hasActiveSearch bool, success bool) string {
+		if !success {
+			return "hidden"
+		}
+		switch strings.TrimSpace(outcome) {
+		case "", "completed":
+			return "shown"
+		case "answer":
+			return "hidden"
+		case "search", "search_control", "clarify", "clarify_control":
+			return "hidden"
+		case "irrelevant":
+			if hasActiveSearch {
+				return "hidden"
+			}
+			return "skipped"
+		default:
+			// Be conservative: don't spam UI for unknown outcomes.
+			return "hidden"
+		}
+	}
+
+	// If the daemon is awaiting a clarify answer, interpret cancel/exit and stitch answers here.
+	if strings.TrimSpace(vs.ClarifyQuestion) != "" && strings.TrimSpace(vs.ClarifyOriginalTranscript) != "" {
+		t := strings.TrimSpace(strings.ToLower(params.Text))
+		if t != "" && clarifyControlExitRe.MatchString(t) {
+			vs.ClarifyQuestion = ""
+			vs.ClarifyOriginalTranscript = ""
+			if strings.TrimSpace(key) == "" {
+				voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
+			} else {
+				voicesession.SaveKeyed(s.sessions, key, vs)
+			}
+			return protocol.VoiceTranscriptCompletion{
+				Success:           true,
+				Summary:           "Clarification cancelled",
+				TranscriptOutcome: "clarify_control",
+				UiDisposition:     "hidden",
+			}, true, ""
+		}
+
+		// Treat as clarify answer: fold into the original transcript so the executor can continue normally.
+		answer := strings.TrimSpace(params.Text)
+		if answer != "" {
+			params.Text = strings.Join([]string{
+				strings.TrimSpace(vs.ClarifyOriginalTranscript),
+				"",
+				"Clarifying question: " + strings.TrimSpace(vs.ClarifyQuestion),
+				"User answer: " + answer,
+			}, "\n")
+		}
+		vs.ClarifyQuestion = ""
+		vs.ClarifyOriginalTranscript = ""
 	}
 
 	// Async host apply reports are not supported (duplex-only execution). PendingDirectiveApply
@@ -253,7 +320,23 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 	}
 
 	// If a search hit list is active, interpret lightweight navigation utterances.
-	if navKind, ord, ok := parseSearchNavigation(params.Text); ok && len(vs.SearchResults) > 0 {
+	if navKind, ord, ok := parseSearchControl(params.Text); ok && len(vs.SearchResults) > 0 {
+		if navKind == "exit" {
+			vs.SearchResults = nil
+			vs.ActiveSearchIndex = 0
+			vs.PendingDirectiveApply = nil
+			if strings.TrimSpace(key) == "" {
+				voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
+			} else {
+				voicesession.SaveKeyed(s.sessions, key, vs)
+			}
+			return protocol.VoiceTranscriptCompletion{
+				Success:           true,
+				Summary:           "Search session closed",
+				TranscriptOutcome: "search_control",
+				UiDisposition:     "hidden",
+			}, true, ""
+		}
 		switch navKind {
 		case "next":
 			if vs.ActiveSearchIndex < len(vs.SearchResults)-1 {
@@ -272,7 +355,8 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 		res := protocol.VoiceTranscriptCompletion{
 			Success:           true,
 			Summary:           "search results",
-			TranscriptOutcome: "search",
+			TranscriptOutcome: "search_control",
+			UiDisposition:     "hidden",
 			SearchResults:     voiceSessionHitsToWire(vs.SearchResults),
 			ActiveSearchIndex: ptrInt64(int64(vs.ActiveSearchIndex)),
 		}
@@ -380,6 +464,13 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 			return protocol.VoiceTranscriptCompletion{Success: false}, false, reason
 		}
 
+		// When a search session is active, irrelevant utterances should not spam "Skipped".
+		if res.TranscriptOutcome == "irrelevant" && len(vs.SearchResults) > 0 {
+			res.UiDisposition = "hidden"
+		} else if strings.TrimSpace(res.UiDisposition) == "" {
+			res.UiDisposition = defaultUiDisposition(res.TranscriptOutcome, len(vs.SearchResults) > 0, res.Success)
+		}
+
 		if !res.Success || len(dirs) == 0 {
 			vs.PendingDirectiveApply = nil
 			if strings.TrimSpace(key) == "" {
@@ -398,6 +489,16 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 				} else {
 					vs.ActiveSearchIndex = 0
 				}
+				if strings.TrimSpace(key) == "" {
+					voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
+				} else {
+					voicesession.SaveKeyed(s.sessions, key, vs)
+				}
+			}
+			// Persist clarify state so follow-up utterances can be interpreted on the daemon.
+			if res.TranscriptOutcome == "clarify" && strings.TrimSpace(res.Summary) != "" {
+				vs.ClarifyQuestion = strings.TrimSpace(res.Summary)
+				vs.ClarifyOriginalTranscript = strings.TrimSpace(params.Text)
 				if strings.TrimSpace(key) == "" {
 					voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
 				} else {

@@ -35,6 +35,9 @@ func TestAcceptTranscript_controlCancelSearch_clearsKeyedSession(t *testing.T) {
 	if !ok || !res.Success || reason != "" {
 		t.Fatalf("got ok=%v success=%v reason=%q res=%+v", ok, res.Success, reason, res)
 	}
+	if res.UiDisposition != "hidden" {
+		t.Fatalf("expected uiDisposition=hidden, got %q", res.UiDisposition)
+	}
 
 	loaded := voicesession.Load(svc.sessions, key, time.Hour, nil)
 	if len(loaded.SearchResults) != 0 {
@@ -62,6 +65,9 @@ func TestAcceptTranscript_controlCancelSearch_clearsEphemeralSession(t *testing.
 	if !ok || !res.Success {
 		t.Fatalf("got ok=%v success=%v reason=%q", ok, res.Success, reason)
 	}
+	if res.UiDisposition != "hidden" {
+		t.Fatalf("expected uiDisposition=hidden, got %q", res.UiDisposition)
+	}
 
 	loaded := voicesession.Load(svc.sessions, "", time.Hour, &svc.ephemeralVoiceSession)
 	if len(loaded.SearchResults) != 0 {
@@ -81,6 +87,9 @@ func TestAcceptTranscript_controlCancelClarify_ok(t *testing.T) {
 	})
 	if !ok || !res.Success || reason != "" {
 		t.Fatalf("got ok=%v success=%v reason=%q", ok, res.Success, reason)
+	}
+	if res.UiDisposition != "hidden" {
+		t.Fatalf("expected uiDisposition=hidden, got %q", res.UiDisposition)
 	}
 	_ = res
 }

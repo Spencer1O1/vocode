@@ -16,8 +16,21 @@
     },
     "transcriptOutcome": {
       "type": "string",
-      "enum": ["irrelevant", "completed", "clarify", "search", "answer"],
-      "description": "Host UI hint: irrelevant transcripts vs normal completion. Omitted means completed (back-compat)."
+      "enum": [
+        "irrelevant",
+        "completed",
+        "clarify",
+        "clarify_control",
+        "search",
+        "search_control",
+        "answer"
+      ],
+      "description": "Daemon classification of this transcript. Omitted means completed (back-compat)."
+    },
+    "uiDisposition": {
+      "type": "string",
+      "enum": ["shown", "skipped", "hidden"],
+      "description": "Host UI directive: where (if anywhere) this completion should be logged."
     },
     "answerText": {
       "type": "string",

@@ -12,6 +12,9 @@ type VoiceSession struct {
 	PendingDirectiveApply *DirectiveApplyBatch
 	SearchResults         []SearchHit
 	ActiveSearchIndex     int
+	// Clarify flow: when non-empty, the daemon is awaiting a follow-up utterance.
+	ClarifyQuestion         string
+	ClarifyOriginalTranscript string
 }
 
 type SearchHit struct {
@@ -92,5 +95,7 @@ func cloneVoiceSession(v VoiceSession) VoiceSession {
 		PendingDirectiveApply: v.PendingDirectiveApply,
 		SearchResults:         append([]SearchHit(nil), v.SearchResults...),
 		ActiveSearchIndex:     v.ActiveSearchIndex,
+		ClarifyQuestion:         v.ClarifyQuestion,
+		ClarifyOriginalTranscript: v.ClarifyOriginalTranscript,
 	}
 }
