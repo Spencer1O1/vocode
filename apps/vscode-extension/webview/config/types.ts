@@ -1,5 +1,5 @@
 /** Mirrors extension `VocodePanelConfigMessage` (without `type`). */
-export type VocodePanelConfig = {
+export type VocodeConfig = {
   elevenLabsApiKeyConfigured: boolean;
   openaiApiKeyConfigured: boolean;
   anthropicApiKeyConfigured: boolean;

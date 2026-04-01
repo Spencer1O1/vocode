@@ -1,9 +1,9 @@
-import type { VocodePanelConfig } from "./panel-config-types";
+import type { VocodeConfig } from "./types";
 
 /** Normalize extension `panelConfig` postMessage payload into panel state. */
-export function vocodePanelConfigFromMessage(
+export function vocodeConfigFromMessage(
   msg: Record<string, unknown>,
-): VocodePanelConfig {
+): VocodeConfig {
   return {
     elevenLabsApiKeyConfigured: msg.elevenLabsApiKeyConfigured === true,
     openaiApiKeyConfigured: msg.openaiApiKeyConfigured === true,

@@ -1,6 +1,7 @@
 import { useState } from "react";
 
-import type { VocodePanelConfig } from "./panel-config-types";
+import { getVsCodeApi } from "../api/vscode";
+import type { VocodeConfig } from "../config";
 import {
   AdvancedDisclosure,
   LanguageSelectRow,
@@ -9,11 +10,8 @@ import {
   SliderRow,
   SttModelChoiceRow,
 } from "./settings-widgets";
-import { getVsCodeApi } from "./vscode-api";
 
-export type PanelConfig = VocodePanelConfig;
-
-function patchConfig(patch: Partial<VocodePanelConfig>) {
+function patchConfig(patch: Partial<VocodeConfig>) {
   getVsCodeApi()?.postMessage({ type: "setPanelConfig", patch });
 }
 
@@ -25,7 +23,7 @@ function formatMs(ms: number): string {
   return `${ms} ms`;
 }
 
-function LlmWarnings({ config }: { config: PanelConfig | null }) {
+function LlmWarnings({ config }: { config: VocodeConfig | null }) {
   if (!config) {
     return null;
   }
@@ -106,7 +104,7 @@ function ToggleRow(props: {
 }
 
 function ApiKeysDisclosure(props: {
-  config: PanelConfig;
+  config: VocodeConfig;
   disabled: boolean;
   keyDraft: string;
   setKeyDraft: (v: string) => void;
@@ -276,7 +274,7 @@ function ApiKeysDisclosure(props: {
   );
 }
 
-export function SettingsPanel(props: { config: PanelConfig | null }) {
+export function SettingsPanel(props: { config: VocodeConfig | null }) {
   const { config } = props;
   const api = getVsCodeApi();
   const disabled = !api || config === null;

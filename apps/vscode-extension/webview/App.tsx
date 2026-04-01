@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 
-import { AudioMeter } from "./AudioMeter";
+import { getVsCodeApi } from "./api/vscode";
+import { AudioMeter } from "./audio-meter";
+import type { VocodeConfig } from "./config";
+import { vocodeConfigFromMessage } from "./config";
 import { MainPanel } from "./main-panel";
-import { vocodePanelConfigFromMessage } from "./panel-config-from-message";
-import type { VocodePanelConfig } from "./panel-config-types";
-import { SettingsPanel } from "./SettingsPanel";
+import { SettingsPanel } from "./settings-panel";
 import type { PanelState } from "./types";
 import { emptyState, normalizePanelState } from "./util";
-import { getVsCodeApi } from "./vscode-api";
 
 function GearIcon() {
   return (
@@ -49,9 +49,7 @@ function ChevronLeftIcon() {
 export function App() {
   const [panel, setPanel] = useState<PanelState>(emptyState);
   const [panelView, setPanelView] = useState<"main" | "settings">("main");
-  const [panelConfig, setPanelConfig] = useState<VocodePanelConfig | null>(
-    null,
-  );
+  const [panelConfig, setPanelConfig] = useState<VocodeConfig | null>(null);
   const initialRouteApplied = useRef(false);
 
   useEffect(() => {
@@ -71,7 +69,7 @@ export function App() {
         }
       }
       if (msg.type === "panelConfig") {
-        setPanelConfig(vocodePanelConfigFromMessage(msg));
+        setPanelConfig(vocodeConfigFromMessage(msg));
       }
     };
     window.addEventListener("message", handler);

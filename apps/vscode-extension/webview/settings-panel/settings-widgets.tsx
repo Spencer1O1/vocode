@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useId, useState } from "react";
 
-import type { VocodePanelConfig } from "./panel-config-types";
+import type { VocodeConfig } from "../config";
 
 export const STT_LANGUAGE_PRESETS = [
   "en",
@@ -25,7 +25,7 @@ export type SliderSpec = {
 
 export const SLIDER_SPECS: Record<
   keyof Pick<
-    VocodePanelConfig,
+    VocodeConfig,
     | "voiceVadThresholdMultiplier"
     | "voiceVadMinEnergyFloor"
     | "voiceVadStartMs"
