@@ -6,6 +6,7 @@ import {
   finalizeTranscriptUndoSessionIfEditsApplied,
 } from "../directives/undo/transcript-undo-ledger";
 import type { TranscriptApplyContext } from "./context";
+import { highlightEditedLines } from "./highlight-edited-lines";
 
 export type DirectiveApplyOutcome = {
   status: "ok" | "failed" | "skipped";
@@ -62,6 +63,7 @@ export async function applyDirectives(
             outcome: skipped,
           });
         }
+        highlightEditedLines(ctx.editLocations);
         return outcomes;
       }
       const ok: DirectiveApplyOutcome = { status: "ok" };
@@ -71,5 +73,6 @@ export async function applyDirectives(
   } finally {
     finalizeTranscriptUndoSessionIfEditsApplied();
   }
+  highlightEditedLines(ctx.editLocations);
   return outcomes;
 }
