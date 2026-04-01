@@ -1,5 +1,5 @@
-import type { HandledRow } from "../types";
-import { fmtTime } from "../util";
+import type { HandledRow } from "../../types";
+import { fmtTime } from "../../util";
 
 function SkippedCard({ h }: { h: HandledRow }) {
   const summary =

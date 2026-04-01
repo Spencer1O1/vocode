@@ -2,131 +2,180 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://vocoding.net/schemas/voice-transcript.params.schema.json",
   "title": "VoiceTranscriptParams",
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-    "text": { "type": "string" },
-    "activeFile": {
-      "type": "string",
-      "description": "Absolute path of the active editor file; the daemon loads content (indexing / snapshot later)."
-    },
-    "workspaceRoot": {
-      "type": "string",
-      "description": "Absolute workspace folder when one is open; otherwise the host may send the active file's parent directory so relative paths still resolve (single-file windows)."
-    },
-    "cursorPosition": {
+  "$defs": {
+    "HostContext": {
       "type": "object",
-      "description": "Caret in the active editor (LSP / VS Code Position). The daemon resolves the innermost symbol at this location using host-provided document symbols (LSP).",
       "additionalProperties": false,
-      "required": ["line", "character"],
       "properties": {
-        "line": {
-          "type": "integer",
-          "description": "0-based line index."
+        "text": {
+          "type": "string",
+          "description": "Committed transcript text (STT). Omitted when sending a controlRequest-only RPC."
         },
-        "character": {
-          "type": "integer",
-          "description": "0-based UTF-16 code unit offset within the line. Reserved for finer resolution; tag-based backend may use line only today."
-        }
-      }
-    },
-    "activeSelection": {
-      "type": "object",
-      "description": "Selection in the active editor (LSP / VS Code Range). When empty, start==end at cursor.",
-      "additionalProperties": false,
-      "required": ["startLine", "startChar", "endLine", "endChar"],
-      "properties": {
-        "startLine": { "type": "integer", "minimum": 0 },
-        "startChar": { "type": "integer", "minimum": 0 },
-        "endLine": { "type": "integer", "minimum": 0 },
-        "endChar": { "type": "integer", "minimum": 0 }
-      }
-    },
-    "activeFileSymbols": {
-      "type": "array",
-      "description": "Document symbols for the active file from the host's LSP (vscode.executeDocumentSymbolProvider). Used for scope resolution; required for scope-first editing.",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["name", "kind", "range", "selectionRange"],
-        "properties": {
-          "name": { "type": "string" },
-          "kind": { "type": "string" },
-          "range": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["startLine", "startChar", "endLine", "endChar"],
-            "properties": {
-              "startLine": { "type": "integer", "minimum": 0 },
-              "startChar": { "type": "integer", "minimum": 0 },
-              "endLine": { "type": "integer", "minimum": 0 },
-              "endChar": { "type": "integer", "minimum": 0 }
+        "activeFile": {
+          "type": "string",
+          "description": "Absolute path of the active editor file; the daemon loads content (indexing / snapshot later)."
+        },
+        "workspaceRoot": {
+          "type": "string",
+          "description": "Absolute workspace folder when one is open; otherwise the host may send the active file's parent directory so relative paths still resolve (single-file windows)."
+        },
+        "cursorPosition": {
+          "type": "object",
+          "description": "Caret in the active editor (LSP / VS Code Position). The daemon resolves the innermost symbol at this location using host-provided document symbols (LSP).",
+          "additionalProperties": false,
+          "required": ["line", "character"],
+          "properties": {
+            "line": {
+              "type": "integer",
+              "description": "0-based line index."
+            },
+            "character": {
+              "type": "integer",
+              "description": "0-based UTF-16 code unit offset within the line. Reserved for finer resolution; tag-based backend may use line only today."
             }
-          },
-          "selectionRange": {
+          }
+        },
+        "activeSelection": {
+          "type": "object",
+          "description": "Selection in the active editor (LSP / VS Code Range). When empty, start==end at cursor.",
+          "additionalProperties": false,
+          "required": ["startLine", "startChar", "endLine", "endChar"],
+          "properties": {
+            "startLine": { "type": "integer", "minimum": 0 },
+            "startChar": { "type": "integer", "minimum": 0 },
+            "endLine": { "type": "integer", "minimum": 0 },
+            "endChar": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "activeFileSymbols": {
+          "type": "array",
+          "description": "Document symbols for the active file from the host's LSP (vscode.executeDocumentSymbolProvider). Used for scope resolution; required for scope-first editing.",
+          "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["startLine", "startChar", "endLine", "endChar"],
+            "required": ["name", "kind", "range", "selectionRange"],
             "properties": {
-              "startLine": { "type": "integer", "minimum": 0 },
-              "startChar": { "type": "integer", "minimum": 0 },
-              "endLine": { "type": "integer", "minimum": 0 },
-              "endChar": { "type": "integer", "minimum": 0 }
+              "name": { "type": "string" },
+              "kind": { "type": "string" },
+              "range": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["startLine", "startChar", "endLine", "endChar"],
+                "properties": {
+                  "startLine": { "type": "integer", "minimum": 0 },
+                  "startChar": { "type": "integer", "minimum": 0 },
+                  "endLine": { "type": "integer", "minimum": 0 },
+                  "endChar": { "type": "integer", "minimum": 0 }
+                }
+              },
+              "selectionRange": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["startLine", "startChar", "endLine", "endChar"],
+                "properties": {
+                  "startLine": { "type": "integer", "minimum": 0 },
+                  "startChar": { "type": "integer", "minimum": 0 },
+                  "endLine": { "type": "integer", "minimum": 0 },
+                  "endChar": { "type": "integer", "minimum": 0 }
+                }
+              }
+            }
+          }
+        },
+        "contextSessionId": {
+          "type": "string",
+          "description": "Internal-only key for persisting Gathered between RPCs (host assigns; user never manages it). Omit for ephemeral gathered."
+        },
+        "controlRequest": {
+          "type": "string",
+          "enum": ["cancel_clarify", "cancel_search"],
+          "description": "Host UI control: cancel clarification or close search session without spoken text. Bypasses transcript coalescing on the daemon."
+        },
+        "daemonConfig": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maxPlannerTurns": {
+              "type": "integer",
+              "description": "Overrides VOCODE_DAEMON_VOICE_MAX_AGENT_TURNS (<=0 uses daemon default)."
+            },
+            "maxIntentsPerBatch": {
+              "type": "integer",
+              "description": "Overrides VOCODE_DAEMON_VOICE_MAX_INTENTS_PER_BATCH (>0 enables cap; <=0 disables)."
+            },
+            "maxIntentDispatchRetries": {
+              "type": "integer",
+              "description": "Overrides VOCODE_DAEMON_VOICE_MAX_INTENT_RETRIES (<0 uses 0)."
+            },
+            "maxContextRounds": {
+              "type": "integer",
+              "description": "Overrides VOCODE_DAEMON_VOICE_MAX_CONTEXT_ROUNDS (>0 enables cap; <=0 disables)."
+            },
+            "maxContextBytes": {
+              "type": "integer",
+              "description": "Overrides VOCODE_DAEMON_VOICE_MAX_CONTEXT_BYTES (>0 enables cap; <=0 disables)."
+            },
+            "maxConsecutiveContextRequests": {
+              "type": "integer",
+              "description": "Overrides VOCODE_DAEMON_VOICE_MAX_CONSECUTIVE_CONTEXT_REQUESTS (>0 enables cap; <=0 disables)."
+            },
+            "maxTranscriptRepairRpcs": {
+              "type": "integer",
+              "description": "Overrides VOCODE_DAEMON_VOICE_MAX_REPAIR_RPCS (>=1 iterations)."
+            },
+            "sessionIdleResetMs": {
+              "type": "integer",
+              "description": "Overrides VOCODE_DAEMON_SESSION_IDLE_RESET_MS (0 disables idle eviction)."
+            },
+            "maxGatheredBytes": {
+              "type": "integer",
+              "description": "Overrides VOCODE_DAEMON_GATHERED_MAX_BYTES."
+            },
+            "maxGatheredExcerpts": {
+              "type": "integer",
+              "description": "Overrides VOCODE_DAEMON_GATHERED_MAX_EXCERPTS."
             }
           }
         }
       }
     },
-    "contextSessionId": {
-      "type": "string",
-      "description": "Internal-only key for persisting Gathered between RPCs (host assigns; user never manages it). Omit for ephemeral gathered."
-    },
-    "daemonConfig": {
+    "AsControl": {
       "type": "object",
       "additionalProperties": false,
-      "properties": {
-        "maxPlannerTurns": {
-          "type": "integer",
-          "description": "Overrides VOCODE_DAEMON_VOICE_MAX_AGENT_TURNS (<=0 uses daemon default)."
-        },
-        "maxIntentsPerBatch": {
-          "type": "integer",
-          "description": "Overrides VOCODE_DAEMON_VOICE_MAX_INTENTS_PER_BATCH (>0 enables cap; <=0 disables)."
-        },
-        "maxIntentDispatchRetries": {
-          "type": "integer",
-          "description": "Overrides VOCODE_DAEMON_VOICE_MAX_INTENT_RETRIES (<0 uses 0)."
-        },
-        "maxContextRounds": {
-          "type": "integer",
-          "description": "Overrides VOCODE_DAEMON_VOICE_MAX_CONTEXT_ROUNDS (>0 enables cap; <=0 disables)."
-        },
-        "maxContextBytes": {
-          "type": "integer",
-          "description": "Overrides VOCODE_DAEMON_VOICE_MAX_CONTEXT_BYTES (>0 enables cap; <=0 disables)."
-        },
-        "maxConsecutiveContextRequests": {
-          "type": "integer",
-          "description": "Overrides VOCODE_DAEMON_VOICE_MAX_CONSECUTIVE_CONTEXT_REQUESTS (>0 enables cap; <=0 disables)."
-        },
-        "maxTranscriptRepairRpcs": {
-          "type": "integer",
-          "description": "Overrides VOCODE_DAEMON_VOICE_MAX_REPAIR_RPCS (>=1 iterations)."
-        },
-        "sessionIdleResetMs": {
-          "type": "integer",
-          "description": "Overrides VOCODE_DAEMON_SESSION_IDLE_RESET_MS (0 disables idle eviction)."
-        },
-        "maxGatheredBytes": {
-          "type": "integer",
-          "description": "Overrides VOCODE_DAEMON_GATHERED_MAX_BYTES."
-        },
-        "maxGatheredExcerpts": {
-          "type": "integer",
-          "description": "Overrides VOCODE_DAEMON_GATHERED_MAX_EXCERPTS."
+      "allOf": [
+        { "$ref": "#/$defs/HostContext" },
+        {
+          "type": "object",
+          "required": ["controlRequest"],
+          "properties": {
+            "controlRequest": {
+              "type": "string",
+              "enum": ["cancel_clarify", "cancel_search"]
+            }
+          }
         }
-      }
+      ]
+    },
+    "AsTranscript": {
+      "type": "object",
+      "additionalProperties": false,
+      "allOf": [
+        { "$ref": "#/$defs/HostContext" },
+        {
+          "type": "object",
+          "required": ["text"],
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
     }
   },
-  "required": ["text"]
+  "oneOf": [
+    { "$ref": "#/$defs/AsControl" },
+    { "$ref": "#/$defs/AsTranscript" }
+  ]
 }

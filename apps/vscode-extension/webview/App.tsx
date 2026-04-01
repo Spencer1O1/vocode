@@ -4,10 +4,12 @@ import { getVsCodeApi } from "./api/vscode";
 import { AudioMeter } from "./audio-meter";
 import type { VocodeConfig } from "./config";
 import { vocodeConfigFromMessage } from "./config";
-import { MainPanel } from "./main-panel";
-import { SettingsPanel } from "./settings-panel";
+import { LivePartialCard } from "./live-partial-card";
+import { ClarifyPanel, MainPanel, SearchPanel, SettingsPanel } from "./panels";
 import type { PanelState } from "./types";
 import { emptyState, normalizePanelState } from "./util";
+
+type PanelView = "main" | "settings" | "clarify" | "search";
 
 function GearIcon() {
   return (
@@ -46,11 +48,29 @@ function ChevronLeftIcon() {
   );
 }
 
+function panelTitle(view: PanelView): string {
+  switch (view) {
+    case "settings":
+      return "Settings";
+    case "clarify":
+      return "Clarification";
+    case "search":
+      return "Search";
+    default:
+      return "Vocode";
+  }
+}
+
 export function App() {
   const [panel, setPanel] = useState<PanelState>(emptyState);
-  const [panelView, setPanelView] = useState<"main" | "settings">("main");
+  const [panelView, setPanelView] = useState<PanelView>("main");
   const [panelConfig, setPanelConfig] = useState<VocodeConfig | null>(null);
   const initialRouteApplied = useRef(false);
+
+  const hasClarifyInterrupt = Boolean(panel.clarifyPrompt?.question);
+  const hasSearchInterrupt =
+    Array.isArray(panel.searchState?.results) &&
+    panel.searchState.results.length > 0;
 
   useEffect(() => {
     const handler = (event: MessageEvent) => {
@@ -86,18 +106,44 @@ export function App() {
     }
   }, [panelView]);
 
+  useEffect(() => {
+    setPanelView((prev) => {
+      if (prev === "settings") {
+        return prev;
+      }
+      if (hasClarifyInterrupt) {
+        return "clarify";
+      }
+      if (hasSearchInterrupt) {
+        return "search";
+      }
+      if (prev === "clarify" || prev === "search") {
+        return "main";
+      }
+      return prev;
+    });
+  }, [hasClarifyInterrupt, hasSearchInterrupt]);
+
+  const handleHeaderBack = () => {
+    if (panelView === "settings") {
+      setPanelView("main");
+    }
+  };
+
+  const showGear = panelView === "main";
+  /** Clarify / search are not exited from the header — use in-panel actions. */
+  const showBack = panelView === "settings";
+
   return (
     <div className="app-shell">
       <header className="panel-top">
-        <div className="panel-top-title">
-          {panelView === "main" ? "Vocode" : "Settings"}
-        </div>
+        <div className="panel-top-title">{panelTitle(panelView)}</div>
         <div
           className="panel-top-actions"
           role="toolbar"
           aria-label="Panel actions"
         >
-          {panelView === "main" ? (
+          {showGear ? (
             <button
               type="button"
               className="panel-icon-btn"
@@ -107,27 +153,53 @@ export function App() {
             >
               <GearIcon />
             </button>
-          ) : (
+          ) : null}
+          {showBack ? (
             <button
               type="button"
               className="panel-icon-btn"
               aria-label="Back to Vocode"
               title="Back"
-              onClick={() => setPanelView("main")}
+              onClick={handleHeaderBack}
             >
               <ChevronLeftIcon />
             </button>
-          )}
+          ) : null}
         </div>
       </header>
-      {panelView === "main" ? (
-        <>
-          <AudioMeter state={panel} />
-          <MainPanel state={panel} />
-        </>
-      ) : (
-        <SettingsPanel config={panelConfig} />
-      )}
+      <div className="app-body">
+        {panelView === "main" ? (
+          <>
+            <AudioMeter state={panel} />
+            <MainPanel state={panel} />
+          </>
+        ) : null}
+        {panelView === "settings" ? (
+          <SettingsPanel config={panelConfig} />
+        ) : null}
+        {panelView === "clarify" ? (
+          <>
+            <AudioMeter state={panel} />
+            <LivePartialCard
+              state={panel}
+              showPlaceholderWhenListening
+              className="interrupt-live-partial"
+            />
+            <ClarifyPanel state={panel} />
+          </>
+        ) : null}
+        {panelView === "search" ? (
+          <>
+            <AudioMeter state={panel} />
+            <LivePartialCard
+              state={panel}
+              showPlaceholderWhenListening
+              className="interrupt-live-partial"
+            />
+            <SearchPanel state={panel} />
+          </>
+        ) : null}
+      </div>
     </div>
   );
 }

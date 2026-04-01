@@ -255,9 +255,60 @@ function toOptionalGoType(goType) {
   return `*${goType}`;
 }
 
+/**
+ * Resolves $ref and flattens `allOf` into a single `type: "object"` schema so oneOf variants
+ * can compose shared `$defs` (same pattern as schema files using allOf + $ref).
+ */
+function flattenToObjectSchema(schema, currentAbsPath) {
+  if (!schema || typeof schema !== "object") {
+    throw new Error("Invalid schema node for flattenToObjectSchema");
+  }
+  if (schema.$ref) {
+    const resolved = resolveRef(currentAbsPath, schema.$ref);
+    return flattenToObjectSchema(resolved.schema, resolved.absPath);
+  }
+  if (Array.isArray(schema.allOf)) {
+    const merged = {
+      type: "object",
+      properties: {},
+      required: [],
+      additionalProperties: schema.additionalProperties,
+    };
+    for (const part of schema.allOf) {
+      const flat = flattenToObjectSchema(part, currentAbsPath);
+      if (flat.type !== "object") {
+        throw new Error(
+          "Unsupported allOf: member must flatten to type object (check voice-transcript.params oneOf variants)",
+        );
+      }
+      Object.assign(merged.properties, flat.properties ?? {});
+      for (const key of flat.required ?? []) {
+        if (!merged.required.includes(key)) {
+          merged.required.push(key);
+        }
+      }
+      if (flat.additionalProperties === false) {
+        merged.additionalProperties = false;
+      }
+    }
+    return merged;
+  }
+  if (schema.type === "object") {
+    return {
+      type: "object",
+      properties: { ...(schema.properties ?? {}) },
+      required: [...(schema.required ?? [])],
+      additionalProperties: schema.additionalProperties,
+    };
+  }
+  throw new Error(
+    `Expected object or allOf for oneOf variant, got: ${JSON.stringify(schema).slice(0, 240)}`,
+  );
+}
+
 function mergeOneOfObjectSchema(schema, currentAbsPath) {
   const variants = schema.oneOf.map((variant) =>
-    variant.$ref ? resolveRef(currentAbsPath, variant.$ref).schema : variant,
+    flattenToObjectSchema(variant, currentAbsPath),
   );
 
   const objectVariants = variants.filter(

@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 
-import type { PanelState } from "../types";
-import { fmtTime } from "../util";
+import type { PanelState } from "../../types";
+import { fmtTime } from "../../util";
 
 export function ChatSection({ state }: { state: PanelState }) {
   const items = Array.isArray(state.qaHistory) ? state.qaHistory : [];

@@ -10,6 +10,8 @@ import {
   elevenLabsApiKeyIsConfigured,
   OPENAI_API_KEY_SECRET,
 } from "../config/spawn-env";
+import type { ExtensionServices } from "../commands/services";
+import { sendTranscriptControlRequest } from "../extension/transcript-control";
 import type { MainPanelStore } from "./main-panel-store";
 
 /** VS Code contributed view id (package.json); stable for user layouts and commands. */
@@ -29,6 +31,7 @@ export class MainPanelViewProvider
     private readonly extensionUri: vscode.Uri,
     private readonly store: MainPanelStore,
     private readonly extensionContext: vscode.ExtensionContext,
+    private readonly services: ExtensionServices,
   ) {
     this.unsubscribe = this.store.onDidChange(() => {
       this.postState();
@@ -132,6 +135,32 @@ export class MainPanelViewProvider
           })();
           return;
         }
+        if (m.type === "transcriptControl") {
+          const c = m.control;
+          if (c !== "cancel_clarify" && c !== "cancel_search") {
+            return;
+          }
+          void (async () => {
+            const ctx =
+              c === "cancel_clarify"
+                ? this.store.clarifyPromptContextSessionId()
+                : this.store.searchContextSessionId();
+            const ok = await sendTranscriptControlRequest(
+              this.services,
+              c,
+              ctx ?? this.services.voiceSession.contextSessionId(),
+            );
+            if (!ok) {
+              return;
+            }
+            if (c === "cancel_clarify") {
+              this.store.abortClarifyAsSkipped();
+            } else {
+              this.store.dismissSearchState();
+            }
+          })();
+          return;
+        }
         if (m.type === "openExtensionSettings") {
           void vscode.commands.executeCommand(
             "workbench.action.openSettings",
@@ -185,14 +214,6 @@ export class MainPanelViewProvider
       return;
     }
     const snapshot = this.store.getSnapshot();
-    console.error("[vocode][panel] postState", {
-      qaHistoryLen: Array.isArray((snapshot as any).qaHistory)
-        ? ((snapshot as any).qaHistory as unknown[]).length
-        : 0,
-      recentHandledLen: Array.isArray((snapshot as any).recentHandled)
-        ? ((snapshot as any).recentHandled as unknown[]).length
-        : 0,
-    });
     const plain = JSON.parse(JSON.stringify(snapshot)) as Record<
       string,
       unknown

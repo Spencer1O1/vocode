@@ -1,5 +1,5 @@
-import type { PendingRow } from "../types";
-import { fmtTime, statusBadgeTitle, statusLabel } from "../util";
+import type { PendingRow } from "../../types";
+import { fmtTime, statusBadgeTitle, statusLabel } from "../../util";
 
 export function CompactQueuedCard({ p }: { p: PendingRow }) {
   return (

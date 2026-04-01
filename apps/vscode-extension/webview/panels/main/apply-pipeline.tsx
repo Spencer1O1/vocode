@@ -1,4 +1,4 @@
-import type { PendingRow } from "../types";
+import type { PendingRow } from "../../types";
 
 export type ApplyStepVisual = "done" | "active" | "pending";
 

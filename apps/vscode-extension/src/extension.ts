@@ -107,17 +107,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
   const voiceStatus = new VoiceStatusIndicator();
   const mainPanelStore = new MainPanelStore();
-  const mainPanel = new MainPanelViewProvider(
-    context.extensionUri,
-    mainPanelStore,
-    context,
-  );
-
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(mainPanelViewType, mainPanel),
-    mainPanel,
-  );
-
   const voiceSession = new VoiceSessionController();
   const daemonProcRef: {
     current: ChildProcessWithoutNullStreams | null;
@@ -133,6 +122,18 @@ export async function activate(context: vscode.ExtensionContext) {
     voiceSidecar: null,
     mainPanelStore,
   };
+
+  const mainPanel = new MainPanelViewProvider(
+    context.extensionUri,
+    mainPanelStore,
+    context,
+    services,
+  );
+
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(mainPanelViewType, mainPanel),
+    mainPanel,
+  );
 
   let restartInFlight = false;
   services.restartVocode = async () => {

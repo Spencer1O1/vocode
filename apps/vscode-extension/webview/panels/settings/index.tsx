@@ -1,7 +1,7 @@
 import { useState } from "react";
 
-import { getVsCodeApi } from "../api/vscode";
-import type { VocodeConfig } from "../config";
+import { getVsCodeApi } from "../../api/vscode";
+import type { VocodeConfig } from "../../config";
 import {
   AdvancedDisclosure,
   LanguageSelectRow,

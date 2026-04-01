@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useId, useState } from "react";
 
-import type { VocodeConfig } from "../config";
+import type { VocodeConfig } from "../../config";
 
 export const STT_LANGUAGE_PRESETS = [
   "en",

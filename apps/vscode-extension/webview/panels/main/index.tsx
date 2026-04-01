@@ -1,10 +1,8 @@
-import type { PanelState } from "../types";
+import type { PanelState } from "../../types";
 import { ApplyingSection } from "./applying-section";
 import { ChatSection } from "./chat-section";
-import { ClarifySection } from "./clarify-section";
 import { HistorySection } from "./history-section";
 import { LiveSection } from "./live-section";
-import { SearchResultsSection } from "./search-results-section";
 import { SkippedSection } from "./skipped-section";
 
 export function MainPanel({ state }: { state: PanelState }) {
@@ -20,8 +18,6 @@ export function MainPanel({ state }: { state: PanelState }) {
   return (
     <div id="main-root">
       <ChatSection state={state} />
-      <ClarifySection state={state} />
-      <SearchResultsSection state={state} />
       <LiveSection state={state} />
       <ApplyingSection pending={pending} />
       <HistorySection items={historyItems} />

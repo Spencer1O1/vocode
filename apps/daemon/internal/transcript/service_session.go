@@ -206,6 +206,38 @@ func (s *TranscriptService) runExecute(params protocol.VoiceTranscriptParams) (p
 		vs = voicesession.Load(s.sessions, key, idleReset, nil)
 	}
 
+	if cr := strings.TrimSpace(params.ControlRequest); cr != "" {
+		switch cr {
+		case "cancel_search":
+			vs.SearchResults = nil
+			vs.ActiveSearchIndex = 0
+			vs.PendingDirectiveApply = nil
+			if strings.TrimSpace(key) == "" {
+				voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
+			} else {
+				voicesession.SaveKeyed(s.sessions, key, vs)
+			}
+			return protocol.VoiceTranscriptCompletion{
+				Success:           true,
+				Summary:           "Search session closed",
+				TranscriptOutcome: "completed",
+			}, true, ""
+		case "cancel_clarify":
+			if strings.TrimSpace(key) == "" {
+				voicesession.StoreEphemeralVoiceSession(&s.ephemeralVoiceSession, vs)
+			} else {
+				voicesession.SaveKeyed(s.sessions, key, vs)
+			}
+			return protocol.VoiceTranscriptCompletion{
+				Success:           true,
+				Summary:           "Clarification cancelled",
+				TranscriptOutcome: "completed",
+			}, true, ""
+		default:
+			return protocol.VoiceTranscriptCompletion{Success: false}, false, "unknown controlRequest"
+		}
+	}
+
 	// Async host apply reports are not supported (duplex-only execution). PendingDirectiveApply
 	// is consumed immediately after each host.applyDirectives call within this RPC.
 	activeFile := strings.TrimSpace(params.ActiveFile)

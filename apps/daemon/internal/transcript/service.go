@@ -86,6 +86,14 @@ func NewService(
 func (s *TranscriptService) AcceptTranscript(
 	params protocol.VoiceTranscriptParams,
 ) (protocol.VoiceTranscriptCompletion, bool, string) {
+	cr := strings.TrimSpace(params.ControlRequest)
+	if cr != "" {
+		// UI cancel/abort: must not enter the coalescing queue (ordering vs later speech).
+		params.Text = strings.TrimSpace(params.Text)
+		params.ControlRequest = cr
+		return s.runExecute(params)
+	}
+
 	params.Text = strings.TrimSpace(params.Text)
 	if params.Text == "" {
 		return protocol.VoiceTranscriptCompletion{}, false, ""

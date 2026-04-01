@@ -71,6 +71,91 @@ test("markHandled sets skipped when transcript outcome is irrelevant", () => {
   assert.equal(h?.skipped, true);
 });
 
+test("abortClarifyAsSkipped clears prompt and appends skipped row", () => {
+  const store = new MainPanelStore();
+  const id = store.enqueueCommitted("fix thing") as number;
+  store.markHandled(id, {
+    summary: "Which file?",
+    transcriptOutcome: "clarify",
+  });
+  assert.ok(store.getSnapshot().clarifyPrompt);
+  store.abortClarifyAsSkipped();
+  assert.equal(store.getSnapshot().clarifyPrompt, undefined);
+  const h = store.getSnapshot().recentHandled[0];
+  assert.equal(h?.text, "fix thing");
+  assert.equal(h?.skipped, true);
+  assert.ok(
+    typeof h?.summary === "string" &&
+      h.summary.includes("Clarification cancelled"),
+  );
+});
+
+test("dismissSearchState clears search hit list", () => {
+  const store = new MainPanelStore();
+  const id = store.enqueueCommitted("find foo") as number;
+  store.markHandled(id, {
+    transcriptOutcome: "search",
+    searchResults: [
+      {
+        path: "a.ts",
+        line: 0,
+        character: 0,
+        preview: "hit",
+      },
+    ],
+    activeSearchIndex: 0,
+  });
+  assert.ok(store.getSnapshot().searchState);
+  store.dismissSearchState();
+  assert.equal(store.getSnapshot().searchState, undefined);
+});
+
+test("markHandled stores contextSessionId for daemon cancel RPCs", () => {
+  const store = new MainPanelStore();
+  const id = store.enqueueCommitted("fix thing") as number;
+  store.markHandled(id, {
+    summary: "Which file?",
+    transcriptOutcome: "clarify",
+    contextSessionId: "ctx-clarify-1",
+  });
+  assert.equal(store.clarifyPromptContextSessionId(), "ctx-clarify-1");
+  const snap = store.getSnapshot();
+  assert.equal(snap.clarifyPrompt?.question, "Which file?");
+  assert.deepEqual(Object.keys(snap.clarifyPrompt ?? {}), [
+    "question",
+    "originalTranscript",
+  ]);
+
+  const id2 = store.enqueueCommitted("find foo") as number;
+  store.markHandled(id2, {
+    transcriptOutcome: "search",
+    contextSessionId: "ctx-search-1",
+    searchResults: [
+      { path: "a.ts", line: 0, character: 0, preview: "hit" },
+    ],
+    activeSearchIndex: 0,
+  });
+  assert.equal(store.searchContextSessionId(), "ctx-search-1");
+});
+
+test("markHandled preserves search contextSessionId when follow-up omits it", () => {
+  const store = new MainPanelStore();
+  const id = store.enqueueCommitted("find foo") as number;
+  store.markHandled(id, {
+    transcriptOutcome: "search",
+    contextSessionId: "ctx-keep",
+    searchResults: [{ path: "a.ts", line: 0, character: 0, preview: "h" }],
+    activeSearchIndex: 0,
+  });
+  const id2 = store.enqueueCommitted("next") as number;
+  store.markHandled(id2, {
+    transcriptOutcome: "search",
+    searchResults: [{ path: "b.ts", line: 1, character: 0, preview: "h2" }],
+    activeSearchIndex: 0,
+  });
+  assert.equal(store.searchContextSessionId(), "ctx-keep");
+});
+
 test("markHandled sets clarifyPrompt when transcript outcome is clarify", () => {
   const store = new MainPanelStore();
   const id = store.enqueueCommitted("fix thing") as number;

@@ -106,7 +106,12 @@ export class MainPanelStore {
   private voiceListening = false;
 
   private clarifyPrompt:
-    | { question: string; originalTranscript: string }
+    | {
+        question: string;
+        originalTranscript: string;
+        /** Daemon session key when this prompt was shown; used for cancel_clarify RPC. */
+        contextSessionId?: string;
+      }
     | undefined;
 
   private searchState:
@@ -118,6 +123,8 @@ export class MainPanelStore {
           preview: string;
         }[];
         activeIndex: number;
+        /** Daemon session key for this hit list; used for cancel_search RPC after voice stops. */
+        contextSessionId?: string;
       }
     | undefined;
 
@@ -250,6 +257,50 @@ export class MainPanelStore {
    * If a clarification prompt is active, consumes it and returns a combined text to send to the daemon.
    * The returned string is the transcript text to send; UI still displays the committed line normally.
    */
+  /**
+   * User aborted clarification: clear the prompt and record the original line under Skipped
+   * so the flow has an explicit outcome (not a silent dismiss).
+   */
+  abortClarifyAsSkipped(): void {
+    if (!this.clarifyPrompt) {
+      return;
+    }
+    const { question, originalTranscript } = this.clarifyPrompt;
+    this.clarifyPrompt = undefined;
+    const text = originalTranscript.trim() || "(empty transcript)";
+    const q = question.trim();
+    const shortQ = q.length > 160 ? `${q.slice(0, 157)}…` : q;
+    this.recentHandled.unshift({
+      text,
+      receivedAt: new Date(),
+      skipped: true,
+      summary: `Clarification cancelled. Question was: ${shortQ}`,
+    });
+    while (this.recentHandled.length > this.maxHandled) {
+      this.recentHandled.pop();
+    }
+    this.emit();
+  }
+
+  /** Clear the search hit list from the sidebar (user closed the search panel). */
+  dismissSearchState(): void {
+    if (!this.searchState) {
+      return;
+    }
+    this.searchState = undefined;
+    this.emit();
+  }
+
+  /** Opaque daemon `contextSessionId` for the active clarify prompt, if known. */
+  clarifyPromptContextSessionId(): string | undefined {
+    return this.clarifyPrompt?.contextSessionId;
+  }
+
+  /** Opaque daemon `contextSessionId` tied to the current search hit list, if known. */
+  searchContextSessionId(): string | undefined {
+    return this.searchState?.contextSessionId;
+  }
+
   consumeClarifyPromptAnswer(answerText: string): string | null {
     if (!this.clarifyPrompt) {
       return null;
@@ -314,6 +365,7 @@ export class MainPanelStore {
       }[];
       activeSearchIndex?: number | null;
       answerText?: string | null;
+      contextSessionId?: string;
     },
   ): void {
     const index = this.pending.findIndex((p) => p.id === id);
@@ -328,12 +380,17 @@ export class MainPanelStore {
       this.clarifyPrompt = {
         question: summary,
         originalTranscript: removed.text,
+        ...(options.contextSessionId
+          ? { contextSessionId: options.contextSessionId }
+          : {}),
       };
     }
     if (options?.transcriptOutcome === "search" && options.searchResults) {
+      const prevCtx = this.searchState?.contextSessionId;
       this.searchState = {
         results: options.searchResults,
         activeIndex: Math.max(0, options.activeSearchIndex ?? 0),
+        contextSessionId: options.contextSessionId ?? prevCtx,
       };
     }
     // Accept explicit transcriptOutcome="answer". If answerText is missing, fall back to summary
@@ -401,6 +458,7 @@ export class MainPanelStore {
       }[];
       activeSearchIndex?: number | null;
       answerText?: string | null;
+      contextSessionId?: string;
     },
   ): void {
     const normalized = text.trim();
@@ -416,9 +474,11 @@ export class MainPanelStore {
           ? (true as const)
           : undefined;
     if (options?.transcriptOutcome === "search" && options.searchResults) {
+      const prevCtx = this.searchState?.contextSessionId;
       this.searchState = {
         results: options.searchResults,
         activeIndex: Math.max(0, options.activeSearchIndex ?? 0),
+        contextSessionId: options.contextSessionId ?? prevCtx,
       };
     }
     if (
@@ -488,8 +548,22 @@ export class MainPanelStore {
   getSnapshot(): MainPanelSnapshot {
     return {
       pending: this.pending,
-      ...(this.clarifyPrompt ? { clarifyPrompt: this.clarifyPrompt } : {}),
-      ...(this.searchState ? { searchState: this.searchState } : {}),
+      ...(this.clarifyPrompt
+        ? {
+            clarifyPrompt: {
+              question: this.clarifyPrompt.question,
+              originalTranscript: this.clarifyPrompt.originalTranscript,
+            },
+          }
+        : {}),
+      ...(this.searchState
+        ? {
+            searchState: {
+              results: this.searchState.results,
+              activeIndex: this.searchState.activeIndex,
+            },
+          }
+        : {}),
       ...(this.answerState ? { answerState: this.answerState } : {}),
       ...(this.qaHistory.length > 0 ? { qaHistory: this.qaHistory } : {}),
       recentHandled: this.recentHandled,

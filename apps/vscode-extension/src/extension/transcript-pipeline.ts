@@ -258,6 +258,7 @@ export function attachTranscriptPipeline(
           searchResults: result.searchResults,
           activeSearchIndex: result.activeSearchIndex ?? null,
           answerText: result.answerText ?? null,
+          contextSessionId: paramsWithSymbols.contextSessionId,
         });
         console.error("[vocode][pipeline] handled transcript", {
           transcriptOutcome: result.transcriptOutcome,
