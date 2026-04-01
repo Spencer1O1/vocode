@@ -18,7 +18,6 @@ func TestAcceptTranscript_searchControl_exitClearsSession(t *testing.T) {
 	ag := agent.New(stub.New())
 	svc := NewService(ag, log.New(io.Discard, "", 0))
 	svc.queue = nil
-	t.Setenv("VOCODE_RG_BIN", `C:\Dev\vocode\tools\ripgrep\win32-x64\rg.exe`)
 
 	key := "session-key-exit-1"
 
