@@ -164,6 +164,29 @@ test("markHandled sets clarifyPrompt when transcript outcome is clarify", () => 
   const snap = store.getSnapshot();
   assert.equal(snap.clarifyPrompt?.question, "Which function should I edit?");
   assert.equal(snap.clarifyPrompt?.originalTranscript, "fix thing");
+  // Clarify is in-progress; don't add it to Recent/History yet.
+  assert.equal(snap.recentHandled.length, 0);
+});
+
+test("search navigation utterances do not appear in Recent/History", () => {
+  const store = new MainPanelStore();
+  const id = store.enqueueCommitted("find foo") as number;
+  store.markHandled(id, {
+    transcriptOutcome: "search",
+    searchResults: [{ path: "a.ts", line: 0, character: 0, preview: "hit" }],
+    activeSearchIndex: 0,
+  });
+  // The original search query is meaningful and can be in history.
+  assert.equal(store.getSnapshot().recentHandled[0]?.text, "find foo");
+
+  const nav = store.enqueueCommitted("next") as number;
+  store.markHandled(nav, {
+    transcriptOutcome: "search",
+    searchResults: [{ path: "b.ts", line: 1, character: 0, preview: "hit2" }],
+    activeSearchIndex: 0,
+  });
+  // "next" should not be appended.
+  assert.ok(store.getSnapshot().recentHandled.every((h) => h.text !== "next"));
 });
 
 test("markHandled sets answerState when transcript outcome is answer", () => {

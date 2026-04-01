@@ -124,12 +124,13 @@ export function attachTranscriptPipeline(
 
     // If the daemon previously asked a clarify question, treat the next committed utterance
     // as the answer and send a combined instruction to the daemon.
-    const clarifyTextToSend =
-      mainPanelStore.consumeClarifyPromptAnswer(evt.text) ?? undefined;
-    // If this utterance is answering a clarification prompt, do not enqueue it as its own transcript.
+    const clarify = mainPanelStore.consumeClarifyPromptAnswerForSend(evt.text);
+    const clarifyTextToSend = clarify?.sendText ?? undefined;
+    // If this utterance is answering a clarification prompt, attribute the completion
+    // to the original instruction (not the navigation/answer filler).
     const pendingId =
-      clarifyTextToSend !== undefined
-        ? mainPanelStore.enqueueCommitted("Answering clarification…")
+      clarify !== null
+        ? mainPanelStore.enqueueCommitted(clarify.displayText)
         : mainPanelStore.enqueueCommitted(evt.text);
 
     if (!voiceSession.isRunning()) {

@@ -321,6 +321,88 @@ export class MainPanelStore {
     ].join("\n");
   }
 
+  /**
+   * Consumes clarify prompt and returns both the daemon text to send and the UI text to display
+   * for the committed utterance (we attribute completion to the original instruction).
+   */
+  consumeClarifyPromptAnswerForSend(
+    answerText: string,
+  ): { sendText: string; displayText: string } | null {
+    if (!this.clarifyPrompt) {
+      return null;
+    }
+    const answer = answerText.trim();
+    if (!answer) {
+      return null;
+    }
+    const { question, originalTranscript } = this.clarifyPrompt;
+    // Clear immediately so subsequent utterances are treated normally.
+    this.clarifyPrompt = undefined;
+    this.emit();
+    return {
+      displayText: originalTranscript.trim() || "Clarification",
+      sendText: [
+        originalTranscript.trim(),
+        "",
+        `Clarifying question: ${question.trim()}`,
+        `User answer: ${answer}`,
+      ].join("\n"),
+    };
+  }
+
+  /**
+   * Whether a committed utterance is just search navigation (next/back/ordinal/result N),
+   * which should update the active hit but not appear in history.
+   */
+  private isSearchNavigationUtterance(text: string): boolean {
+    const t = text.trim().toLowerCase();
+    if (!t) return false;
+    if (t === "next" || t === "forward") return true;
+    if (t === "back" || t === "prev" || t === "previous") return true;
+
+    // Bare ordinal/digit.
+    if (/^\d+$/.test(t)) return true;
+    const bareWord = t.replace(/[.,;:!?]/g, "");
+    if (
+      bareWord === "one" ||
+      bareWord === "two" ||
+      bareWord === "three" ||
+      bareWord === "four" ||
+      bareWord === "five" ||
+      bareWord === "six" ||
+      bareWord === "seven" ||
+      bareWord === "eight" ||
+      bareWord === "nine" ||
+      bareWord === "ten" ||
+      bareWord === "first" ||
+      bareWord === "second" ||
+      bareWord === "third" ||
+      bareWord === "fourth" ||
+      bareWord === "fifth" ||
+      bareWord === "sixth" ||
+      bareWord === "seventh" ||
+      bareWord === "eighth" ||
+      bareWord === "ninth" ||
+      bareWord === "tenth"
+    ) {
+      return true;
+    }
+
+    // Phrases like "result 3", "select result two", "go to result 4".
+    if (t.includes("result")) {
+      if (/\b\d+\b/.test(t)) return true;
+      if (
+        /\b(one|two|three|four|five|six|seven|eight|nine|ten)\b/.test(t) ||
+        /\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\b/.test(
+          t,
+        )
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   markProcessing(id: number): void {
     const item = this.pending.find((p) => p.id === id);
     if (item) {
@@ -384,6 +466,12 @@ export class MainPanelStore {
           ? { contextSessionId: options.contextSessionId }
           : {}),
       };
+      // Clarify is an in-progress flow; do not add the original utterance to history yet.
+      while (this.recentHandled.length > this.maxHandled) {
+        this.recentHandled.pop();
+      }
+      this.emit();
+      return;
     }
     if (options?.transcriptOutcome === "search" && options.searchResults) {
       const prevCtx = this.searchState?.contextSessionId;
@@ -418,7 +506,12 @@ export class MainPanelStore {
       }
     }
     // Don't put answers into Recent — they belong in Chat.
-    if (options?.transcriptOutcome !== "answer") {
+    const hideFromHistory =
+      options?.transcriptOutcome === "answer" ||
+      options?.transcriptOutcome === "clarify" ||
+      (options?.transcriptOutcome === "search" &&
+        this.isSearchNavigationUtterance(removed.text));
+    if (!hideFromHistory) {
       this.recentHandled.unshift({
         text: removed.text,
         receivedAt: removed.receivedAt,

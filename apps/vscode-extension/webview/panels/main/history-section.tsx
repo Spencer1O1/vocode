@@ -45,7 +45,7 @@ function HistoryCard({ h }: { h: HandledRow }) {
 export function HistorySection({ items }: { items: readonly HandledRow[] }) {
   return (
     <section className="panel-section">
-      <h1>Recent</h1>
+      <h1>History</h1>
       {items.length > 0 ? (
         <div className="stack">
           {items.map((h) => (
