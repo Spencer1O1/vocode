@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { AudioMeter } from "./AudioMeter";
-import { MainPanel } from "./MainPanel";
+import { MainPanel } from "./main-panel";
 import { vocodePanelConfigFromMessage } from "./panel-config-from-message";
 import type { VocodePanelConfig } from "./panel-config-types";
 import { SettingsPanel } from "./SettingsPanel";

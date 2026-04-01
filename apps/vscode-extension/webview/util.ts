@@ -1,4 +1,4 @@
-import type { DirectiveApplyChecklistRowState, PanelState } from "./types";
+import type { PanelState } from "./types";
 
 export function fmtTime(iso: string): string {
   try {
@@ -44,36 +44,7 @@ export function normalizePanelState(raw: unknown): PanelState {
     pending: Array.isArray(o.pending)
       ? o.pending.map((row) => {
           const r = row as Record<string, unknown>;
-          const checklistRaw = r.applyChecklist;
-          let applyChecklist: PanelState["pending"][number]["applyChecklist"];
-          if (Array.isArray(checklistRaw)) {
-            applyChecklist = checklistRaw.map((c) => {
-              const x = c as Record<string, unknown>;
-              const stateRaw = x.state;
-              let state: DirectiveApplyChecklistRowState = "pending";
-              if (
-                stateRaw === "pending" ||
-                stateRaw === "running" ||
-                stateRaw === "done" ||
-                stateRaw === "failed" ||
-                stateRaw === "skipped"
-              ) {
-                state = stateRaw;
-              }
-              return {
-                id:
-                  typeof x.id === "string" && x.id.length > 0
-                    ? x.id
-                    : `check-${Math.random().toString(36).slice(2)}`,
-                label: typeof x.label === "string" ? x.label : "",
-                state,
-                ...(typeof x.message === "string" && x.message.length > 0
-                  ? { message: x.message }
-                  : {}),
-              };
-            });
-          }
-          const base: PanelState["pending"][number] = {
+          return {
             id: typeof r.id === "number" ? r.id : 0,
             text: typeof r.text === "string" ? r.text : "",
             receivedAt:
@@ -82,44 +53,11 @@ export function normalizePanelState(raw: unknown): PanelState {
                 : new Date(0).toISOString(),
             status: r.status === "processing" ? "processing" : "queued",
           };
-          if (applyChecklist !== undefined && applyChecklist.length > 0) {
-            base.applyChecklist = applyChecklist;
-          }
-          return base;
         })
       : [],
     recentHandled: Array.isArray(o.recentHandled)
       ? o.recentHandled.map((row) => {
           const r = row as Record<string, unknown>;
-          const checklistRaw = r.applyChecklist;
-          let applyChecklist: PanelState["recentHandled"][number]["applyChecklist"];
-          if (Array.isArray(checklistRaw)) {
-            applyChecklist = checklistRaw.map((c) => {
-              const x = c as Record<string, unknown>;
-              const stateRaw = x.state;
-              let state: DirectiveApplyChecklistRowState = "pending";
-              if (
-                stateRaw === "pending" ||
-                stateRaw === "running" ||
-                stateRaw === "done" ||
-                stateRaw === "failed" ||
-                stateRaw === "skipped"
-              ) {
-                state = stateRaw;
-              }
-              return {
-                id:
-                  typeof x.id === "string" && x.id.length > 0
-                    ? x.id
-                    : `done-check-${Math.random().toString(36).slice(2)}`,
-                label: typeof x.label === "string" ? x.label : "",
-                state,
-                ...(typeof x.message === "string" && x.message.length > 0
-                  ? { message: x.message }
-                  : {}),
-              };
-            });
-          }
           const base: PanelState["recentHandled"][number] = {
             text: typeof r.text === "string" ? r.text : "",
             receivedAt:
@@ -135,11 +73,6 @@ export function normalizePanelState(raw: unknown): PanelState {
           }
           if (r.skipped === true) {
             (base as { skipped?: true }).skipped = true;
-          }
-          if (applyChecklist !== undefined && applyChecklist.length > 0) {
-            (
-              base as { applyChecklist?: typeof applyChecklist }
-            ).applyChecklist = applyChecklist;
           }
           return base;
         })
@@ -188,7 +121,11 @@ export function normalizePanelState(raw: unknown): PanelState {
   }
 
   const as = o.answerState as Record<string, unknown> | undefined;
-  if (as && typeof as.question === "string" && typeof as.answerText === "string") {
+  if (
+    as &&
+    typeof as.question === "string" &&
+    typeof as.answerText === "string"
+  ) {
     base.answerState = { question: as.question, answerText: as.answerText };
   }
 

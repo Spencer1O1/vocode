@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 /**
  * Observable state for the main voice sidebar webview (Live / Applying / Recent / Skipped,
  * partial hypotheses, listening flag, audio meter). Daemon transcript application lives in
@@ -13,27 +11,11 @@ const DEFAULT_PARTIAL_CLEAR_DEBOUNCE_MS = 180;
 /** Committed voice text not yet finished processing through the daemon + apply pipeline. */
 export type PendingStatus = "queued" | "processing";
 
-export type DirectiveApplyChecklistState =
-  | "pending"
-  | "running"
-  | "done"
-  | "failed"
-  | "skipped";
-
-export type DirectiveApplyChecklistItem = {
-  readonly id: string;
-  readonly label: string;
-  state: DirectiveApplyChecklistState;
-  message?: string;
-};
-
 export type PendingTranscript = {
   readonly id: number;
   readonly text: string;
   readonly receivedAt: Date;
   status: PendingStatus;
-  /** Filled while `host.applyDirectives` runs for this voice line (duplex apply). */
-  applyChecklist?: DirectiveApplyChecklistItem[];
 };
 
 export type MainPanelSnapshot = {
@@ -83,8 +65,6 @@ export type MainPanelSnapshot = {
     readonly errorMessage?: string;
     /** Agent marked transcript as irrelevant / non-actionable; listed in the Skipped section. */
     readonly skipped?: true;
-    /** Final directive checklist captured from Applying for user-visible history. */
-    readonly applyChecklist?: readonly DirectiveApplyChecklistItem[];
   }[];
   /** Latest partial hypothesis after the most recent committed event. */
   readonly latestPartial: string | null;
@@ -120,7 +100,6 @@ export class MainPanelStore {
     answerText?: string;
     errorMessage?: string;
     skipped?: true;
-    applyChecklist?: readonly DirectiveApplyChecklistItem[];
   }[] = [];
 
   private latestPartial: string | null = null;
@@ -317,60 +296,6 @@ export class MainPanelStore {
     return this.voiceTranscriptRpcOrder[0];
   }
 
-  /** Number of directive rows already on this pending line (across prior apply batches / repair rounds). */
-  directiveApplyChecklistLength(pendingId: number): number {
-    const item = this.pending.find((p) => p.id === pendingId);
-    return item?.applyChecklist?.length ?? 0;
-  }
-
-  /**
-   * Appends rows for a new host apply batch. Prior rows (e.g. completed repair rounds) stay visible.
-   */
-  appendDirectiveApplyChecklist(
-    pendingId: number,
-    labels: readonly string[],
-  ): void {
-    const item = this.pending.find((p) => p.id === pendingId);
-    if (!item || labels.length === 0) {
-      return;
-    }
-    if (!item.applyChecklist) {
-      item.applyChecklist = [];
-    }
-    for (const label of labels) {
-      item.applyChecklist.push({
-        id: randomUUID(),
-        label,
-        state: "pending",
-      });
-    }
-    this.emit();
-  }
-
-  setDirectiveApplyItemState(
-    pendingId: number,
-    index: number,
-    state: DirectiveApplyChecklistState,
-    message?: string,
-  ): void {
-    const item = this.pending.find((p) => p.id === pendingId);
-    const list = item?.applyChecklist;
-    if (!list || index < 0 || index >= list.length) {
-      return;
-    }
-    const row = list[index];
-    if (!row) {
-      return;
-    }
-    row.state = state;
-    if (message !== undefined && message.trim() !== "") {
-      row.message = message.trim();
-    } else if (state !== "failed") {
-      delete row.message;
-    }
-    this.emit();
-  }
-
   markHandled(
     id: number,
     options?: {
@@ -445,14 +370,6 @@ export class MainPanelStore {
           ? { transcriptOutcome: options.transcriptOutcome }
           : {}),
         ...(skipped ? { skipped } : {}),
-        ...(removed.applyChecklist !== undefined &&
-        removed.applyChecklist.length > 0
-          ? {
-              applyChecklist: removed.applyChecklist.map((item) => ({
-                ...item,
-              })),
-            }
-          : {}),
       });
     }
     while (this.recentHandled.length > this.maxHandled) {
@@ -561,12 +478,6 @@ export class MainPanelStore {
       text: removed.text,
       receivedAt: removed.receivedAt,
       ...(err !== undefined && err !== "" ? { errorMessage: err } : {}),
-      ...(removed.applyChecklist !== undefined &&
-      removed.applyChecklist.length > 0
-        ? {
-            applyChecklist: removed.applyChecklist.map((item) => ({ ...item })),
-          }
-        : {}),
     });
     while (this.recentHandled.length > this.maxHandled) {
       this.recentHandled.pop();
