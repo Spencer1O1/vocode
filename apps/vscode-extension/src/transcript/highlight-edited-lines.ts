@@ -6,9 +6,11 @@ const HIGHLIGHT_DURATION_MS = 3500;
 
 const editedLineDecoration = vscode.window.createTextEditorDecorationType({
   isWholeLine: true,
-  backgroundColor: "rgba(56, 189, 248, 0.18)",
+  backgroundColor: new vscode.ThemeColor("editor.rangeHighlightBackground"),
   borderRadius: "2px",
-  overviewRulerColor: "rgba(56, 189, 248, 0.85)",
+  overviewRulerColor: new vscode.ThemeColor(
+    "editorOverviewRuler.rangeHighlightForeground",
+  ),
   overviewRulerLane: vscode.OverviewRulerLane.Right,
 });
 
