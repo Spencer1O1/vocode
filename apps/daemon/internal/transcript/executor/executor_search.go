@@ -16,6 +16,11 @@ import (
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
+// SearchLikeQueryFromText extracts a literal ripgrep query when the utterance is clearly workspace search.
+func SearchLikeQueryFromText(text string) (string, bool) {
+	return searchLikeQueryFromText(text)
+}
+
 // searchLikeQueryFromText extracts a literal ripgrep query when the utterance is clearly workspace search.
 func searchLikeQueryFromText(text string) (string, bool) {
 	t := strings.TrimSpace(text)
@@ -226,4 +231,32 @@ func atoiSafe(s string) int {
 		n = n*10 + int(r-'0')
 	}
 	return n
+}
+
+// conversationalSearchAnswerRe strips common spoken wrappers from a clarify answer (e.g. "I'm looking for the stuff function").
+var conversationalSearchAnswerRe = regexp.MustCompile(`(?i)^(?:i\s*'?m\s+)?(?:looking\s+for|searching\s+for|trying\s+to\s+find|need\s+to\s+find)\s+(?:the\s+)?(.+)$`)
+
+// SearchResumeQuery builds a ripgrep query after the user answered a search-related clarify.
+func SearchResumeQuery(originalInstruction, userAnswer string) string {
+	a := strings.TrimSpace(userAnswer)
+	orig := strings.TrimSpace(originalInstruction)
+	if a != "" {
+		if m := conversationalSearchAnswerRe.FindStringSubmatch(a); len(m) > 1 {
+			q := strings.TrimSpace(m[1])
+			if q != "" {
+				return q
+			}
+		}
+		if q, ok := searchLikeQueryFromText(a); ok {
+			return q
+		}
+		return a
+	}
+	if q, ok := searchLikeQueryFromText(orig); ok {
+		return q
+	}
+	if orig != "" {
+		return orig
+	}
+	return ""
 }

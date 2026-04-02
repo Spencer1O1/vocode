@@ -3,8 +3,8 @@ import * as path from "node:path";
 import type * as vscode from "vscode";
 
 export function getPlatformBinaryName(): string {
-  if (process.platform === "win32") return "vocoded.exe";
-  return "vocoded";
+  if (process.platform === "win32") return "vocode-cored.exe";
+  return "vocode-cored";
 }
 
 export function getPlatformToolBinaryName(baseName: string): string {
@@ -22,7 +22,7 @@ export function getDevDaemonPath(context: vscode.ExtensionContext): string {
     "..",
     "..",
     "apps",
-    "daemon",
+    "core",
     "bin",
     getPlatformBinarySubdir(),
     getPlatformBinaryName(),

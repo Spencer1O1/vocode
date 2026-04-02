@@ -54,19 +54,52 @@ func syncSelectionStackForHits(vs *agentcontext.VoiceSession) {
 	if vs == nil {
 		return
 	}
-	if len(vs.SearchResults) == 0 {
-		for agentcontext.FlowTopKind(vs.FlowStack) == agentcontext.FlowKindSelection {
-			ns, _, ok := agentcontext.FlowPop(vs.FlowStack)
-			if !ok {
-				break
+	if len(vs.SearchResults) > 0 {
+		if stackHasSelectionFrame(vs.FlowStack) {
+			return
+		}
+		if agentcontext.FlowTopKind(vs.FlowStack) == agentcontext.FlowKindMain {
+			if ns, ok := agentcontext.FlowPush(vs.FlowStack, agentcontext.FlowFrame{Kind: agentcontext.FlowKindSelection}); ok {
+				vs.FlowStack = ns
 			}
-			vs.FlowStack = ns
 		}
 		return
 	}
-	if agentcontext.FlowTopKind(vs.FlowStack) == agentcontext.FlowKindMain {
-		if ns, ok := agentcontext.FlowPush(vs.FlowStack, agentcontext.FlowFrame{Kind: agentcontext.FlowKindSelection}); ok {
-			vs.FlowStack = ns
+	if len(vs.SearchResults) == 0 {
+		// Drop selection frames and any clarify that sits directly on selection (avoid
+		// clarify-on-empty-hits). Do not pop a lone clarify (e.g. main-flow scope clarify).
+		for {
+			top := agentcontext.FlowTopKind(vs.FlowStack)
+			if top == agentcontext.FlowKindSelection {
+				ns, _, ok := agentcontext.FlowPop(vs.FlowStack)
+				if !ok {
+					break
+				}
+				vs.FlowStack = ns
+				continue
+			}
+			if top == agentcontext.FlowKindClarify && len(vs.FlowStack) >= 2 {
+				below := vs.FlowStack[len(vs.FlowStack)-2].Kind
+				if below == agentcontext.FlowKindSelection {
+					ns, _, ok := agentcontext.FlowPop(vs.FlowStack)
+					if !ok {
+						break
+					}
+					vs.FlowStack = ns
+					continue
+				}
+			}
+			break
+		}
+		return
+	}
+}
+
+func stackHasSelectionFrame(stack []agentcontext.FlowFrame) bool {
+	for i := range stack {
+		if stack[i].Kind == agentcontext.FlowKindSelection {
+			return true
 		}
 	}
+	return false
 }

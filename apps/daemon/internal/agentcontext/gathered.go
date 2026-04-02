@@ -16,3 +16,11 @@ type Gathered struct {
 	Excerpts []FileExcerpt
 	Notes    []string
 }
+
+func cloneGathered(g Gathered) Gathered {
+	return Gathered{
+		Symbols:  append([]symbols.SymbolRef(nil), g.Symbols...),
+		Excerpts: append([]FileExcerpt(nil), g.Excerpts...),
+		Notes:    append([]string(nil), g.Notes...),
+	}
+}

@@ -1,0 +1,12 @@
+{
+  "name": "@vocode/core",
+  "private": true,
+  "scripts": {
+    "build": "node ../../scripts/dev/build-core.mjs",
+    "dev": "node ../../scripts/dev/dev-core.mjs",
+    "test": "node ../../scripts/dev/go-test.mjs",
+    "lint": "golangci-lint run",
+    "typecheck": "node ../../scripts/dev/go-test.mjs"
+  }
+}
+

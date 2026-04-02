@@ -66,7 +66,7 @@ func (s *VoiceSessionStore) Get(key string, idleReset time.Duration) VoiceSessio
 		delete(s.data, key)
 		return VoiceSession{}
 	}
-	return cloneVoiceSession(ent.session)
+	return CloneVoiceSession(ent.session)
 }
 
 // Put replaces session state and refreshes last activity time.
@@ -93,12 +93,19 @@ func (s *VoiceSessionStore) Put(key string, session VoiceSession) {
 	s.data[key] = voiceSessionEntry{session: session, lastPut: time.Now()}
 }
 
-func cloneVoiceSession(v VoiceSession) VoiceSession {
+// CloneVoiceSession returns a copy safe to mutate without aliasing slice backing arrays or
+// shared pointers from a session store slot or ephemeral buffer.
+func CloneVoiceSession(v VoiceSession) VoiceSession {
 	fs := make([]FlowFrame, len(v.FlowStack))
 	copy(fs, v.FlowStack)
+	var pending *DirectiveApplyBatch
+	if v.PendingDirectiveApply != nil {
+		p := *v.PendingDirectiveApply
+		pending = &p
+	}
 	return VoiceSession{
-		Gathered:              v.Gathered,
-		PendingDirectiveApply: v.PendingDirectiveApply,
+		Gathered:              cloneGathered(v.Gathered),
+		PendingDirectiveApply: pending,
 		SearchResults:         append([]SearchHit(nil), v.SearchResults...),
 		ActiveSearchIndex:     v.ActiveSearchIndex,
 		FlowStack:             fs,

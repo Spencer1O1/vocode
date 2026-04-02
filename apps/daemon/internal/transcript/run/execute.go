@@ -34,6 +34,8 @@ func Execute(env *Env, params protocol.VoiceTranscriptParams) (protocol.VoiceTra
 	}
 	syncSelectionStackForHits(&vs)
 
+	var forceSearchQuery string
+
 	if cr := strings.TrimSpace(params.ControlRequest); cr != "" {
 		switch cr {
 		case "cancel_selection":
@@ -82,13 +84,20 @@ func Execute(env *Env, params protocol.VoiceTranscriptParams) (protocol.VoiceTra
 
 		answer := strings.TrimSpace(params.Text)
 		if answer != "" {
-			q, orig, _, _ := agentcontext.ClarifyPromptFromStack(vs.FlowStack)
-			params.Text = strings.Join([]string{
-				orig,
-				"",
-				"Clarifying question: " + q,
-				"User answer: " + answer,
-			}, "\n")
+			q, orig, tgt, okPrompt := agentcontext.ClarifyPromptFromStack(vs.FlowStack)
+			if okPrompt {
+				_, origIsSearch := executor.SearchLikeQueryFromText(orig)
+				if tgt == agentcontext.ClarifyTargetSelect ||
+					(tgt == agentcontext.ClarifyTargetInstruction && origIsSearch) {
+					forceSearchQuery = executor.SearchResumeQuery(orig, answer)
+				}
+				params.Text = strings.Join([]string{
+					orig,
+					"",
+					"Clarifying question: " + q,
+					"User answer: " + answer,
+				}, "\n")
+			}
 		}
 		if ns, ok := agentcontext.FlowPopIfTop(vs.FlowStack, agentcontext.FlowKindClarify); ok {
 			vs.FlowStack = ns
@@ -141,6 +150,7 @@ func Execute(env *Env, params protocol.VoiceTranscriptParams) (protocol.VoiceTra
 					UiDisposition:     "hidden",
 				}, true, ""
 			}
+			prevSearchIndex := vs.ActiveSearchIndex
 			switch navKind {
 			case "next":
 				if vs.ActiveSearchIndex < len(vs.SearchResults)-1 {
@@ -220,9 +230,14 @@ func Execute(env *Env, params protocol.VoiceTranscriptParams) (protocol.VoiceTra
 				ActiveFile:   params.ActiveFile,
 				Directives:   dirs,
 			})
-			_ = hostRes
-			_ = err
 			vs.PendingDirectiveApply = nil
+			if err != nil {
+				vs.ActiveSearchIndex = prevSearchIndex
+				env.persistSession(key, vs)
+				return protocol.VoiceTranscriptCompletion{Success: false}, true,
+					"host.applyDirectives failed: " + err.Error()
+			}
+			_ = hostRes
 			env.persistSession(key, vs)
 			return res, true, ""
 		}
@@ -230,6 +245,7 @@ func Execute(env *Env, params protocol.VoiceTranscriptParams) (protocol.VoiceTra
 
 	if agentcontext.FlowTopKind(vs.FlowStack) == agentcontext.FlowKindFileSelection &&
 		strings.TrimSpace(params.Text) != "" {
+		vsBeforeFileOp := agentcontext.CloneVoiceSession(vs)
 		res, dirs, reason := HandleFileSelectionUtterance(params, &vs)
 		if reason != "" {
 			env.persistSession(key, vs)
@@ -261,10 +277,14 @@ func Execute(env *Env, params protocol.VoiceTranscriptParams) (protocol.VoiceTra
 			return res, true, ""
 		}
 		if env.HostApply == nil {
+			vs = vsBeforeFileOp
+			env.persistSession(key, vs)
 			return protocol.VoiceTranscriptCompletion{Success: false}, true, "daemon has directives but no host apply client is configured"
 		}
 		batchID, err := executor.NewDirectiveApplyBatchID()
 		if err != nil {
+			vs = vsBeforeFileOp
+			env.persistSession(key, vs)
 			return protocol.VoiceTranscriptCompletion{Success: false}, true, err.Error()
 		}
 		pending := &agentcontext.DirectiveApplyBatch{ID: batchID, NumDirectives: len(dirs)}
@@ -274,9 +294,14 @@ func Execute(env *Env, params protocol.VoiceTranscriptParams) (protocol.VoiceTra
 			ActiveFile:   params.ActiveFile,
 			Directives:   dirs,
 		})
-		_ = hostRes
-		_ = err
 		vs.PendingDirectiveApply = nil
+		if err != nil {
+			vs = vsBeforeFileOp
+			env.persistSession(key, vs)
+			return protocol.VoiceTranscriptCompletion{Success: false}, true,
+				"host.applyDirectives failed: " + err.Error()
+		}
+		_ = hostRes
 		applyTranscriptUIDisposition(
 			&res,
 			agentcontext.FlowTopKind(vs.FlowStack),
@@ -288,6 +313,9 @@ func Execute(env *Env, params protocol.VoiceTranscriptParams) (protocol.VoiceTra
 
 	execParams := params
 	execOpt := executor.ExecuteOptions{}
+	if sq := strings.TrimSpace(forceSearchQuery); sq != "" {
+		execOpt.ForceSearchQuery = sq
+	}
 	if agentcontext.FlowTopKind(vs.FlowStack) == agentcontext.FlowKindSelection &&
 		len(vs.SearchResults) > 0 {
 		if _, _, okNav := parseSelectionNav(params.Text); !okNav && strings.TrimSpace(params.Text) != "" {

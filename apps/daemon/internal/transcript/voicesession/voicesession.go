@@ -20,7 +20,9 @@ func Load(store *agentcontext.VoiceSessionStore, contextKey string, idleReset ti
 		if ephemeral == nil {
 			return agentcontext.VoiceSession{}
 		}
-		return *ephemeral
+		// Deep-copy slices and batch pointer so RPC-local mutations cannot alias the
+		// stored ephemeral buffer (see [agentcontext.CloneVoiceSession]).
+		return agentcontext.CloneVoiceSession(*ephemeral)
 	}
 	return store.Get(key, idleReset)
 }

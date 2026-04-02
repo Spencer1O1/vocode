@@ -5,8 +5,8 @@ import "testing"
 func TestClarifyTargetAllowedMain(t *testing.T) {
 	for _, target := range []string{
 		ClarifyTargetQuestion,
-		ClarifyTargetSelection,
-		ClarifyTargetFileSelection,
+		ClarifyTargetSelect,
+		ClarifyTargetSelectFile,
 		ClarifyTargetInstruction,
 	} {
 		if !ClarifyTargetAllowed(FlowKindMain, target) {

@@ -3,6 +3,7 @@ package executor_test
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -295,6 +296,48 @@ func TestExecutor_FileSelection_RequiresWorkspaceFolder(t *testing.T) {
 	}
 	if res.TranscriptOutcome != "needs_workspace_folder" {
 		t.Fatalf("expected needs_workspace_folder, got %q", res.TranscriptOutcome)
+	}
+}
+
+func TestExecutor_ForceSearchQuery_skipsClassifierAndScopedEdit(t *testing.T) {
+	rgPath := os.Getenv("VOCODE_RG_BIN")
+	if rgPath == "" {
+		var err error
+		rgPath, err = exec.LookPath("rg")
+		if err != nil {
+			t.Skip("ripgrep not available (set VOCODE_RG_BIN or install rg): ", err)
+		}
+	}
+	t.Setenv("VOCODE_RG_BIN", rgPath)
+
+	dir := t.TempDir()
+	active := filepath.Join(dir, "a.go")
+	if err := os.WriteFile(active, []byte("func stuff() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := agent.New(fakeModel{
+		classifier: agent.TranscriptClassifierResult{Kind: agent.TranscriptInstruction},
+		scope:      agent.ScopeIntentResult{ScopeKind: agent.ScopeCurrentFile},
+		edit:       agent.ScopedEditResult{ReplacementText: "SHOULD_NOT_APPLY\n"},
+	})
+	ex := executor.New(a, executor.Options{})
+	res, dirs, _, pending, ok, reason := ex.Execute(protocol.VoiceTranscriptParams{
+		Text:          "this text is ignored for routing",
+		ActiveFile:    active,
+		WorkspaceRoot: dir,
+	}, agentcontext.Gathered{}, executor.ExecuteOptions{ForceSearchQuery: "NO_MATCH_TOKEN_XYZ_12345"})
+	if !ok || !res.Success || reason != "" {
+		t.Fatalf("expected success, got ok=%v success=%v reason=%q", ok, res.Success, reason)
+	}
+	// No matches avoids requiring ripgrep to parse output; still proves classifier/edit path was skipped.
+	if res.TranscriptOutcome != "search" {
+		t.Fatalf("expected search outcome (no hits), got %q summary=%q", res.TranscriptOutcome, res.Summary)
+	}
+	if len(dirs) != 0 {
+		t.Fatalf("expected no directives for empty search, got %d", len(dirs))
+	}
+	if pending != nil {
+		t.Fatalf("expected no pending batch for empty search")
 	}
 }
 

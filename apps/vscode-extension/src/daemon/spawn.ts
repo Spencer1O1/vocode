@@ -31,19 +31,19 @@ export async function spawnDaemon(
   });
 
   proc.stdout.on("data", (data: Buffer) => {
-    console.log("[vocoded stdout]", data.toString());
+    console.log("[vocode daemon stdout]", data.toString());
   });
 
   proc.stderr.on("data", (data: Buffer) => {
-    console.error(`[vocoded stderr] ${data.toString()}`);
+    console.error(`[vocode daemon stderr] ${data.toString()}`);
   });
 
   proc.on("error", (error: Error) => {
-    console.error(`[vocoded spawn error] ${error.message}`);
+    console.error(`[vocode daemon spawn error] ${error.message}`);
   });
 
   proc.on("exit", (code: number | null, signal: NodeJS.Signals | null) => {
-    console.log(`vocoded exited with code=${code} signal=${signal}`);
+    console.log(`vocode daemon exited with code=${code} signal=${signal}`);
   });
 
   context.subscriptions.push({

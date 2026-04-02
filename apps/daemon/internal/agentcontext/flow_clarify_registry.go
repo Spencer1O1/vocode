@@ -7,9 +7,10 @@ import (
 
 // Wire names for clarifyTargetResolution (per-flow registry; must match executor/service).
 const (
-	ClarifyTargetQuestion      = "question"
-	ClarifyTargetSelection     = "selection"
-	ClarifyTargetFileSelection = "file_selection"
+	ClarifyTargetQuestion = "question"
+	// ClarifyTargetSelect / ClarifyTargetSelectFile are clarifyTargetResolution wires (align with apps/core clarify registry).
+	ClarifyTargetSelect     = "select"
+	ClarifyTargetSelectFile = "select_file"
 	// ClarifyTargetInstruction is Main-flow scoped edit (classifier instruction + scope intent).
 	ClarifyTargetInstruction = "instruction"
 	// ClarifyTargetEdit is Selection-flow locked-match edit.
@@ -27,7 +28,7 @@ func ClarifyTargetAllowed(parentFlowKind, target string) bool {
 	switch parentFlowKind {
 	case FlowKindMain:
 		switch t {
-		case ClarifyTargetQuestion, ClarifyTargetSelection, ClarifyTargetFileSelection, ClarifyTargetInstruction:
+		case ClarifyTargetQuestion, ClarifyTargetSelect, ClarifyTargetSelectFile, ClarifyTargetInstruction:
 			return true
 		}
 	case FlowKindSelection:
@@ -43,11 +44,12 @@ func ClarifyTargetAllowed(parentFlowKind, target string) bool {
 
 // ValidateClarifyTargetResolution rejects invalid or non–can_clarify targets for the parent flow.
 func ValidateClarifyTargetResolution(parentFlowKind, target string) error {
-	if strings.TrimSpace(target) == "" {
+	target = strings.TrimSpace(target)
+	if target == "" {
 		return fmt.Errorf("clarify requires non-empty clarifyTargetResolution for flow %q", parentFlowKind)
 	}
 	if !ClarifyTargetAllowed(parentFlowKind, target) {
-		return fmt.Errorf("clarify targetResolution %q is not allowed (can_clarify) for flow %q", strings.TrimSpace(target), parentFlowKind)
+		return fmt.Errorf("clarify targetResolution %q is not allowed (can_clarify) for flow %q", target, parentFlowKind)
 	}
 	return nil
 }

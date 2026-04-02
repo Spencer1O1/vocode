@@ -50,6 +50,8 @@ const (
 // ExecuteOptions configures [Executor.Execute].
 type ExecuteOptions struct {
 	Mode FlowMode
+	// ForceSearchQuery skips the classifier and runs workspace search (clarify resume for search).
+	ForceSearchQuery string
 }
 
 // Execute runs one voice.transcript through the operation pipeline.
@@ -58,6 +60,9 @@ func (e *Executor) Execute(
 	gatheredIn agentcontext.Gathered,
 	opt ExecuteOptions,
 ) (protocol.VoiceTranscriptCompletion, []protocol.VoiceTranscriptDirective, agentcontext.Gathered, *agentcontext.DirectiveApplyBatch, bool, string) {
+	if fq := strings.TrimSpace(opt.ForceSearchQuery); fq != "" {
+		return workspaceSearch(params, gatheredIn, fq)
+	}
 	text := strings.TrimSpace(params.Text)
 	if text == "" {
 		return protocol.VoiceTranscriptCompletion{}, nil, gatheredIn, nil, false, "empty transcript text"
@@ -252,9 +257,17 @@ func (e *Executor) executeInstructionPath(
 		if q == "" {
 			q = "Which function or file should I edit?"
 		}
-		targetRes := agentcontext.ClarifyTargetInstruction
-		if clarifyParentFlow == agentcontext.FlowKindSelection {
+		var targetRes string
+		switch clarifyParentFlow {
+		case agentcontext.FlowKindSelection:
 			targetRes = agentcontext.ClarifyTargetEdit
+		default:
+			// Search-shaped utterances ("find X") that hit scope clarify should resume as search, not edit.
+			if _, ok := searchLikeQueryFromText(text); ok {
+				targetRes = agentcontext.ClarifyTargetSelect
+			} else {
+				targetRes = agentcontext.ClarifyTargetInstruction
+			}
 		}
 		if err := agentcontext.ValidateClarifyTargetResolution(clarifyParentFlow, targetRes); err != nil {
 			return protocol.VoiceTranscriptCompletion{Success: false}, nil, g, nil, true, err.Error()
