@@ -7,7 +7,7 @@ import (
 
 // WorkspaceSearchApply runs workspace search for voice flows and applies host navigation.
 type WorkspaceSearchApply interface {
-	SearchFromQuery(params protocol.VoiceTranscriptParams, q string, vs *session.VoiceSession) (protocol.VoiceTranscriptCompletion, bool, string)
+	SearchFromQuery(params protocol.VoiceTranscriptParams, q, symbolKind string, vs *session.VoiceSession) (protocol.VoiceTranscriptCompletion, bool, string)
 	FileSearchFromQuery(params protocol.VoiceTranscriptParams, q string, vs *session.VoiceSession) (protocol.VoiceTranscriptCompletion, bool, string)
 }
 

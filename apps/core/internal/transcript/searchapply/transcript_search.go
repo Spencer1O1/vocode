@@ -2,6 +2,7 @@ package searchapply
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"vocoding.net/vocode/v2/apps/core/internal/search"
@@ -33,8 +34,9 @@ type workspaceSymbolHost interface {
 	WorkspaceSymbolSearch(protocol.HostWorkspaceSymbolSearchParams) (protocol.HostWorkspaceSymbolSearchResult, error)
 }
 
-// SearchFromQuery runs fixed-string workspace content search and returns a completion with Search hits.
-func (e *TranscriptSearch) SearchFromQuery(params protocol.VoiceTranscriptParams, q string, vs *session.VoiceSession) (protocol.VoiceTranscriptCompletion, bool, string) {
+// SearchFromQuery runs LSP workspace symbol search (when ExtensionHost is set), then ripgrep fallback
+// with derived literals. symbolKind is an optional classifier hint forwarded to the host (empty = no LSP kind filter).
+func (e *TranscriptSearch) SearchFromQuery(params protocol.VoiceTranscriptParams, q, symbolKind string, vs *session.VoiceSession) (protocol.VoiceTranscriptCompletion, bool, string) {
 	q = strings.TrimSpace(q)
 	if q == "" {
 		return protocol.VoiceTranscriptCompletion{}, false, ""
@@ -49,14 +51,17 @@ func (e *TranscriptSearch) SearchFromQuery(params protocol.VoiceTranscriptParams
 
 	var hits []search.Hit
 	if e.ExtensionHost != nil {
-		symRes, err := e.ExtensionHost.WorkspaceSymbolSearch(protocol.HostWorkspaceSymbolSearchParams{Query: q})
+		symRes, err := e.ExtensionHost.WorkspaceSymbolSearch(protocol.HostWorkspaceSymbolSearchParams{
+			Query:      q,
+			SymbolKind: strings.TrimSpace(symbolKind),
+		})
 		if err == nil && len(symRes.Hits) > 0 {
 			hits = workspaceSymbolHitsToSearchHits(symRes)
 		}
 	}
 	if len(hits) == 0 {
 		var err error
-		hits, err = search.FixedStringSearch(root, q, contentSearchMaxHits)
+		hits, err = rgContentSearchFallback(root, q, contentSearchMaxHits)
 		if err != nil {
 			return protocol.VoiceTranscriptCompletion{Success: false}, true, "search failed: " + err.Error()
 		}
@@ -122,6 +127,60 @@ func hitsToProtocolSearchResults(hits []search.Hit) []protocol.VoiceTranscriptSe
 		})
 	}
 	return out
+}
+
+func contentHitKey(h search.Hit) string {
+	return h.Path + "\x00" + strconv.Itoa(h.Line0) + "\x00" + strconv.Itoa(h.Char0)
+}
+
+// rgContentSearchFallback runs ripgrep with the raw query plus derived needles (camelCase, concat)
+// and, if still empty, a case-insensitive pass — so phrases like "delta time" still find deltaTime.
+func rgContentSearchFallback(root, q string, maxHits int) ([]search.Hit, error) {
+	variants := ContentSearchRgVariants(q)
+	if len(variants) == 0 {
+		return nil, nil
+	}
+	seen := make(map[string]struct{})
+	out := make([]search.Hit, 0, maxHits)
+	addPart := func(part []search.Hit) {
+		for _, h := range part {
+			k := contentHitKey(h)
+			if _, ok := seen[k]; ok {
+				continue
+			}
+			seen[k] = struct{}{}
+			out = append(out, h)
+			if len(out) >= maxHits {
+				return
+			}
+		}
+	}
+	for _, needle := range variants {
+		part, err := search.FixedStringSearch(root, needle, maxHits)
+		if err != nil {
+			return nil, err
+		}
+		addPart(part)
+		if len(out) >= maxHits {
+			return out[:maxHits], nil
+		}
+	}
+	if len(out) == 0 {
+		for _, needle := range variants {
+			part, err := search.FixedStringSearchFold(root, needle, maxHits)
+			if err != nil {
+				return nil, err
+			}
+			addPart(part)
+			if len(out) >= maxHits {
+				return out[:maxHits], nil
+			}
+		}
+	}
+	if len(out) > maxHits {
+		return out[:maxHits], nil
+	}
+	return out, nil
 }
 
 func workspaceSymbolHitsToSearchHits(res protocol.HostWorkspaceSymbolSearchResult) []search.Hit {

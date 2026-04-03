@@ -16,10 +16,11 @@ import (
 )
 
 type preOpts struct {
-	has         bool
-	flow        flows.ID
-	route       string
-	searchQuery string
+	has               bool
+	flow              flows.ID
+	route             string
+	searchQuery       string
+	searchSymbolKind  string
 }
 
 func preFromOpts(opts *Opts) preOpts {
@@ -27,10 +28,11 @@ func preFromOpts(opts *Opts) preOpts {
 		return preOpts{}
 	}
 	return preOpts{
-		has:         true,
-		flow:        opts.PreclassifiedFlow,
-		route:       opts.PreclassifiedRoute,
-		searchQuery: strings.TrimSpace(opts.PreclassifiedSearchQuery),
+		has:              true,
+		flow:             opts.PreclassifiedFlow,
+		route:            opts.PreclassifiedRoute,
+		searchQuery:      strings.TrimSpace(opts.PreclassifiedSearchQuery),
+		searchSymbolKind: strings.TrimSpace(strings.ToLower(opts.PreclassifiedSearchSymbolKind)),
 	}
 }
 
@@ -71,36 +73,36 @@ func rootDeps(e *run.Env) *rootflow.RootDeps {
 	}
 }
 
-func resolveWorkspaceSelectRoute(e *run.Env, text string, pre preOpts) (route string, searchQuery string, ok bool) {
+func resolveWorkspaceSelectRoute(e *run.Env, text string, pre preOpts) (route, searchQuery, searchSymbolKind string, ok bool) {
 	if pre.has && pre.flow == flows.WorkspaceSelect {
-		return pre.route, pre.searchQuery, true
+		return pre.route, pre.searchQuery, pre.searchSymbolKind, true
 	}
 	if e.FlowRouter == nil {
-		return "", "", false
+		return "", "", "", false
 	}
 	fr, err := e.FlowRouter.ClassifyFlow(context.Background(), router.Context{
 		Flow:        flows.WorkspaceSelect,
 		Instruction: text,
 	})
 	if err != nil {
-		return "", "", false
+		return "", "", "", false
 	}
-	return fr.Route, fr.SearchQuery, true
+	return fr.Route, fr.SearchQuery, fr.SearchSymbolKind, true
 }
 
-func resolveSelectFileRoute(e *run.Env, text string, pre preOpts) (route string, searchQuery string, ok bool, clsErr string) {
+func resolveSelectFileRoute(e *run.Env, text string, pre preOpts) (route, searchQuery, searchSymbolKind string, ok bool, clsErr string) {
 	if pre.has && pre.flow == flows.SelectFile {
-		return pre.route, pre.searchQuery, true, ""
+		return pre.route, pre.searchQuery, pre.searchSymbolKind, true, ""
 	}
 	if e.FlowRouter == nil {
-		return "", "", false, ""
+		return "", "", "", false, ""
 	}
 	fr, err := e.FlowRouter.ClassifyFlow(context.Background(), router.Context{
 		Flow:        flows.SelectFile,
 		Instruction: text,
 	})
 	if err != nil {
-		return "", "", false, err.Error()
+		return "", "", "", false, err.Error()
 	}
-	return fr.Route, fr.SearchQuery, true, ""
+	return fr.Route, fr.SearchQuery, fr.SearchSymbolKind, true, ""
 }

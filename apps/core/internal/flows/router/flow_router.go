@@ -51,16 +51,18 @@ func classifyWithModel(ctx context.Context, m agent.ModelClient, in Context) (Re
 		return Result{}, ErrEmptyModelContent
 	}
 	var raw struct {
-		Route       string `json:"route"`
-		SearchQuery string `json:"search_query"`
+		Route            string `json:"route"`
+		SearchQuery      string `json:"search_query"`
+		SearchSymbolKind string `json:"search_symbol_kind"`
 	}
 	if err := json.Unmarshal([]byte(content), &raw); err != nil {
 		return Result{}, fmt.Errorf("router: decode classifier json: %w", err)
 	}
 	res := Result{
-		Flow:        in.Flow,
-		Route:       strings.TrimSpace(raw.Route),
-		SearchQuery: strings.TrimSpace(raw.SearchQuery),
+		Flow:             in.Flow,
+		Route:            strings.TrimSpace(raw.Route),
+		SearchQuery:      strings.TrimSpace(raw.SearchQuery),
+		SearchSymbolKind: strings.TrimSpace(strings.ToLower(raw.SearchSymbolKind)),
 	}
 	if err := res.Validate(); err != nil {
 		return Result{}, err

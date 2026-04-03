@@ -11,9 +11,12 @@ import (
 type Result struct {
 	Flow  flows.ID
 	Route string
-	// SearchQuery is the literal string to pass to ripgrep for routes "workspace_select" (content) and
-	// "select_file" (path/name fragment). Populated by the routing model (or stub); must be non-empty when those routes are chosen.
+	// SearchQuery is the primary search string: for workspace_select, prefer the symbol/identifier name
+	// (LSP + ripgrep); for select_file, a path/filename fragment. Must be non-empty when those routes are chosen.
 	SearchQuery string
+	// SearchSymbolKind is an optional classifier hint for workspace_select only (LSP SymbolKind filter on the host).
+	// Empty means no kind filter. Ignored for select_file.
+	SearchSymbolKind string
 }
 
 func (r Result) Validate() error {

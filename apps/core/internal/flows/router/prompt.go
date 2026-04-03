@@ -20,16 +20,16 @@ func ClassifierSystem(flow flows.ID) string {
 	}
 	b.WriteString(`
 Return exactly ONE JSON object:
-{ "route": "<one of the route ids above>", "search_query": "<string or empty>" }
+{ "route": "<one of the route ids above>", "search_query": "<string or empty>", "search_symbol_kind": "<string or empty>" }
 
 Rules:
-- For "workspace_select", set "search_query" to the exact fixed string ripgrep should search for in file contents (no paraphrase, no conversational filler). Decide intent:
-  - Literal text: user gave an exact phrase, error line, log snippet, comment text, or quoted string → use that substring (strip outer quotes only).
-  - Code / symbol: user names a function, method, class, or identifier → use spellings that appear in source (e.g. name(, func name, type Name); drop filler words like "the", "function", "method" that will not appear in code. Never use vague English like "stuff function" when they mean a callable — use a code-shaped needle such as "stuff(" or "func stuff".
-- For "select_file", set "search_query" to a path or filename fragment (e.g. "test.js", "src/api") used to match file paths under the workspace — not text inside files.
+- For "workspace_select", set "search_query" to the primary symbol or identifier name only (e.g. deltaTime, parseHeader, MyClass) — not a prose phrase like "delta time". The host runs LSP workspace symbol search with case-tolerant matching and falls back to ripgrep using derived literals.
+  - Exception — literal text search: user gave an exact phrase, error line, log snippet, comment text, or quoted string to find verbatim in files → put that substring in "search_query" (strip outer quotes only) and omit "search_symbol_kind".
+  - Optional "search_symbol_kind" (workspace_select only): when you know what kind of symbol they mean, set one of: function, method, class, variable, constant, interface, enum, property, field, constructor, module, struct, type. Omit or use "" when unsure; never guess if ambiguous.
+- For "select_file", set "search_query" to a path or filename fragment (e.g. "test.js", "src/api"); set "search_symbol_kind" to "".
 - For "workspace_select" and "select_file", "search_query" must be non-empty.
-- For all other routes, set "search_query" to "".
-- No extra keys. No markdown.
+- For all other routes, set "search_query" to "" and "search_symbol_kind" to "".
+- No other keys. No markdown.
 `)
 	return strings.TrimSpace(b.String())
 }
@@ -59,11 +59,14 @@ func ClassifierResponseJSONSchema(flow flows.ID) map[string]any {
 			},
 			"search_query": map[string]any{
 				"type": "string",
-				"description": "workspace_select: exact ripgrep --fixed-strings needle for content search (literal phrase or code-shaped token, not English paraphrase). " +
-					"select_file: path/filename substring for workspace path matching. Otherwise empty.",
+				"description": "workspace_select: symbol/identifier name or exact literal substring to find in file contents. select_file: path/filename fragment. Otherwise empty.",
+			},
+			"search_symbol_kind": map[string]any{
+				"type": "string",
+				"description": "workspace_select only: optional LSP kind hint — function, method, class, variable, constant, interface, enum, property, field, constructor, module, struct, or type. Empty when unknown or for select_file.",
 			},
 		},
-		"required":             []string{"route", "search_query"},
+		"required":             []string{"route", "search_query", "search_symbol_kind"},
 		"additionalProperties": false,
 	}
 }

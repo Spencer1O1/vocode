@@ -36,7 +36,7 @@ func (s Spec) RouteIDs() []string {
 }
 
 var globalRoutes = []Route{
-	{ID: "workspace_select", Description: "Find occurrences in file contents (ripgrep fixed-string / literal needle in source).", Execution: ExecutionSerialized},
+	{ID: "workspace_select", Description: "Find a symbol or literal in workspace code (LSP workspace symbols when available, else ripgrep). Prefer search_query = symbol/identifier name; optional search_symbol_kind = function, class, variable, etc.", Execution: ExecutionSerialized},
 	{ID: "select_file", Description: "Find files or folders by path or filename fragment (not by searching inside file bodies).", Execution: ExecutionSerialized},
 	{ID: "control", Description: "Flow navigation (such as exit)", Execution: ExecutionImmediate},
 	{ID: "irrelevant", Description: "Not actionable in this flow.", Execution: ExecutionImmediate},

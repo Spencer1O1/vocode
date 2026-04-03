@@ -18,7 +18,7 @@ func runWorkspaceSelectPhase(
 	text string,
 	pre preOpts,
 ) (protocol.VoiceTranscriptCompletion, bool, string) {
-	route, searchQuery, ok := resolveWorkspaceSelectRoute(e, text, pre)
+	route, searchQuery, searchSymbolKind, ok := resolveWorkspaceSelectRoute(e, text, pre)
 	if !ok {
 		persist(e, key, *vs)
 		return protocol.VoiceTranscriptCompletion{
@@ -27,7 +27,7 @@ func runWorkspaceSelectPhase(
 			UiDisposition: "hidden",
 		}, true, ""
 	}
-	execRes, failure := workspaceselectflow.DispatchRoute(selectionDeps(e), params, vs, text, route, searchQuery)
+	execRes, failure := workspaceselectflow.DispatchRoute(selectionDeps(e), params, vs, text, route, searchQuery, searchSymbolKind)
 	if strings.TrimSpace(failure) != "" {
 		persist(e, key, *vs)
 		return protocol.VoiceTranscriptCompletion{Success: false}, true, failure

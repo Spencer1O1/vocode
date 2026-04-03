@@ -38,6 +38,7 @@ func DispatchRoute(
 	text string,
 	route string,
 	searchQuery string,
+	searchSymbolKind string,
 ) (protocol.VoiceTranscriptCompletion, string) {
 	rd := routeDeps(deps)
 	switch route {
@@ -46,7 +47,7 @@ func DispatchRoute(
 	case "workspace_select_control":
 		return HandleSelectControl(deps, params, vs, text)
 	case "workspace_select":
-		return global.HandleWorkspaceSelect(rd, params, vs, flows.WorkspaceSelect, searchQuery)
+		return global.HandleWorkspaceSelect(rd, params, vs, flows.WorkspaceSelect, searchQuery, searchSymbolKind)
 	case "select_file":
 		return global.HandleSelectFile(rd, params, vs, flows.WorkspaceSelect, searchQuery)
 	case "edit":

@@ -25,6 +25,15 @@ var rgLineRe = regexp.MustCompile(`^(.*):(\d+):(\d+):(.*)$`)
 // FixedStringSearch runs ripgrep with --fixed-strings under root and returns up to maxHits matches.
 // Exit code 1 (no matches) yields nil, nil. maxHits <= 0 defaults to 20.
 func FixedStringSearch(root, query string, maxHits int) ([]Hit, error) {
+	return fixedStringSearch(root, query, maxHits, false)
+}
+
+// FixedStringSearchFold is like FixedStringSearch but passes ripgrep -i (case-insensitive literal match).
+func FixedStringSearchFold(root, query string, maxHits int) ([]Hit, error) {
+	return fixedStringSearch(root, query, maxHits, true)
+}
+
+func fixedStringSearch(root, query string, maxHits int, foldCase bool) ([]Hit, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return nil, nil
@@ -33,7 +42,12 @@ func FixedStringSearch(root, query string, maxHits int) ([]Hit, error) {
 		maxHits = 20
 	}
 
-	cmd := exec.Command(RgBinary(), "--column", "-n", "--fixed-strings", query, root)
+	args := []string{"--column", "-n", "--fixed-strings"}
+	if foldCase {
+		args = append(args, "-i")
+	}
+	args = append(args, query, root)
+	cmd := exec.Command(RgBinary(), args...)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout

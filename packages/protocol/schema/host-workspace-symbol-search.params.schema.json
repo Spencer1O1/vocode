@@ -7,7 +7,11 @@
   "properties": {
     "query": {
       "type": "string",
-      "description": "Workspace symbol query from voice/classifier; host matches case-insensitively."
+      "description": "Primary symbol or identifier name from the classifier (not a prose phrase). Host still applies case-tolerant matching."
+    },
+    "symbolKind": {
+      "type": "string",
+      "description": "Optional classifier hint to prefer LSP symbol kinds: function, method, class, variable, constant, interface, enum, property, field, constructor, module, struct, type. Empty omits filtering."
     }
   },
   "required": ["query"]

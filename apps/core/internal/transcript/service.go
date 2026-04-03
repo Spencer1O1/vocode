@@ -157,10 +157,11 @@ func (s *Service) tryImmediateAfterClassify(params protocol.VoiceTranscriptParam
 	}
 
 	opts := &pipeline.Opts{
-		HasPreclassified:         true,
-		PreclassifiedFlow:        flowID,
-		PreclassifiedRoute:       fr.Route,
-		PreclassifiedSearchQuery: fr.SearchQuery,
+		HasPreclassified:              true,
+		PreclassifiedFlow:             flowID,
+		PreclassifiedRoute:            fr.Route,
+		PreclassifiedSearchQuery:      fr.SearchQuery,
+		PreclassifiedSearchSymbolKind: fr.SearchSymbolKind,
 	}
 	r, execOK, rea := pipeline.Execute(s.env, params, opts)
 	return true, r, execOK, rea

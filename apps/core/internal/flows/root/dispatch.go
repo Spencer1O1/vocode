@@ -41,7 +41,7 @@ func DispatchRoute(
 
 	switch res.Route {
 	case "workspace_select":
-		if r, fail, ok := global.TryHandleWorkspaceSelectSearch(rd, params, vs, res.SearchQuery); ok {
+		if r, fail, ok := global.TryHandleWorkspaceSelectSearch(rd, params, vs, res.SearchQuery, res.SearchSymbolKind); ok {
 			return r, fail
 		}
 		return IrrelevantSkipped()

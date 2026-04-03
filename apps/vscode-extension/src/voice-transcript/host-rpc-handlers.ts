@@ -9,6 +9,11 @@ import type {
 import * as vscode from "vscode";
 
 import { flattenDocumentSymbols } from "./document-symbols";
+import {
+  buildWorkspaceSymbolQueryVariants,
+  symbolKindHintMatches,
+  symbolMatchesNaturalLanguageQuery,
+} from "./workspace-symbol-search";
 
 export async function handleHostReadFile(
   params: HostReadFileParams,
@@ -28,37 +33,56 @@ export async function handleHostGetDocumentSymbols(
   return { symbols: flattenDocumentSymbols(raw) };
 }
 
-function symbolMatchesQuery(
-  query: string,
-  name: string,
-  containerName: string,
-): boolean {
-  const q = query.trim().toLowerCase();
-  if (!q) {
-    return false;
-  }
-  const hay = `${name} ${containerName}`.toLowerCase().replace(/\s+/g, " ");
-  const parts = q.split(/\s+/).filter(Boolean);
-  if (parts.length === 0) {
-    return false;
-  }
-  return parts.every((p) => hay.includes(p));
+function symbolKey(s: vscode.SymbolInformation): string {
+  const start = s.location.range.start;
+  return `${s.location.uri.fsPath}:${start.line}:${start.character}:${s.name ?? ""}`;
 }
 
 export async function handleHostWorkspaceSymbolSearch(
   params: HostWorkspaceSymbolSearchParams,
 ): Promise<HostWorkspaceSymbolSearchResult> {
-  const raw = await vscode.commands.executeCommand<
-    vscode.SymbolInformation[] | undefined
-  >("vscode.executeWorkspaceSymbolProvider", params.query);
-  const hits: HostWorkspaceSymbolSearchResult["hits"] = [];
+  const variants = buildWorkspaceSymbolQueryVariants(params.query);
+  const seenKeys = new Set<string>();
+  const candidates: vscode.SymbolInformation[] = [];
   const maxHits = 20;
-  for (const s of raw ?? []) {
-    const name = s.name ?? "";
-    const container = s.containerName ?? "";
-    if (!symbolMatchesQuery(params.query, name, container)) {
-      continue;
+  const maxRawPerVariant = 400;
+
+  for (const variant of variants) {
+    const raw = await vscode.commands.executeCommand<
+      vscode.SymbolInformation[] | undefined
+    >("vscode.executeWorkspaceSymbolProvider", variant);
+    let rawSeen = 0;
+    for (const s of raw ?? []) {
+      rawSeen++;
+      if (rawSeen > maxRawPerVariant) {
+        break;
+      }
+      const name = s.name ?? "";
+      const container = s.containerName ?? "";
+      if (!symbolMatchesNaturalLanguageQuery(params.query, name, container)) {
+        continue;
+      }
+      if (!symbolKindHintMatches(params.symbolKind, s.kind)) {
+        continue;
+      }
+      const k = symbolKey(s);
+      if (seenKeys.has(k)) {
+        continue;
+      }
+      seenKeys.add(k);
+      candidates.push(s);
+      if (candidates.length >= maxHits) {
+        break;
+      }
     }
+    if (candidates.length >= maxHits) {
+      break;
+    }
+  }
+
+  const hits: HostWorkspaceSymbolSearchResult["hits"] = [];
+  for (const s of candidates) {
+    const name = s.name ?? "";
     const path = s.location.uri.fsPath;
     const r = s.location.range;
     const start = r.start;
@@ -74,9 +98,6 @@ export async function handleHostWorkspaceSymbolSearch(
       preview: name,
       matchLength,
     });
-    if (hits.length >= maxHits) {
-      break;
-    }
   }
   return { hits };
 }

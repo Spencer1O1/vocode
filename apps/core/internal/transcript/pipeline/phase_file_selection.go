@@ -50,7 +50,7 @@ func runFileSelectionPhase(
 		}
 	}
 
-	route, searchQuery, rOK, clsErrMsg := resolveSelectFileRoute(e, text, pre)
+	route, searchQuery, searchSymbolKind, rOK, clsErrMsg := resolveSelectFileRoute(e, text, pre)
 	if !rOK {
 		persist(e, key, *vs)
 		if strings.TrimSpace(clsErrMsg) != "" {
@@ -59,7 +59,7 @@ func runFileSelectionPhase(
 		return protocol.VoiceTranscriptCompletion{}, true, "flow classifier: empty route"
 	}
 
-	frRes, frFail := fileselectflow.DispatchRoute(selectFileDeps(e), params, vs, text, route, searchQuery)
+	frRes, frFail := fileselectflow.DispatchRoute(selectFileDeps(e), params, vs, text, route, searchQuery, searchSymbolKind)
 	if strings.TrimSpace(frFail) != "" {
 		persist(e, key, *vs)
 		if !frRes.Success {

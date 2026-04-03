@@ -17,6 +17,7 @@ func TryHandleWorkspaceSelectSearch(
 	params protocol.VoiceTranscriptParams,
 	vs *session.VoiceSession,
 	searchQuery string,
+	searchSymbolKind string,
 ) (protocol.VoiceTranscriptCompletion, string, bool) {
 	q := strings.TrimSpace(searchQuery)
 	if q == "" {
@@ -25,7 +26,7 @@ func TryHandleWorkspaceSelectSearch(
 	if deps == nil || deps.Search == nil {
 		return protocol.VoiceTranscriptCompletion{}, "", false
 	}
-	if res, hit, reason := deps.Search.SearchFromQuery(params, q, vs); hit {
+	if res, hit, reason := deps.Search.SearchFromQuery(params, q, strings.TrimSpace(searchSymbolKind), vs); hit {
 		if strings.TrimSpace(reason) != "" {
 			return protocol.VoiceTranscriptCompletion{Success: false}, reason, true
 		}
@@ -41,8 +42,9 @@ func HandleWorkspaceSelect(
 	vs *session.VoiceSession,
 	host flows.ID,
 	searchQuery string,
+	searchSymbolKind string,
 ) (protocol.VoiceTranscriptCompletion, string) {
-	if res, fail, ok := TryHandleWorkspaceSelectSearch(deps, params, vs, searchQuery); ok {
+	if res, fail, ok := TryHandleWorkspaceSelectSearch(deps, params, vs, searchQuery, searchSymbolKind); ok {
 		return res, fail
 	}
 	return workspaceSelectSearchMiss(host, vs), ""
