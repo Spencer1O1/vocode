@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -49,7 +48,6 @@ func NewElevenLabsStreamingClient(
 	modelID string,
 	sampleRate int,
 	languageCode string,
-	inactivityTimeoutSeconds int,
 ) (*ElevenLabsStreamingClient, error) {
 	if strings.TrimSpace(apiKey) == "" {
 		return nil, fmt.Errorf("ELEVENLABS_API_KEY is empty")
@@ -73,12 +71,6 @@ func NewElevenLabsStreamingClient(
 	query.Set("audio_format", "pcm_16000")
 	if lc := strings.TrimSpace(languageCode); lc != "" {
 		query.Set("language_code", lc)
-	}
-	if inactivityTimeoutSeconds > 0 {
-		if inactivityTimeoutSeconds > 180 {
-			inactivityTimeoutSeconds = 180
-		}
-		query.Set("inactivity_timeout", strconv.Itoa(inactivityTimeoutSeconds))
 	}
 	for _, kt := range AllRealtimeSTTKeyterms() {
 		kt = strings.TrimSpace(kt)

@@ -14,22 +14,6 @@ import (
 
 const audioMeterEmitInterval = 40 * time.Millisecond
 
-func sttInactivityTimeoutSecondsFromCommitTimeoutMS(timeoutMS int) int {
-	if timeoutMS <= 0 {
-		return 0
-	}
-	sec := timeoutMS / 1000
-	if timeoutMS%1000 != 0 {
-		sec++
-	}
-	if sec < 1 {
-		sec = 1
-	}
-	if sec > 180 {
-		sec = 180
-	}
-	return sec
-}
 
 func normalizeMeterRMS(rms float64) float64 {
 	if rms <= 0 {
@@ -57,7 +41,6 @@ func (a *App) transcribeLoop(ctx context.Context, apiKey string, rec *mic.Record
 		cfg.SttModelId,
 		16000,
 		cfg.SttLanguageCode,
-		sttInactivityTimeoutSecondsFromCommitTimeoutMS(cfg.SttCommitResponseTimeoutMs),
 	)
 	if err != nil {
 		_ = a.write(Event{Type: "error", Message: fmt.Sprintf("failed to start elevenlabs streaming stt: %v", err)})
@@ -165,7 +148,6 @@ func (a *App) transcribeLoop(ctx context.Context, apiKey string, rec *mic.Record
 					newCfg.SttModelId,
 					16000,
 					newCfg.SttLanguageCode,
-					sttInactivityTimeoutSecondsFromCommitTimeoutMS(newCfg.SttCommitResponseTimeoutMs),
 				)
 				if err != nil {
 					_ = a.write(Event{Type: "error", Message: fmt.Sprintf("failed to reconnect elevenlabs streaming stt: %v", err)})
