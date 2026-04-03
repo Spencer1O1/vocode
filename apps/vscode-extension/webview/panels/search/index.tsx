@@ -24,8 +24,8 @@ export function SearchPanel({ state }: { state: PanelState }) {
         <div className="card history-card interrupt-search-card interrupt-panel-empty">
           <div className="interrupt-panel-lead">{msg}</div>
           <p className="interrupt-panel-footnote">
-            Try a different file name or symbol. Say “cancel” or
-            close when you’re done.
+            Try a different file name or symbol. Say “cancel” or close when
+            you’re done.
           </p>
         </div>
         <div className="interrupt-actions">
