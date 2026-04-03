@@ -36,11 +36,13 @@ func (e *TranscriptSearch) FileSearchFromQuery(params protocol.VoiceTranscriptPa
 		paths[i] = m.Path
 		isDir[i] = m.IsDir
 	}
-	mutateSessionFilePathSearchResults(vs, paths, isDir)
 
 	if len(paths) == 0 {
+		// Do not mutate session: empty paths would clear FileSelectionPaths and break fallbacks
+		// (e.g. workspace search) and "keep file list" recovery in file-selection phase.
 		return completionFileSearchNoHits(q), true, ""
 	}
+	mutateSessionFilePathSearchResults(vs, paths, isDir)
 
 	if e.HostApply == nil {
 		return protocol.VoiceTranscriptCompletion{Success: false}, true, "host apply client not configured"

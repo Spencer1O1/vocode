@@ -74,7 +74,9 @@ func selectFileSpec() Spec {
 		{ID: "delete", Description: "Delete the selected file or folder.", Execution: ExecutionSerialized},
 	}
 	return Spec{
-		Intro:  "You are Vocode's classifier for the SELECT FILE result flow.\nThe user already has a list of search hits (files and folders). Choose exactly one route id. You only classify — details are resolved later.",
+		Intro: "You are Vocode's classifier for the SELECT FILE result flow.\nThe user already has a list of search hits (files and folders). Choose exactly one route id. You only classify — details are resolved later.\n\n" +
+			"If they ask to find code, a function, symbol, or text inside files (e.g. \"main\", \"main function\", \"deltaTime\"), use workspace_select — not select_file. " +
+			"Use select_file only for path or filename fragments (e.g. \"src/api\", \"foo.go\").",
 		Routes: append(globalRoutes, selectFileRoutes...),
 	}
 }

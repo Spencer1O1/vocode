@@ -47,7 +47,7 @@ func DispatchRoute(
 		return IrrelevantSkipped()
 
 	case "select_file":
-		if r, fail, ok := global.TryHandleSelectFileSearch(rd, params, vs, res.SearchQuery); ok {
+		if r, fail, ok := global.TryHandleSelectFileSearch(rd, params, vs, res.SearchQuery, res.SearchSymbolKind, flows.Root); ok {
 			return r, fail
 		}
 		return IrrelevantSkipped()
