@@ -214,6 +214,15 @@ func stubSelectFileDiskCreate(t string) bool {
 	if strings.HasPrefix(t, "create ") && (strings.Contains(t, ".") || strings.Contains(t, "/") || strings.Contains(t, `\`)) {
 		return true
 	}
+	if strings.HasPrefix(t, "create ") && strings.Contains(t, " dot ") {
+		return true
+	}
+	// add / make + filename pattern (align with classifier: intent not only the word "create")
+	if strings.HasPrefix(t, "add ") || strings.HasPrefix(t, "make ") {
+		if strings.Contains(t, ".") || strings.Contains(t, "/") || strings.Contains(t, `\`) || strings.Contains(t, " dot ") {
+			return true
+		}
+	}
 	return false
 }
 

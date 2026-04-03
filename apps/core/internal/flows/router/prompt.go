@@ -10,7 +10,7 @@ import (
 
 // ClassifierSystem builds the system prompt for flow route classification.
 // It starts from flows.Spec (intro + per-route descriptions), then appends shared JSON output Rules.
-// Workspace-only tie-break bullets that reference classifier user JSON (hasNonemptySelection) are appended below; other flows rely on spec + user JSON only.
+// Flow-specific tie-break bullets are appended below (workspace select, select file); workspace select uses classifier user JSON.
 // flows.Execution policy is host metadata only; it must never appear here (or in user JSON / schema).
 func ClassifierSystem(flow flows.ID) string {
 	spec := flows.SpecFor(flow)
@@ -39,6 +39,12 @@ Rules:
 Workspace select — user JSON may include hasNonemptySelection (true when the editor selection is non-empty) and activeFile:
 - When hasNonemptySelection is true, a selection does not by itself mean "edit": if the utterance matches global "create" or "rename" per the route list, prefer those when appropriate.
 - When hasNonemptySelection is true, the utterance is an imperative to change existing code, and they are not asking to find or search the workspace, prefer "edit" over "workspace_select".
+`)
+	}
+	if flow == flows.SelectFile {
+		b.WriteString(`
+
+Select file — global "create" vs "create_entry": user JSON flow is select_file; activeFile may still be set from the editor. Use create_entry when they name a new file or folder on disk under the list row (add, make, create, new + a name; STT may say "dot" for "."). Use create only for changing the open editor buffer (code, comments, imports, placement), not for creating a path from this flow.
 `)
 	}
 	return strings.TrimSpace(b.String())
@@ -73,7 +79,7 @@ func ClassifierResponseJSONSchema(flow flows.ID) map[string]any {
 			},
 			"search_query": map[string]any{
 				"type":        "string",
-				"description": "workspace_select: symbol/identifier name or exact literal substring to find in file contents. select_file: single file or folder basename only (no slashes, no absolute path). Otherwise empty.",
+				"description": "workspace_select: symbol/identifier name or exact literal substring to find in file contents. select_file: single file or folder basename only (no slashes, no absolute path). create_entry, create, move, rename, delete, control, irrelevant: always empty.",
 			},
 			"search_symbol_kind": map[string]any{
 				"type":        "string",

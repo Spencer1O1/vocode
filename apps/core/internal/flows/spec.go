@@ -74,14 +74,13 @@ func fileSelectSpec() Spec {
 		{ID: "file_select_control", Description: "User wants to move through the file hit list or pick a hit by position or number (next, previous, first, third, go to N, etc.).", Execution: ExecutionImmediate},
 		{ID: "move", Description: "User wants to move the selected file or folder to a different path.", Execution: ExecutionSerialized},
 		{ID: "rename", Description: "User wants to rename the selected file or folder (path/name).", Execution: ExecutionSerialized},
-		{ID: "create_entry", Description: "User wants to add a new file on disk under the selected path (root, folder, or next to a file). Not editor buffer text. Empty folders are not created here; moving a file can create destination parent directories.", Execution: ExecutionSerialized},
+		{ID: "create_entry", Description: "User wants a new file or folder on disk under the selected row (e.g. create/add/make/new or similar). Not editor buffer content.", Execution: ExecutionSerialized},
 		{ID: "delete", Description: "User wants to delete the selected file. (Workspace root and folders are not deletable via this route.)", Execution: ExecutionSerialized},
 	}
 	return Spec{
 		Intro: "You are Vocode's classifier for the SELECT FILE result flow.\nThe user already has a list of search hits (files and folders). Choose exactly one route id. You only classify — details are resolved later.\n\n" +
-			"If they ask to find code, a function, symbol, or text inside files (e.g. \"main\", \"main function\", \"deltaTime\"), use workspace_select — not select_file. " +
-			"Use select_file only when they name a file or folder by basename; search_query must be a single name with no slashes (not a path).\n\n" +
-			"Route create adds content to the open editor file; create_entry adds a new file path using the list (move creates missing destination folders).",
+			"workspace_select: find code, symbols, or text inside files. select_file: name a file or folder by basename to look up paths — not contents search.\n\n" +
+			"create_entry: new path on disk under the selection (empty search_query). create: open editor buffer only — not for naming a new file in this flow.",
 		Routes: append(globalRoutes, fsRoutes...),
 	}
 }

@@ -13,7 +13,7 @@ import (
 
 // FileSearchFromQuery walks the workspace for paths whose relative path or basename contains the
 // query basename (case-insensitive), updates optional session file-list fields, and returns a
-// completion with FileSelection plus host open of the first path when it is a file.
+// completion with FileSelection plus host navigation for the first hit (open file or reveal folder).
 func (e *TranscriptSearch) FileSearchFromQuery(params protocol.VoiceTranscriptParams, q string, vs *session.VoiceSession) (protocol.VoiceTranscriptCompletion, bool, string) {
 	q = strings.TrimSpace(q)
 	if q == "" {
@@ -57,7 +57,10 @@ func (e *TranscriptSearch) FileSearchFromQuery(params protocol.VoiceTranscriptPa
 		return protocol.VoiceTranscriptCompletion{Success: false}, true, "search engine not fully configured"
 	}
 	first := matches[0]
-	if !first.IsDir && !search.IsBinaryLikeFileName(filepath.Base(first.Path)) {
+	base := filepath.Base(first.Path)
+	// Open text files in the editor; reveal directories in the explorer (host handles dirs vs files).
+	skipAutoNavigate := !first.IsDir && search.IsBinaryLikeFileName(base)
+	if !skipAutoNavigate {
 		dirs := openFirstFileDirectives(first.Path)
 		batchID := e.NewBatchID()
 		if vs != nil {

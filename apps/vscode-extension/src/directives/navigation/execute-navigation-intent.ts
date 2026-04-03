@@ -1,3 +1,4 @@
+import * as fs from "node:fs/promises";
 import path from "node:path";
 import type { VoiceTranscriptDirective } from "@vocode/protocol";
 import * as vscode from "vscode";
@@ -10,10 +11,27 @@ export interface EditLocationMap {
   };
 }
 
-function openDoc(path: string): Thenable<vscode.TextEditor> {
+function openDoc(fsPath: string): Thenable<vscode.TextEditor> {
   return vscode.workspace
-    .openTextDocument(path)
+    .openTextDocument(fsPath)
     .then((doc) => vscode.window.showTextDocument(doc, { preview: false }));
+}
+
+/** open_file targets a file in the editor; folders are revealed in the Explorer (openTextDocument fails on dirs). */
+async function openFileOrRevealFolder(resolvedPath: string): Promise<void> {
+  try {
+    const st = await fs.stat(resolvedPath);
+    if (st.isDirectory()) {
+      await vscode.commands.executeCommand(
+        "revealInExplorer",
+        vscode.Uri.file(resolvedPath),
+      );
+      return;
+    }
+  } catch {
+    // Missing path — still try openTextDocument for a clear error or virtual doc.
+  }
+  await openDoc(resolvedPath);
 }
 
 function resolvePath(targetPath: string, activeDocumentPath: string): string {
@@ -44,7 +62,9 @@ export async function executeNavigationDirective(
 
   switch (nav.kind) {
     case "open_file": {
-      await openDoc(resolvePath(nav.openFile.path, activeDocumentPath));
+      await openFileOrRevealFolder(
+        resolvePath(nav.openFile.path, activeDocumentPath),
+      );
       return;
     }
     case "reveal_symbol": {

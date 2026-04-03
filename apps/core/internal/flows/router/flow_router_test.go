@@ -124,3 +124,16 @@ func TestClassifyFlow_stubSelectFile_createEntry(t *testing.T) {
 		t.Fatalf("got flow=%q route %q want select_file/create_entry", res.Flow, res.Route)
 	}
 }
+
+func TestClassifyFlow_stubSelectFile_createEntry_addSpokenDot(t *testing.T) {
+	t.Parallel()
+	fr := NewFlowRouter(nil)
+	ctx := ContextForClassification(flows.SelectFile, "add main dot js", protocol.VoiceTranscriptParams{})
+	res, err := fr.ClassifyFlow(t.Context(), ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Flow != flows.SelectFile || res.Route != "create_entry" {
+		t.Fatalf("got flow=%q route %q want select_file/create_entry", res.Flow, res.Route)
+	}
+}
