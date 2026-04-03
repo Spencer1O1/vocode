@@ -303,10 +303,13 @@ func (c *ElevenLabsStreamingClient) readLoop() {
 					)
 				}
 			}
-			c.events <- StreamingEvent{
+			select {
+			case c.events <- StreamingEvent{
 				Error:       formatWebSocketErr(err),
 				CloseCode:   closeCode,
 				CloseReason: closeReason,
+			}:
+			default:
 			}
 			return
 		}
