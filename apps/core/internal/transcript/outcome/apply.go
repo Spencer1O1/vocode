@@ -1,4 +1,4 @@
-package run
+package outcome
 
 import (
 	"strings"
@@ -27,8 +27,8 @@ func sessionHitsFromProtocol(in []struct {
 	return out
 }
 
-// applyTranscriptOutcome mutates session state based on transcript outcome.
-func applyTranscriptOutcome(
+// Apply mutates session state from a voice.transcript completion (search hits, phases, clarify overlay).
+func Apply(
 	vs *session.VoiceSession,
 	params protocol.VoiceTranscriptParams,
 	res protocol.VoiceTranscriptCompletion,

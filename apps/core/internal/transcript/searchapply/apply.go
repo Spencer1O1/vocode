@@ -1,4 +1,4 @@
-package run
+package searchapply
 
 import (
 	"fmt"
@@ -16,14 +16,16 @@ const (
 	fileSearchMaxUniquePaths = 20
 )
 
-// TranscriptSearch runs workspace rg queries and wires results into voice session + host navigation.
+type HostApplyClient interface {
+	ApplyDirectives(protocol.HostApplyParams) (protocol.HostApplyResult, error)
+}
+
 type TranscriptSearch struct {
-	HostApply             hostApplyClient
+	HostApply             HostApplyClient
 	NewBatchID            func() string
 	NavigateHitDirectives func(path string, line0, char0, length int) []protocol.VoiceTranscriptDirective
 }
 
-// SearchFromQuery runs content search and navigates to the first hit when configured.
 func (e *TranscriptSearch) SearchFromQuery(params protocol.VoiceTranscriptParams, q string, vs *session.VoiceSession) (protocol.VoiceTranscriptCompletion, bool, string) {
 	q = strings.TrimSpace(q)
 	if q == "" {
@@ -99,7 +101,6 @@ func (e *TranscriptSearch) SearchFromQuery(params protocol.VoiceTranscriptParams
 	return res, true, ""
 }
 
-// FileSearchFromQuery collects unique matching paths and opens the first.
 func (e *TranscriptSearch) FileSearchFromQuery(params protocol.VoiceTranscriptParams, q string, vs *session.VoiceSession) (protocol.VoiceTranscriptCompletion, bool, string) {
 	q = strings.TrimSpace(q)
 	if q == "" {

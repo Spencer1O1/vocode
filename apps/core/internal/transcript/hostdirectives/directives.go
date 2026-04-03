@@ -1,4 +1,4 @@
-package run
+package hostdirectives
 
 import (
 	"fmt"
@@ -9,12 +9,12 @@ import (
 
 var applyBatchSeq uint64
 
-func newApplyBatchID() string {
+func NewApplyBatchID() string {
 	seq := atomic.AddUint64(&applyBatchSeq, 1)
 	return fmt.Sprintf("core-%d", seq)
 }
 
-func hitNavigateDirectives(path string, line0, char0, length int) []protocol.VoiceTranscriptDirective {
+func HitNavigateDirectives(path string, line0, char0, length int) []protocol.VoiceTranscriptDirective {
 	open := protocol.VoiceTranscriptDirective{
 		Kind: "navigate",
 		NavigationDirective: &protocol.NavigationDirective{
