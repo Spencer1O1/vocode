@@ -36,7 +36,7 @@ Connection lifecycle: the sidecar opens **one** realtime STT WebSocket when `tra
 **Session context (not user-configurable):** the sidecar sends a fixed `previous_text` prefix on the **first** audio chunk of each WebSocket session (plus rolling committed transcript from `utteranceWindow`) so the model knows speech is programming-oriented. Programming vocabulary **keyterms** are also passed as repeated `keyterms` query parameters where the API accepts them (see `internal/stt/keyterms.go`, including **vocode** / **Vocode**). **Workspace extras:** in VS Code, add a `.vocode` JSON file at a workspace folder root with `"sttKeywords": ["YourTerm", ...]` (command palette: **Vocode: Create Workspace .vocode File**). The extension merges keywords from all roots into `VOCODE_STT_KEYTERMS_JSON` when spawning the sidecar; restart core (`vocode-cored`) & voice after edits. If a client upgrade ever fails with `400`/`403`, confirm with current ElevenLabs docs whether realtime supports `keyterms`; batch STT documents them explicitly.
 
 Core model selection:
-- `ELEVENLABS_STT_MODEL_ID` (default: `scribe_v2`)
+- `ELEVENLABS_STT_MODEL_ID` (default: `scribe_v2_realtime`)
 
 Streaming VAD/segmentation knobs:
 - `sttInactivityTimeoutSeconds` (live config field; default: `20`; range: `0..180`, where `0` falls back to default)
