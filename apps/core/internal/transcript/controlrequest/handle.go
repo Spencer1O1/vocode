@@ -33,7 +33,7 @@ func Handle(
 			Success:       true,
 			Summary:       "Search session closed",
 			Search:        &protocol.VoiceTranscriptWorkspaceSearchState{Closed: true},
-			UiDisposition: "hidden",
+			UiDisposition: "browse",
 		}, true
 
 	case "cancel_file_selection":
@@ -42,7 +42,7 @@ func Handle(
 			Success:       true,
 			Summary:       "File selection closed",
 			FileSelection: &protocol.VoiceTranscriptFileSearchState{Closed: true},
-			UiDisposition: "hidden",
+			UiDisposition: "browse",
 		}, true
 
 	default:

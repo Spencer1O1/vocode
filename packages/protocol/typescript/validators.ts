@@ -641,7 +641,8 @@ export function isVoiceTranscriptCompletion(
     if (
       value.uiDisposition !== "shown" &&
       value.uiDisposition !== "skipped" &&
-      value.uiDisposition !== "hidden"
+      value.uiDisposition !== "hidden" &&
+      value.uiDisposition !== "browse"
     ) {
       return false;
     }

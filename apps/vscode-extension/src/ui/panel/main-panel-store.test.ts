@@ -94,7 +94,7 @@ test("dismissSearchState clears search hit list", () => {
   const store = new MainPanelStore();
   const id = store.enqueueCommitted("find foo") as number;
   store.markHandled(id, {
-    uiDisposition: "hidden",
+    uiDisposition: "browse",
     search: {
       results: [
         {
@@ -116,7 +116,7 @@ test("markHandled search.closed clears search (voice cancel)", () => {
   const store = new MainPanelStore();
   const id1 = store.enqueueCommitted("find foo") as number;
   store.markHandled(id1, {
-    uiDisposition: "hidden",
+    uiDisposition: "browse",
     search: {
       results: [{ path: "a.ts", line: 0, character: 0, preview: "hit" }],
       activeIndex: 0,
@@ -125,7 +125,7 @@ test("markHandled search.closed clears search (voice cancel)", () => {
   assert.ok(store.getSnapshot().searchState);
   const id2 = store.enqueueCommitted("cancel") as number;
   store.markHandled(id2, {
-    uiDisposition: "hidden",
+    uiDisposition: "browse",
     summary: "Search session closed",
     search: { closed: true },
   });
@@ -136,7 +136,7 @@ test("markHandled fileSelection.results maps to sidebar searchState (file list)"
   const store = new MainPanelStore();
   const id = store.enqueueCommitted("open config") as number;
   store.markHandled(id, {
-    uiDisposition: "hidden",
+    uiDisposition: "browse",
     contextSessionId: "ctx-files-1",
     fileSelection: {
       results: [
@@ -160,7 +160,7 @@ test("markHandled fileSelection.closed clears sidebar list", () => {
   const store = new MainPanelStore();
   const id1 = store.enqueueCommitted("pick file") as number;
   store.markHandled(id1, {
-    uiDisposition: "hidden",
+    uiDisposition: "browse",
     fileSelection: {
       results: [{ path: "/w/a.ts" }],
       activeIndex: 0,
@@ -169,7 +169,7 @@ test("markHandled fileSelection.closed clears sidebar list", () => {
   assert.ok(store.getSnapshot().searchState);
   const id2 = store.enqueueCommitted("cancel") as number;
   store.markHandled(id2, {
-    uiDisposition: "hidden",
+    uiDisposition: "browse",
     summary: "Closed",
     fileSelection: { closed: true },
   });
@@ -194,7 +194,7 @@ test("markHandled stores contextSessionId for daemon cancel RPCs", () => {
 
   const id2 = store.enqueueCommitted("find foo") as number;
   store.markHandled(id2, {
-    uiDisposition: "hidden",
+    uiDisposition: "browse",
     contextSessionId: "ctx-search-1",
     search: {
       results: [{ path: "a.ts", line: 0, character: 0, preview: "hit" }],
@@ -208,7 +208,7 @@ test("markHandled preserves search contextSessionId when follow-up omits it", ()
   const store = new MainPanelStore();
   const id = store.enqueueCommitted("find foo") as number;
   store.markHandled(id, {
-    uiDisposition: "hidden",
+    uiDisposition: "browse",
     contextSessionId: "ctx-keep",
     search: {
       results: [{ path: "a.ts", line: 0, character: 0, preview: "h" }],
@@ -217,7 +217,7 @@ test("markHandled preserves search contextSessionId when follow-up omits it", ()
   });
   const id2 = store.enqueueCommitted("next") as number;
   store.markHandled(id2, {
-    uiDisposition: "hidden",
+    uiDisposition: "browse",
     search: {
       results: [{ path: "b.ts", line: 1, character: 0, preview: "h2" }],
       activeIndex: 0,
@@ -261,11 +261,11 @@ test("uiDisposition=hidden prevents adding items to Recent while clarify is acti
   assert.equal(store.getSnapshot().recentHandled[0]?.skipped, true);
 });
 
-test("uiDisposition=hidden keeps search updates out of Recent/History when no summary", () => {
+test("uiDisposition=browse keeps search updates out of Recent/History when no summary", () => {
   const store = new MainPanelStore();
   const id = store.enqueueCommitted("find foo") as number;
   store.markHandled(id, {
-    uiDisposition: "hidden",
+    uiDisposition: "browse",
     search: {
       results: [{ path: "a.ts", line: 0, character: 0, preview: "hit" }],
       activeIndex: 0,
@@ -275,7 +275,7 @@ test("uiDisposition=hidden keeps search updates out of Recent/History when no su
 
   const nav = store.enqueueCommitted("next") as number;
   store.markHandled(nav, {
-    uiDisposition: "hidden",
+    uiDisposition: "browse",
     search: {
       results: [{ path: "b.ts", line: 1, character: 0, preview: "hit2" }],
       activeIndex: 0,
@@ -284,29 +284,46 @@ test("uiDisposition=hidden keeps search updates out of Recent/History when no su
   assert.equal(store.getSnapshot().recentHandled.length, 0);
 });
 
-test("markHandled logs search to History when hidden but core sent a summary", () => {
+test("markHandled does not log workspace search to History even when core sends a summary", () => {
   const store = new MainPanelStore();
   const id = store.enqueueCommitted("find foo") as number;
   store.markHandled(id, {
-    uiDisposition: "hidden",
+    uiDisposition: "browse",
     summary: 'found 2 matches for "foo"',
     search: {
       results: [{ path: "a.ts", line: 0, character: 0, preview: "hit" }],
       activeIndex: 0,
     },
   });
+  assert.equal(store.getSnapshot().recentHandled.length, 0);
+});
+
+test("markHandled logs hidden mutation summaries (e.g. applied edit) to History", () => {
+  const store = new MainPanelStore();
+  const id = store.enqueueCommitted("pass delta into render") as number;
+  store.markHandled(id, {
+    uiDisposition: "hidden",
+    summary: "applied edit",
+  });
   assert.equal(store.getSnapshot().recentHandled.length, 1);
-  assert.equal(
-    store.getSnapshot().recentHandled[0]?.summary,
-    'found 2 matches for "foo"',
-  );
+  assert.equal(store.getSnapshot().recentHandled[0]?.summary, "applied edit");
+});
+
+test("markHandled omits History when uiDisposition is browse even with a summary", () => {
+  const store = new MainPanelStore();
+  const id = store.enqueueCommitted("anything") as number;
+  store.markHandled(id, {
+    uiDisposition: "browse",
+    summary: "would be noisy",
+  });
+  assert.equal(store.getSnapshot().recentHandled.length, 0);
 });
 
 test("markHandled workspace noHits opens empty search state for sidebar", () => {
   const store = new MainPanelStore();
   const id = store.enqueueCommitted("find zzz") as number;
   store.markHandled(id, {
-    uiDisposition: "hidden",
+    uiDisposition: "browse",
     summary: 'no matches for "zzz"',
     search: { noHits: true },
   });
@@ -318,13 +335,14 @@ test("markHandled workspace noHits opens empty search state for sidebar", () => 
     (ss?.noHitsSummary ?? "").includes("zzz") ||
       ss?.noHitsSummary === 'no matches for "zzz"',
   );
+  assert.equal(store.getSnapshot().recentHandled.length, 0);
 });
 
 test("uiDisposition=hidden prevents noise in Recent while searchState is active", () => {
   const store = new MainPanelStore();
   const id = store.enqueueCommitted("find foo") as number;
   store.markHandled(id, {
-    uiDisposition: "hidden",
+    uiDisposition: "browse",
     search: {
       results: [{ path: "a.ts", line: 0, character: 0, preview: "hit" }],
       activeIndex: 0,
@@ -390,6 +408,21 @@ test("recordCompletedTranscript can record a failed manual line for the panel", 
   assert.equal(h?.text, "manual line");
   assert.equal(h?.errorMessage, "Failed to process transcript.");
   assert.equal(h?.summary, undefined);
+});
+
+test("recordCompletedTranscript logs errors to History even when payload looks like a search", () => {
+  const store = new MainPanelStore();
+  store.recordCompletedTranscript("find foo", {
+    errorMessage: "Search RPC failed.",
+    uiDisposition: "browse",
+    search: {
+      results: [{ path: "a.ts", line: 0, character: 0, preview: "hit" }],
+      activeIndex: 0,
+    },
+  });
+  const h = store.getSnapshot().recentHandled[0];
+  assert.equal(h?.text, "find foo");
+  assert.equal(h?.errorMessage, "Search RPC failed.");
 });
 
 test("markError moves the line to Done without blocking Applying", () => {

@@ -56,6 +56,21 @@ test("isVoiceTranscriptCompletion accepts search closed (control / cancel)", () 
   );
 });
 
+test("isVoiceTranscriptCompletion accepts uiDisposition browse (search side panel)", () => {
+  assert.equal(
+    isVoiceTranscriptCompletion({
+      success: true,
+      uiDisposition: "browse",
+      summary: "found 1 matches",
+      search: {
+        results: [{ path: "a.ts", line: 0, character: 0, preview: "x" }],
+        activeIndex: 0,
+      },
+    }),
+    true,
+  );
+});
+
 test("isVoiceTranscriptCompletion accepts clarify offer + summary", () => {
   assert.equal(
     isVoiceTranscriptCompletion({

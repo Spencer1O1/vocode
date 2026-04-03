@@ -16,8 +16,8 @@
     },
     "uiDisposition": {
       "type": "string",
-      "enum": ["shown", "skipped", "hidden"],
-      "description": "Host UI directive: where (if anywhere) this completion should be logged."
+      "enum": ["shown", "skipped", "hidden", "browse"],
+      "description": "Host UI: shown=prominent main panel; skipped=non-actionable/skipped row; hidden=minimal main chrome (mutations may still appear in History when a summary is present); browse=Search/file-list side panel only—do not append this successful completion to main panel History."
     },
     "search": {
       "$ref": "voice-transcript.search-state.schema.json"

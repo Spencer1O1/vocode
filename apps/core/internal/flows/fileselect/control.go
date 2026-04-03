@@ -52,7 +52,7 @@ func HandleSelectFileControl(deps *SelectFileDeps, params protocol.VoiceTranscri
 	c := protocol.VoiceTranscriptCompletion{
 		Success:       true,
 		Summary:       "file focus updated",
-		UiDisposition: "hidden",
+		UiDisposition: "browse",
 	}
 	if len(vs.FileSelectionPaths) > 0 {
 		c.FileSelection = searchapply.FileSearchStateFromPathsWithDir(

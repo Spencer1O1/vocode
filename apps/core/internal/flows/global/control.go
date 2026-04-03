@@ -23,7 +23,7 @@ func HandleControl(host flows.ID, _ protocol.VoiceTranscriptParams, vs *session.
 			Success:       true,
 			Summary:       "Search session closed",
 			Search:        &protocol.VoiceTranscriptWorkspaceSearchState{Closed: true},
-			UiDisposition: "hidden",
+			UiDisposition: "browse",
 		}, ""
 
 	case flows.SelectFile:
@@ -32,7 +32,7 @@ func HandleControl(host flows.ID, _ protocol.VoiceTranscriptParams, vs *session.
 			Success:       true,
 			Summary:       "File selection closed",
 			FileSelection: &protocol.VoiceTranscriptFileSearchState{Closed: true},
-			UiDisposition: "hidden",
+			UiDisposition: "browse",
 		}, ""
 
 	default: // flows.Root

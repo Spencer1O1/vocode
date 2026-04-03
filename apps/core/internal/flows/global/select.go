@@ -56,7 +56,7 @@ func workspaceSelectSearchMiss(host flows.ID, vs *session.VoiceSession) protocol
 		c := protocol.VoiceTranscriptCompletion{
 			Success:       true,
 			Summary:       "file focus updated",
-			UiDisposition: "hidden",
+			UiDisposition: "browse",
 		}
 		if len(vs.FileSelectionPaths) > 0 {
 			c.FileSelection = searchapply.FileSearchStateFromPathsWithDir(vs.FileSelectionPaths, vs.FileSelectionIsDir, vs.FileSelectionIndex)

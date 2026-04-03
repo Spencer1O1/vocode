@@ -53,7 +53,7 @@ func selectApplyHostForActiveHit(deps *SelectionDeps, params protocol.VoiceTrans
 		return protocol.VoiceTranscriptCompletion{
 			Success:       true,
 			Summary:       "search results",
-			UiDisposition: "hidden",
+			UiDisposition: "browse",
 			Search: &protocol.VoiceTranscriptWorkspaceSearchState{
 				Closed: true,
 			},
@@ -91,7 +91,7 @@ func selectApplyHostForActiveHit(deps *SelectionDeps, params protocol.VoiceTrans
 	return protocol.VoiceTranscriptCompletion{
 		Success:       true,
 		Summary:       "search results",
-		UiDisposition: "hidden",
+		UiDisposition: "browse",
 		Search: &protocol.VoiceTranscriptWorkspaceSearchState{
 			Results:     wireHitsToProtocol(vs.SearchResults),
 			ActiveIndex: ptrInt64(int64(vs.ActiveSearchIndex)),

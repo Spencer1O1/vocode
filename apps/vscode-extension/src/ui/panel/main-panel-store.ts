@@ -25,7 +25,7 @@ function inferVoiceTranscriptUiDisposition(opts: {
   clarify?: VoiceTranscriptClarifyOffer;
   fileSelection?: VoiceTranscriptFileSearchState;
   workspace?: VoiceTranscriptWorkspaceHints;
-}): "shown" | "skipped" | "hidden" {
+}): "shown" | "skipped" | "hidden" | "browse" {
   const ans = opts.question?.answerText?.trim();
   if (ans) {
     return "hidden";
@@ -33,7 +33,7 @@ function inferVoiceTranscriptUiDisposition(opts: {
   const s = opts.search;
   if (s) {
     if (s.closed || s.noHits || (s.results && s.results.length > 0)) {
-      return "hidden";
+      return "browse";
     }
   }
   if (
@@ -44,12 +44,38 @@ function inferVoiceTranscriptUiDisposition(opts: {
     return "hidden";
   }
   if (opts.fileSelection) {
-    return "hidden";
+    return "browse";
   }
   if (opts.workspace?.needsFolder === true) {
     return "shown";
   }
   return "shown";
+}
+
+/**
+ * `uiDisposition: "browse"` means Search/file-list side UI only — exclude successful lines from main panel History.
+ */
+function shouldLogTranscriptHistoryEntry(args: {
+  filledAnswer: boolean;
+  disp: "shown" | "skipped" | "hidden" | "browse";
+  summary?: string;
+  errorMessage?: string;
+  options?: TranscriptHandledOptions;
+}): boolean {
+  if (args.filledAnswer) {
+    return false;
+  }
+  const err = args.errorMessage?.trim();
+  if (err) {
+    return true;
+  }
+  if (args.disp === "browse") {
+    return false;
+  }
+  if (args.disp === "skipped" || args.disp === "shown") {
+    return true;
+  }
+  return !!args.summary?.trim();
 }
 
 function sidebarRowsFromFileHits(hits: readonly VoiceTranscriptFileListHit[]): {
@@ -68,7 +94,7 @@ function sidebarRowsFromFileHits(hits: readonly VoiceTranscriptFileListHit[]): {
 
 export type TranscriptHandledOptions = {
   summary?: string;
-  uiDisposition?: "shown" | "skipped" | "hidden";
+  uiDisposition?: "shown" | "skipped" | "hidden" | "browse";
   contextSessionId?: string;
   search?: VoiceTranscriptWorkspaceSearchState;
   question?: VoiceTranscriptQuestionAnswer;
@@ -122,8 +148,8 @@ export type MainPanelSnapshot = {
     readonly receivedAt: Date;
   }[];
   /**
-   * Recently finished lines (newest first): success (optional `summary` for Summary panel)
-   * or failure (`errorMessage` when daemon/apply did not complete successfully).
+   * Recently finished lines (newest first): mutations, skips, prompts — not routine search/browse
+   * (those stay in the Search panel). All errors (`errorMessage`) are always listed.
    */
   readonly recentHandled: readonly {
     readonly text: string;
@@ -539,7 +565,7 @@ export class MainPanelStore {
       }
     }
 
-    const disp: "shown" | "skipped" | "hidden" =
+    const disp: "shown" | "skipped" | "hidden" | "browse" =
       options?.uiDisposition ??
       inferVoiceTranscriptUiDisposition({
         search: options?.search,
@@ -550,12 +576,12 @@ export class MainPanelStore {
       });
 
     // Don't put answers into Recent — they belong in Chat.
-    // Search / file-selection completions often use uiDisposition "hidden" to avoid main-panel
-    // noise, but users still want a History row when the core returned a useful summary.
-    const shouldLogToRecent =
-      !filledAnswer &&
-      (disp !== "hidden" ||
-        this.shouldLogSearchOrFileDespiteHidden(disp, summary, options));
+    const shouldLogToRecent = shouldLogTranscriptHistoryEntry({
+      filledAnswer,
+      disp,
+      summary,
+      options,
+    });
     if (shouldLogToRecent) {
       this.recentHandled.unshift({
         text: removed.text,
@@ -667,7 +693,7 @@ export class MainPanelStore {
       }
     }
 
-    const disp: "shown" | "skipped" | "hidden" =
+    const disp: "shown" | "skipped" | "hidden" | "browse" =
       options?.uiDisposition ??
       inferVoiceTranscriptUiDisposition({
         search: options?.search,
@@ -678,10 +704,13 @@ export class MainPanelStore {
       });
 
     // Don't put answers into Recent — they belong in Chat.
-    const shouldLogToRecent =
-      !filledAnswer &&
-      (disp !== "hidden" ||
-        this.shouldLogSearchOrFileDespiteHidden(disp, summary, options));
+    const shouldLogToRecent = shouldLogTranscriptHistoryEntry({
+      filledAnswer,
+      disp,
+      summary,
+      errorMessage: err,
+      options,
+    });
     if (shouldLogToRecent) {
       this.recentHandled.unshift({
         text: normalized,
@@ -782,23 +811,5 @@ export class MainPanelStore {
       clearTimeout(this.partialClearTimer);
       this.partialClearTimer = undefined;
     }
-  }
-
-  /** Voice completions often force `hidden` for search/file flows; still log History when core sent a summary. */
-  private shouldLogSearchOrFileDespiteHidden(
-    disp: "shown" | "skipped" | "hidden",
-    summary: string | undefined,
-    options?: TranscriptHandledOptions,
-  ): boolean {
-    if (disp !== "hidden") {
-      return false;
-    }
-    const sum = summary?.trim();
-    if (!sum) {
-      return false;
-    }
-    return (
-      options?.search !== undefined || options?.fileSelection !== undefined
-    );
   }
 }

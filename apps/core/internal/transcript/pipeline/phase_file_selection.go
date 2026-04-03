@@ -26,7 +26,7 @@ func runFileSelectionPhase(
 			Success:       true,
 			Summary:       "File selection closed",
 			FileSelection: &protocol.VoiceTranscriptFileSearchState{Closed: true},
-			UiDisposition: "hidden",
+			UiDisposition: "browse",
 		}, true, ""
 	}
 

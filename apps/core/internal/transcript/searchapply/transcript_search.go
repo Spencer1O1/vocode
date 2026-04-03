@@ -207,7 +207,7 @@ func completionWorkspaceSearchNoHits(q string) protocol.VoiceTranscriptCompletio
 	return protocol.VoiceTranscriptCompletion{
 		Success:       true,
 		Summary:       fmt.Sprintf("no matches for %q", q),
-		UiDisposition: "hidden",
+		UiDisposition: "browse",
 		Search: &protocol.VoiceTranscriptWorkspaceSearchState{
 			NoHits: true,
 		},
@@ -220,7 +220,7 @@ func completionWorkspaceSearchWithHits(hits []search.Hit, q string) protocol.Voi
 	return protocol.VoiceTranscriptCompletion{
 		Success:       true,
 		Summary:       fmt.Sprintf("found %d matches for %q", len(hits), q),
-		UiDisposition: "hidden",
+		UiDisposition: "browse",
 		Search: &protocol.VoiceTranscriptWorkspaceSearchState{
 			Results:     wireHits,
 			ActiveIndex: &z,

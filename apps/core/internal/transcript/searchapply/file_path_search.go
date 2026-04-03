@@ -103,7 +103,7 @@ func completionFileSearchNoHits(q string) protocol.VoiceTranscriptCompletion {
 	return protocol.VoiceTranscriptCompletion{
 		Success:       true,
 		Summary:       fmt.Sprintf("no file path matches for %q", q),
-		UiDisposition: "hidden",
+		UiDisposition: "browse",
 		FileSelection: &protocol.VoiceTranscriptFileSearchState{
 			NoHits: true,
 		},
@@ -114,7 +114,7 @@ func completionFileSearchWithPaths(paths []string, isDir []bool, q string) proto
 	return protocol.VoiceTranscriptCompletion{
 		Success:       true,
 		Summary:       fmt.Sprintf("found %d path(s) for %q", len(paths), q),
-		UiDisposition: "hidden",
+		UiDisposition: "browse",
 		FileSelection: FileSearchStateFromPathsWithDir(paths, isDir, 0),
 	}
 }
