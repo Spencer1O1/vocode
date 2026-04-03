@@ -53,17 +53,17 @@ jobs:
       - name: Build VS Code extension
         run: pnpm --filter @vocode/vscode-extension build
 
-      - name: Build daemon
-        run: pnpm --filter @vocode/daemon build
+      - name: Build core (vocode-cored)
+        run: pnpm --filter @vocode/core build
 
       - name: Build voice sidecar
         run: echo "Skipping @vocode/voice on ubuntu (PortAudio/cgo)"
 
-      - name: Install ripgrep (daemon transcript search integration tests)
+      - name: Install ripgrep (core transcript search integration tests)
         run: sudo apt-get update && sudo apt-get install -y ripgrep
 
       - name: Run Go tests
-        run: go test $(go list ./... | grep -v '/apps/voice')
+        run: go test $(go list ./... | grep -vE '/apps/voice($|/)' | grep -vE '/apps/daemon($|/)')
 
   voice-linux:
     name: Build voice sidecar (Linux)

@@ -4,7 +4,7 @@ Thanks for contributing to Vocode 🚀
 
 This project is an early-stage, fast-moving system combining:
 
-- a Go daemon (core engine)
+- a Go core backend (`vocode-cored`)
 - a VS Code extension (UI + client)
 
 Clarity, consistency, and clean boundaries matter a lot.
@@ -19,7 +19,7 @@ Please read:
 
 Understand the separation:
 
-`Extension (TS) → transport → Daemon (Go)`
+`Extension (TS) → transport → Core (Go)`
 
 Do not mix responsibilities across this boundary.
 
@@ -29,9 +29,9 @@ Do not mix responsibilities across this boundary.
    ```bash
    pnpm install
    ```
-2. Build the daemon
+2. Build the core backend
    ```bash
-   pnpm --filter @vocode/daemon build
+   pnpm --filter @vocode/core build
    ```
 3. Run the extension
 
@@ -47,7 +47,7 @@ This launches a VS Code Extension Development Host.
 
 ```
 apps/
-├── daemon/          # Go backend
+├── core/            # Go backend (vocode-cored)
 └── vscode-extension/ # VS Code extension
 
 packages/
@@ -67,14 +67,13 @@ docs/                # architecture + specs
    - RPC client
    - no business logic
 
-   **Daemon (Go):**
+   **Core (Go):**
    - agent logic
-   - edit intent handling / applying
-   - symbol resolution (tree-sitter tags)
-   - command execution
-   - speech processing
+   - edit intent handling / orchestration (directives for the host to apply)
+   - workspace + search integration
+   - validated command shapes (the extension runs allowed commands)
 
-   👉 If logic feels "smart", it belongs in the daemon.
+   👉 If logic feels "smart", it belongs in the core backend.
 
 2. No raw file rewrites
 
@@ -88,7 +87,7 @@ docs/                # architecture + specs
 
 3. stdout vs stderr (VERY IMPORTANT)
 
-   For the daemon:
+   For the core process:
    - stdout → reserved for JSON-RPC
    - stderr → logs only
 
@@ -150,12 +149,12 @@ Check logs in:
 
 - `Extension Host → Debug Console`
 
-### Daemon
+### Core backend
 
 Run manually:
 
 ```bash
-pnpm --filter @vocode/daemon dev
+pnpm --filter @vocode/core dev
 ```
 
 ## 🏗️ Adding Features
@@ -168,25 +167,21 @@ If adding extension functionality
   src/commands/
   ```
 
-- wire to daemon via:
+- wire to `vocode-cored` via the JSON-RPC client (historical paths under `src/daemon/`):
 
   ```
-  src/client/daemon-client.ts
+  src/daemon/client.ts
   ```
 
-If adding daemon functionality
+If adding core/backend functionality
 
 - add logic under:
 
   ```
-  internal/<domain>/
+  apps/core/internal/<domain>/
   ```
 
-- expose via:
-
-  ```
-  internal/rpc/handler_*.go
-  ```
+- expose via RPC / handlers as appropriate for `vocode-cored`.
 
 If adding protocol
 
@@ -234,7 +229,7 @@ These should NEVER be committed:
 
 - builds successfully
 - no lint errors
-- daemon compiles
+- core (`@vocode/core`) compiles
 - extension launches with `F5`
 
 **PR Guidelines**
@@ -245,10 +240,10 @@ These should NEVER be committed:
 
 ## 🧱 Architecture Notes
 
-### Daemon lifecycle
+### Core backend lifecycle
 
-- extension spawns daemon
-- daemon runs continuously
+- extension spawns `vocode-cored`
+- core runs continuously
 - extension communicates via stdio
 
 ### Future flow

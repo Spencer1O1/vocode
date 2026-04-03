@@ -3,25 +3,23 @@
 ## Goals
 
 - **Voice-first UX:** No user-facing sessions or clear-context UX; internal keys and resets only.
-- **Thinner wire:** daemon sends directive batches via `host.applyDirectives`; host returns per-directive `{status, message}[]` only.
+- **Thinner wire:** core sends directive batches via `host.applyDirectives`; host returns per-directive `{status, message}[]` only.
 - **Batching:** Multiple directives per `voice.transcript` remain allowed; extension stops on first failure and reports **one row per directive** (tail = skipped / not attempted).
 - **Long mic on:** **Idle reset** clears stored voice session for a context key; **rolling cap** trims gathered excerpts while **never dropping the current `activeFile` excerpt**.
 
 ## Phases
 
-### A — Wire + pending apply batch (daemon authority)
+### A — Wire + pending apply batch (core authority)
 
-- Daemon→host: `host.applyDirectives` with `applyBatchId`, `activeFile`, `directives[]`.
-- Host→daemon: `HostApplyResult.items[]` (`status`: `ok` | `failed` | `skipped`, optional `message`).
+- Core→host: `host.applyDirectives` with `applyBatchId`, `activeFile`, `directives[]`.
+- Host→core: `HostApplyResult.items[]` (`status`: `ok` | `failed` | `skipped`, optional `message`).
 - `voice.transcript` returns `VoiceTranscriptCompletion` (classification + UI disposition + optional search/Q&A payloads). It does not return directives on the completion object; directives are applied via `host.applyDirectives` in the same RPC when needed.
-- `TranscriptService` (`internal/transcript`) holds `VoiceSessionStore`, `executeMu`, and `transcript/executor.Executor`; each utterance runs under the mutex via `transcript/run.Execute`. **Single-shot:** one executor pass and at most one host apply batch per utterance (no daemon-side repair loop).
-- Session load/save + apply report consumption live in `transcript/voicesession`; tuning defaults in `transcript/config`; per-RPC overrides via `daemonConfig` on `voice.transcript` (`sessionIdleResetMs`, `maxGatheredBytes`, `maxGatheredExcerpts`).
-- Flow stack + clarify targets: `internal/agentcontext` (`FlowStack`, `FlowFrame` carries clarify question + original utterance + target key, clarify registry). Utterance orchestration is `internal/transcript/run`; root `transcript` is RPC + queue. **`run` must not import `transcript`** (acyclic graph).
+- `transcript.Service` (`apps/core/internal/transcript`) holds `session.VoiceSessionStore`, `executeMu`, and runs `pipeline.Execute` per utterance under the mutex. **Single-shot:** one pipeline pass and at most one host apply batch per utterance (no core-side repair loop).
+- Session state lives in `apps/core/internal/transcript/session`; clarify/selection/file-selection overlays and flow routing live in `apps/core/internal/transcript/pipeline`, `apps/core/internal/transcript/clarify`, and `apps/core/internal/flows`. Per-RPC caps via `daemonConfig` on `voice.transcript` (`sessionIdleResetMs`, `maxGatheredBytes`, `maxGatheredExcerpts`; RPC field name is historical).
 
-### B — `Gathered` policy (`agentcontext`)
+### B — Gathered / excerpt policy
 
-- **`ApplyGatheredRollingCap(g, activeFile, maxBytes, maxExcerpts)`:** never remove excerpt whose path equals cleaned `activeFile`; evict other excerpts by slice order (oldest first) until under caps.
-- **Idle reset:** `VoiceSessionStore` tracks last activity per `contextSessionId`; before `Get`, if idle elapsed, delete stored session for that key.
+- Rolling caps and idle reset are applied in the core transcript + session layers (see `transcript/idle`, `session` types, and pipeline). Never drop the active file excerpt when trimming.
 
 ### C — Control RPC
 
@@ -30,6 +28,6 @@
 ## Extension
 
 - Code layout: `apps/vscode-extension/src/voice-transcript/` (RPC helpers, `apply-directives`, workspace root), `src/ui/panel/` (main webview provider + store).
-- Apply directives when the daemon requests them via `host.applyDirectives` during `voice.transcript`; return per-directive outcomes in one shot.
+- Apply directives when the core requests them via `host.applyDirectives` during `voice.transcript`; return per-directive outcomes in one shot.
 - Committed transcript handlers are serialized so a new user transcript does not start until the current RPC finishes.
 - Failure messages come from directive dispatchers and are surfaced in `HostApplyResult.items[i].message`.

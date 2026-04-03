@@ -179,7 +179,7 @@ Shape:
 
 Policy:
 
-- Daemon and extension both enforce an allowlist of executables.
+- Core and extension both enforce an allowlist of executables.
 - Any other `command` string is **always** rejected by policy.
 
 Plan:
@@ -217,7 +217,7 @@ Plan:
 
 ### 5. Gather‑Context (`GatherContextSpec`) — design reference
 
-**Not in the current daemon:** the shipped `voice.transcript` path does not import a separate gather package or wire `GatherContextSpec`; `Gathered` is seeded and capped inside transcript/executor only. The shapes below describe a planner-style extension if reintroduced.
+**Not in the current core:** the shipped `voice.transcript` path in `apps/core` does not import a separate gather package or wire `GatherContextSpec`; gathered excerpts and caps live in the transcript/session/workspace layers instead. The shapes below describe a planner-style extension if reintroduced.
 
 Kinds:
 
@@ -263,7 +263,7 @@ Only truly invalid requests (like empty query or unparseable symbolId) should be
 
 ### 6. Multi-turn recovery semantics (planner / `attemptHistory`)
 
-**Note:** The shipped `voice.transcript` daemon path is **single-shot** per utterance (one executor pass, at most one `host.applyDirectives` batch). The following describes **planner-style** flows that maintain an `attemptHistory` across model turns—not the current voice transcript RPC loop.
+**Note:** The shipped `voice.transcript` core path is **single-shot** per utterance (one `pipeline.Execute` pass, at most one `host.applyDirectives` batch). The following describes **planner-style** flows that maintain an `attemptHistory` across model turns—not the current voice transcript RPC loop.
 
 When such a flow exists, recovery is driven by:
 
@@ -273,7 +273,7 @@ When such a flow exists, recovery is driven by:
   - `message` (human‑readable reason),
   - `intent` (the JSON of the prior intent).
 - `gathered.notes`:
-  - Notes appended by daemon logic (e.g. “daemon rejected %q intent before execution: ...; retry with corrected intent”).
+  - Notes appended by core logic (e.g. “rejected %q intent before execution: ...; retry with corrected intent”).
 
 #### 6.1 Principle
 
@@ -363,13 +363,13 @@ The planner DSL examples in `System()` emphasize:
   - `replace_between_anchors` for function-body or import-block edits that truly need anchors.
 - A `current_file` + `replace` nuclear option that maps to `replace_file` and is only used when the user clearly asks to rewrite an entire file.
 
-Extension and daemon mappings are now aligned with this contract:
+Extension and core mappings should stay aligned with this contract:
 
 - VS Code extension `dispatchEditResultWorkspaceEdit` applies `replace_range` using `WorkspaceEdit.replace` on the specified span, and `replace_file` by replacing the full document contents.
-- Daemon `ActionBuilder.BuildActions`:
-  - Emits `replace_range` for `EditIntent` targets of kind `range`.
-  - Emits `replace_file` for `EditIntent` targets of kind `current_file` (nuclear option).
-  - Keeps `replace_between_anchors` for anchor-based and legacy function-body replacements.
+- Core (`apps/core`): directive builders / flows should emit:
+  - `replace_range` for explicit range targets.
+  - `replace_file` for full-document rewrite when the user clearly asks (nuclear option).
+  - `replace_between_anchors` (or equivalent) for anchor-based and function-body style edits.
 
 This document is the working checklist for making the planner DSL “what you see is what you get”: intuitive from the outside, and accepted 100% of the time by our internals whenever the referenced entities exist.
 

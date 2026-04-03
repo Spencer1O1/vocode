@@ -2,7 +2,7 @@
 
 # Vocode
 
-Voice-driven AI code editing system powered by a local daemon and VS Code extension.
+Voice-driven AI code editing system powered by a local Go core (`vocode-cored`) and VS Code extension.
 
 > Vocode lets you **speak code changes**, and have them applied intelligently to your project using structured edits instead of raw text replacement.
 
@@ -16,9 +16,9 @@ Vocode is composed of three main parts:
 
 - Captures voice + user intent
 - Displays UI (transcripts, diffs, status)
-- Sends requests to the daemon
+- Sends requests to `vocode-cored` (JSON-RPC)
 
-2. Core Daemon (Go)
+2. Core backend (Go, `apps/core`)
 
 - Runs locally
 - Handles:
@@ -44,7 +44,7 @@ For now, these communicate over **stdio (JSON-RPC)**. Maybe WebSocket in the fut
 
 ```
 apps/
-  daemon/ # Go daemon (core engine)
+  core/ # Go core engine (vocode-cored)
   voice/ # Go voice sidecar (mic + STT)
   vscode-extension/ # VS Code extension (UI + client)
 
@@ -70,9 +70,9 @@ config/
 
 ## 🚀 Getting Started
 
-0. **VS Code workflow:** open **Vocode → Settings** (sidebar) and save your **ElevenLabs API key** (secret storage). Other knobs live under **Settings → Vocode**; defaults are defined in `apps/vscode-extension/package.json`. There is **no** committed `.env` — the extension does not load one for spawned daemon/voice.
+0. **VS Code workflow:** open **Vocode → Settings** (sidebar) and save your **ElevenLabs API key** (secret storage). Other knobs live under **Settings → Vocode**; defaults are defined in `apps/vscode-extension/package.json`. There is **no** committed `.env` — the extension does not load one for spawned core / voice processes.
 
-   **Shell / `go run`:** export the same variable names yourself (see `apps/voice/internal/app/config.go` and daemon transcript env usage); match defaults from `package.json` where you need parity.
+   **Shell / `go run`:** export the same variable names yourself (see `apps/voice/internal/app/config.go` and core transcript env usage; many vars still use a `VOCODE_DAEMON_*` prefix for historical reasons); match defaults from `package.json` where you need parity.
 
 1. Install dependencies
 
@@ -114,22 +114,22 @@ The voice sidecar uses ElevenLabs streaming STT with local VAD gating.
 
 Recommended baseline (VS Code): use extension defaults, or set `vocode.elevenLabsSttModelId` / other `vocode.*` keys in Settings.
 
-Tuning guide (env var names when running from a terminal, or for reading daemon code):
+Tuning guide (env var names when running from a terminal, or for reading core code):
 - higher `VOCODE_VOICE_VAD_END_MS` -> fewer premature utterance commits
 - higher `VOCODE_VOICE_VAD_PREROLL_MS` -> less start-of-speech clipping
 - lower `VOCODE_VOICE_STREAM_MIN_CHUNK_MS` -> lower latency while speaking
 - higher `VOCODE_VOICE_STREAM_MAX_CHUNK_MS` -> fewer websocket chunk sends
 
-Daemon transcript queueing:
-- the VS Code extension forwards committed transcripts to the daemon
-- the daemon processes transcripts in FIFO order and can coalesce multiple committed transcripts that arrive within `VOCODE_DAEMON_VOICE_TRANSCRIPT_COALESCE_MS`
+Core transcript queueing:
+- the VS Code extension forwards committed transcripts to `vocode-cored`
+- the core processes transcripts in FIFO order and can coalesce multiple committed transcripts that arrive within `VOCODE_DAEMON_VOICE_TRANSCRIPT_COALESCE_MS`
 - queue + merge bounds are configurable via `VOCODE_DAEMON_VOICE_TRANSCRIPT_QUEUE_SIZE`, `VOCODE_DAEMON_VOICE_TRANSCRIPT_MAX_MERGE_JOBS`, and `VOCODE_DAEMON_VOICE_TRANSCRIPT_MAX_MERGE_CHARS`
 
-### Daemon voice transcript (single-shot)
+### Voice transcript (single-shot, core)
 
-`voice.transcript` runs a **narrow-model** pipeline in `apps/daemon/internal/transcript/executor` (classify → scope intent → scoped edit / search / format / …). It is **not** an iterative `intents[]` loop.
+`voice.transcript` runs a **narrow-model** pipeline in `apps/core/internal/transcript/` (pipeline, searchapply, …). It is **not** an iterative `intents[]` loop.
 
-Per committed utterance: at most one `executor.Execute` and one `host.applyDirectives` batch. On apply failure (e.g. `stale_range`), the daemon returns `success: false`; the user re-speaks.
+Per committed utterance: at most one transcript pipeline pass and one `host.applyDirectives` batch. On apply failure (e.g. `stale_range`), the core returns `success: false`; the user re-speaks.
 
 `voice.transcript` returns `VoiceTranscriptCompletion`:
 - `success` and optional `summary`
@@ -148,16 +148,16 @@ Per committed utterance: at most one `executor.Execute` and one `host.applyDirec
 
 When `success` is `false`, treat directives as invalid. Session tuning uses `vocode.sessionIdleResetMs` and `daemonConfig` on the RPC (`maxGatheredBytes`, `maxGatheredExcerpts`).
 
-3. Build the daemon
+3. Build the core backend (`vocode-cored`)
 
 ```bash
-pnpm --filter @vocode/daemon build
+pnpm --filter @vocode/core build
 ```
 
 This creates:
 
 ```
-apps/daemon/bin/<platform-arch>/vocoded(.exe)
+apps/core/bin/<platform-arch>/vocode-cored(.exe)
 ```
 
 4. Run the extension
@@ -173,8 +173,8 @@ You should see logs like:
 
 ```
 Vocode extension activated
-[vocode] using dev daemon: ...
-[vocoded stderr] vocoded starting...
+[vocode] using dev binary path (log label may still say daemon): ...
+[vocode-cored stderr] vocode-cored starting...
 ```
 
 ---
@@ -210,7 +210,7 @@ go test ./...
 ```
 VS Code Extension
 ├── commands/
-├── daemon/ (spawn + path resolution)
+├── daemon/ (spawn + JSON-RPC client for vocode-cored; historical folder name)
 ├── directives/ (host apply for protocol directives)
 ├── voice-transcript/ (voice.transcript RPC + apply batch)
 ├── ui/
@@ -219,13 +219,13 @@ VS Code Extension
 
         ↓ stdio (JSON-RPC)
 
-Go Daemon
+Go core (`apps/core`)
 ├── rpc/
 ├── agent/
-├── intents/
-├── hostcaps/ (host-provided capabilities like LSP symbols)
+├── flows/ (route classification + per-flow handlers)
 ├── workspace/
-└── transcript/
+├── search/ (e.g. ripgrep-backed search)
+└── transcript/ (service, pipeline, session, searchapply, ...)
 
 Voice Sidecar
 ├── app/ (stdio protocol loop)
@@ -241,16 +241,16 @@ We **never blindly rewrite files**.
 
 All edits are:
 
-- orchestrated in the daemon
+- orchestrated in the core
 - anchored
 - validated
 - diffed before apply
 
 The current implementation intentionally supports a small deterministic slice instead of pretending the agent covers all edit styles.
 
-#### 2. Daemon-first architecture
+#### 2. Core-first architecture
 
-All intelligence lives in the daemon.
+All intelligence lives in `vocode-cored`.
 
 The extension is just:
 
@@ -275,23 +275,23 @@ The extension is just:
 ### 🛠️ Current Status
 
 - ✅ Extension boots
-- ✅ Daemon spawns
-- ✅ Cross-platform daemon build
-- 🚧 JSON-RPC transport (next)
+- ✅ Core (`vocode-cored`) spawns
+- ✅ Cross-platform core build
+- ✅ JSON-RPC over stdio (`vocode-cored` + extension)
 - 🚧 Rich edit engine wiring beyond the initial safe slice
 - 🚧 Voice pipeline
 
 ---
 
-### 📦 Daemon Build Details
+### 📦 Core binary build
 
-The daemon is built per platform:
+`vocode-cored` is built per platform under `apps/core`:
 
 ```
-bin/
-  win32-x64/vocoded.exe
-  darwin-arm64/vocoded
-  linux-x64/vocoded
+apps/core/bin/
+  win32-x64/vocode-cored.exe
+  darwin-arm64/vocode-cored
+  linux-x64/vocode-cored
 ```
 
 The extension automatically resolves:
@@ -314,14 +314,14 @@ Vocode: Apply Edit
 Vocode: Run Command
 ```
 
-Supported today: deterministic single-file edits for `insert statement "..." inside current function`, `replace block after "..." before "..." with "..."`, and `append import "..." if missing`. The daemon returns explicit `success`/`failure`/`noop` edit outcomes so the extension can display intent-preserving UX without another agent turn.
+Supported today: deterministic single-file edits for `insert statement "..." inside current function`, `replace block after "..." before "..." with "..."`, and `append import "..." if missing`. The core returns explicit `success`/`failure`/`noop` edit outcomes so the extension can display intent-preserving UX without another agent turn.
 
 ---
 
 ### 🧱 Roadmap (Short-Term)
 
-- [ ] JSON-RPC over stdio
-- [ ] daemon-client wiring
+- [ ] JSON-RPC over stdio (in progress)
+- [ ] polish RPC client surface (`src/daemon/*` naming vs `vocode-cored`)
 - [ ] workspace sync
 - [ ] edit intents → applier
 - [ ] diff UI panel
@@ -335,7 +335,7 @@ See `CONTRIBUTING.md` for more information
 
 1. Install deps: `pnpm install`
 2. Generate protocol types: `pnpm codegen`
-3. Build daemon: `pnpm --filter @vocode/daemon build`
+3. Build core: `pnpm --filter @vocode/core build`
 4. Press `F5` to run extension
 5. Make changes
 6. Run:
@@ -353,8 +353,8 @@ pnpm lint:fix
   - .turbo/
   - dist/
   - bin/
-- Daemon logs go to stderr
-- Daemon stdout will be reserved for RPC protocol
+- Core logs go to stderr
+- Core stdout is reserved for JSON-RPC
 
 ---
 

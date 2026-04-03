@@ -1,10 +1,10 @@
 ### Agent config refactor (provider/model/base URL)
 
-This document describes a future refactor to stop using environment variables for the agent provider/model/base URL selection (except for API keys), and instead pass an explicit configuration from the extension to the daemon, similar to how `daemonConfig` works for planner caps.
+This document describes a future refactor to stop using environment variables for the agent provider/model/base URL selection (except for API keys), and instead pass an explicit configuration from the extension to `vocode-cored`, similar to how `daemonConfig` works for transcript caps (RPC field name is historical).
 
-#### 1. Introduce explicit agent config in the daemon
+#### 1. Introduce explicit agent config in the core
 
-- Add a new type in the daemon agent package (e.g. `apps/daemon/internal/agent/config.go`):
+- Add a new type in the core agent package (e.g. `apps/core/internal/agent/config.go`):
 
 ```go
 type AgentProvider string
@@ -70,7 +70,7 @@ func NewWithConfig(cfg AgentConfig, logger *log.Logger) *Agent {
 
 #### 2. Add config-aware constructors in model clients
 
-- In `apps/daemon/internal/agent/openai/client.go` introduce:
+- In `apps/core/internal/agent/openai/client.go` introduce:
 
 ```go
 type Config struct {
@@ -94,9 +94,9 @@ func NewFromEnv() (*Client, error) {
 
 - Mirror the same pattern for the Anthropic client.
 
-#### 3. Change daemon bootstrap to accept explicit config
+#### 3. Change core bootstrap to accept explicit config
 
-- In `apps/daemon/internal/app/app.go`:
+- In `apps/core/internal/app/app.go`:
   - Replace direct calls to `selectModelClient(logger)` with a path that can accept an `AgentConfig`.
   - For now, build `AgentConfig` from env inside `selectModelClient` and delegate to `agent.NewWithConfig`, so behaviour stays identical while the extension is still passing provider/model/base URL via env.
   - Later, add a way to pass `AgentConfig` into `New` without env (e.g. command-line flags or a small JSON config file).
@@ -112,7 +112,7 @@ func NewFromEnv() (*Client, error) {
     - `daemonAnthropicBaseUrl` → `VOCODE_ANTHROPIC_BASE_URL`
   - Keep API keys in env (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`) exactly as today.
 
-- When spawning the daemon process, pass a small JSON config blob or command-line flags that mirror `AgentConfig`:
+- When spawning `vocode-cored`, pass a small JSON config blob or command-line flags that mirror `AgentConfig`:
   - Values come from `vscode.workspace.getConfiguration("vocode")`:
     - `daemonAgentProvider`
     - `daemonOpenaiModel`
@@ -131,5 +131,5 @@ func NewFromEnv() (*Client, error) {
 
 - Once the extension is updated and tests are green:
   - Consider marking env-based provider/model/base URL selection as deprecated in comments.
-  - Optionally remove those env reads from the main daemon path, keeping them only for direct `go run`/CLI workflows if needed.
+  - Optionally remove those env reads from the main core path, keeping them only for direct `go run`/CLI workflows if needed.
 

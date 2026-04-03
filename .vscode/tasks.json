@@ -8,9 +8,9 @@
       "problemMatcher": []
     },
     {
-      "label": "build:daemon",
+      "label": "build:core",
       "type": "shell",
-      "command": "pnpm --filter @vocode/daemon build",
+      "command": "pnpm --filter @vocode/core build",
       "problemMatcher": []
     },
     {
@@ -27,7 +27,7 @@
     },
     {
       "label": "build:native",
-      "dependsOn": ["build:daemon", "build:voice"],
+      "dependsOn": ["build:core", "build:voice"],
       "dependsOrder": "parallel"
     },
     {

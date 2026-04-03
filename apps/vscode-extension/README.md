@@ -1,6 +1,7 @@
 Extension responsibilities
+
 - activate/deactivate with VS Code lifecycle
-- start daemon process
+- start `vocode-cored` (JSON-RPC backend)
 - connect transport
 - capture editor state
 - capture selection / open file / diagnostics
@@ -12,6 +13,7 @@ Extension responsibilities
 - maybe inline chat / webview panel
 
 The extension should not:
+
 - parse repo deeply
 - decide edit strategy
 - do heavy indexing
