@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +12,10 @@ import (
 	"vocoding.net/vocode/v2/apps/voice/internal/mic"
 	"vocoding.net/vocode/v2/apps/voice/internal/stt"
 )
+
+// errStopTranscribe means the transcribe loop should exit; the user may already have been notified
+// (e.g. drainSTTClientEvents wrote an STT error).
+var errStopTranscribe = errors.New("stop transcribe")
 
 const audioMeterEmitInterval = 40 * time.Millisecond
 
@@ -206,7 +211,9 @@ func (a *App) transcribeLoop(ctx context.Context, apiKey string, rec *mic.Record
 			return
 		}
 		if err := a.considerReleasingOutboundHold(client, contextWindow, &awaitingOutboundCommitted, &outboundCommitDeadline, &sttDeferred, sawCommitted); err != nil {
-			_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs streaming send failed: %v", err)})
+			if !errors.Is(err, errStopTranscribe) {
+				_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs streaming send failed: %v", err)})
+			}
 			return
 		}
 
@@ -221,18 +228,34 @@ func (a *App) transcribeLoop(ctx context.Context, apiKey string, rec *mic.Record
 			for _, c := range vad.process(frame) {
 				if c.commit {
 					if err := a.endOutboundHold(client, contextWindow, &awaitingOutboundCommitted, &outboundCommitDeadline, &sttDeferred, "pre_commit"); err != nil {
-						_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs streaming send failed: %v", err)})
+						if !errors.Is(err, errStopTranscribe) {
+							_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs streaming send failed: %v", err)})
+						}
 						return
 					}
-					if err := a.sendSTTChunk(client, contextWindow, c.pcm, c.commit); err != nil {
-						_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs streaming send failed: %v", err)})
+					sawCommittedNow, err := a.sendSTTChunk(client, contextWindow, c.pcm, c.commit)
+					if err != nil {
+						if !errors.Is(err, errStopTranscribe) {
+							_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs streaming send failed: %v", err)})
+						}
 						return
 					}
-					awaitingOutboundCommitted = true
-					if commitResponseTimeoutMS > 0 {
-						outboundCommitDeadline = time.Now().Add(time.Duration(commitResponseTimeoutMS) * time.Millisecond)
-					} else {
+					if sawCommittedNow {
+						awaitingOutboundCommitted = false
 						outboundCommitDeadline = time.Time{}
+						if err := a.flushSTTDeferred(client, contextWindow, &sttDeferred); err != nil {
+							if !errors.Is(err, errStopTranscribe) {
+								_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs streaming send failed: %v", err)})
+							}
+							return
+						}
+					} else {
+						awaitingOutboundCommitted = true
+						if commitResponseTimeoutMS > 0 {
+							outboundCommitDeadline = time.Now().Add(time.Duration(commitResponseTimeoutMS) * time.Millisecond)
+						} else {
+							outboundCommitDeadline = time.Time{}
+						}
 					}
 					if sttPipelineDebugEnabled() {
 						fmt.Fprintf(os.Stderr, "[vocode-stt] commit_sent pcm_bytes=%d commit_only=%v hold_max_ms=%d\n",
@@ -245,8 +268,10 @@ func (a *App) transcribeLoop(ctx context.Context, apiKey string, rec *mic.Record
 					sttDeferred = append(sttDeferred, c)
 					continue
 				}
-				if err := a.sendSTTChunk(client, contextWindow, c.pcm, false); err != nil {
-					_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs streaming send failed: %v", err)})
+				if _, err := a.sendSTTChunk(client, contextWindow, c.pcm, false); err != nil {
+					if !errors.Is(err, errStopTranscribe) {
+						_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs streaming send failed: %v", err)})
+					}
 					return
 				}
 			}
@@ -257,7 +282,9 @@ func (a *App) transcribeLoop(ctx context.Context, apiKey string, rec *mic.Record
 			return
 		}
 		if err := a.considerReleasingOutboundHold(client, contextWindow, &awaitingOutboundCommitted, &outboundCommitDeadline, &sttDeferred, sawCommitted); err != nil {
-			_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs streaming send failed: %v", err)})
+			if !errors.Is(err, errStopTranscribe) {
+				_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs streaming send failed: %v", err)})
+			}
 			return
 		}
 
@@ -274,12 +301,17 @@ func (a *App) transcribeLoop(ctx context.Context, apiKey string, rec *mic.Record
 		if readErr != nil {
 			if readErr == io.EOF {
 				if err := a.endOutboundHold(client, contextWindow, &awaitingOutboundCommitted, &outboundCommitDeadline, &sttDeferred, "mic_eof"); err != nil {
-					_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs streaming send failed: %v", err)})
+					if !errors.Is(err, errStopTranscribe) {
+						_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs streaming send failed: %v", err)})
+					}
 					return
 				}
 				for _, c := range vad.flush() {
-					if err := a.sendSTTChunk(client, contextWindow, c.pcm, c.commit); err != nil {
-						_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs streaming send failed: %v", err)})
+					_, err := a.sendSTTChunk(client, contextWindow, c.pcm, c.commit)
+					if err != nil {
+						if !errors.Is(err, errStopTranscribe) {
+							_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs streaming send failed: %v", err)})
+						}
 						return
 					}
 					if sttPipelineDebugEnabled() && c.commit {
@@ -298,22 +330,46 @@ func (a *App) transcribeLoop(ctx context.Context, apiKey string, rec *mic.Record
 // sendSTTChunk forwards VAD audio to ElevenLabs. For commits with PCM, we send audio with
 // commit=false and then an empty commit=true frame — the official examples use this pattern and it
 // avoids the model truncating the tail of the segment when commit shared the last audio packet.
-func (a *App) sendSTTChunk(client *stt.ElevenLabsStreamingClient, contextWindow *utteranceWindow, pcm []byte, commit bool) error {
+//
+// After each WebSocket write we drain incoming events so a server error or close is observed before
+// the next write. Otherwise the second half of a commit can fail with "websocket: close sent"
+// while the read loop has already seen the close.
+func (a *App) sendSTTChunk(client *stt.ElevenLabsStreamingClient, contextWindow *utteranceWindow, pcm []byte, commit bool) (sawCommitted bool, err error) {
+	drain := func() (bool, error) {
+		stop, saw := a.drainSTTClientEvents(client, contextWindow)
+		if stop {
+			return false, errStopTranscribe
+		}
+		return saw, nil
+	}
 	if !commit {
-		return client.SendInputAudioChunk(pcm, false, elevenLabsPreviousText(contextWindow))
+		if err := client.SendInputAudioChunk(pcm, false, elevenLabsPreviousText(contextWindow)); err != nil {
+			return false, err
+		}
+		saw, err := drain()
+		return saw, err
 	}
 	if len(pcm) == 0 {
-		return client.SendInputAudioChunk(nil, true, "")
+		if err := client.SendInputAudioChunk(nil, true, ""); err != nil {
+			return false, err
+		}
+		return drain()
 	}
 	if err := client.SendInputAudioChunk(pcm, false, elevenLabsPreviousText(contextWindow)); err != nil {
-		return err
+		return false, err
 	}
-	return client.SendInputAudioChunk(nil, true, "")
+	if _, err := drain(); err != nil {
+		return false, err
+	}
+	if err := client.SendInputAudioChunk(nil, true, ""); err != nil {
+		return false, err
+	}
+	return drain()
 }
 
 func (a *App) flushSTTDeferred(client *stt.ElevenLabsStreamingClient, contextWindow *utteranceWindow, deferred *[]vadChunk) error {
 	for _, c := range *deferred {
-		if err := a.sendSTTChunk(client, contextWindow, c.pcm, c.commit); err != nil {
+		if _, err := a.sendSTTChunk(client, contextWindow, c.pcm, c.commit); err != nil {
 			return err
 		}
 	}

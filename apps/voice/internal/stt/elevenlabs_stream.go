@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/gorilla/websocket"
 )
@@ -35,6 +36,14 @@ type ElevenLabsStreamingClient struct {
 	sessionReady chan struct{}
 	sessionOnce  sync.Once
 	mu           sync.Mutex
+	// writesClosed is 1 after the read loop exits or Close() runs — no further WriteJSON.
+	// Without this, a server-side close can leave SendInputAudioChunk racing the dead conn and
+	// returning gorilla's "websocket: close sent" instead of a clear failure.
+	writesClosed int32
+	// fatalReadErr is set when ReadMessage fails so Send can report the real close reason
+	// (the error event may still be queued behind a failed send in the app loop).
+	fatalMu      sync.Mutex
+	fatalReadErr error
 	sampleRate   int
 	// ElevenLabs returns input_error if previous_text appears after the first non-empty audio chunk
 	// of the session (not per VAD segment).
@@ -134,9 +143,31 @@ func (c *ElevenLabsStreamingClient) Close() error {
 		close(c.done)
 	}
 
+	atomic.StoreInt32(&c.writesClosed, 1)
+	c.setFatalReadErrIfUnset(fmt.Errorf("voice sidecar closed websocket"))
 	c.unblockSessionWait()
 	err := c.conn.Close()
 	return err
+}
+
+func (c *ElevenLabsStreamingClient) setFatalReadErrIfUnset(err error) {
+	if err == nil {
+		return
+	}
+	c.fatalMu.Lock()
+	defer c.fatalMu.Unlock()
+	if c.fatalReadErr == nil {
+		c.fatalReadErr = err
+	}
+}
+
+func (c *ElevenLabsStreamingClient) sendClosedDetail() error {
+	c.fatalMu.Lock()
+	defer c.fatalMu.Unlock()
+	if c.fatalReadErr != nil {
+		return fmt.Errorf("elevenlabs stream closed (%v)", c.fatalReadErr)
+	}
+	return fmt.Errorf("elevenlabs stream closed")
 }
 
 func (c *ElevenLabsStreamingClient) unblockSessionWait() {
@@ -164,6 +195,9 @@ func formatWebSocketErr(err error) error {
 		detail := strings.TrimSpace(ce.Text)
 		if ce.Code == websocket.CloseNormalClosure {
 			if detail != "" {
+				if strings.Contains(strings.ToLower(detail), "insufficient_funds") {
+					return fmt.Errorf("websocket closed: code=1000 reason=%q — ElevenLabs blocked the session for billing. Realtime Scribe/STT is often billed separately from TTS or headline \"credits\"; check Payment & Plans in https://elevenlabs.io", detail)
+				}
 				return fmt.Errorf("websocket closed: code=1000 (normal closure) reason=%q", detail)
 			}
 			return fmt.Errorf("websocket closed: code=1000 (normal closure; session ended by server)")
@@ -198,6 +232,10 @@ func (c *ElevenLabsStreamingClient) SendInputAudioChunk(pcm []byte, commit bool,
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	if atomic.LoadInt32(&c.writesClosed) != 0 {
+		return c.sendClosedDetail()
+	}
+
 	// Finalize: pad trailing silence if the segment is shorter than the API minimum, then send
 	// empty commit (matches sendSTTChunk: pcm commit false, then nil commit true).
 	if commit && len(pcm) == 0 {
@@ -231,6 +269,9 @@ func (c *ElevenLabsStreamingClient) SendInputAudioChunk(pcm []byte, commit bool,
 }
 
 func (c *ElevenLabsStreamingClient) writeInputAudioChunkLocked(pcm []byte, commit bool, previousText string) error {
+	if atomic.LoadInt32(&c.writesClosed) != 0 {
+		return c.sendClosedDetail()
+	}
 	payload := inputAudioChunkMessage{
 		MessageType: messageTypeInputAudioChunk,
 		AudioBase64: base64.StdEncoding.EncodeToString(pcm),
@@ -262,6 +303,7 @@ func (c *ElevenLabsStreamingClient) readLoop() {
 	for {
 		select {
 		case <-c.done:
+			atomic.StoreInt32(&c.writesClosed, 1)
 			return
 		default:
 		}
@@ -269,7 +311,11 @@ func (c *ElevenLabsStreamingClient) readLoop() {
 		_, data, err := c.conn.ReadMessage()
 		if err != nil {
 			c.unblockSessionWait()
-			c.events <- StreamingEvent{Error: formatWebSocketErr(err)}
+			formatted := formatWebSocketErr(err)
+			c.setFatalReadErrIfUnset(formatted)
+			// Stop writers before enqueueing the error so Send cannot hit WriteJSON on a closing conn.
+			atomic.StoreInt32(&c.writesClosed, 1)
+			c.events <- StreamingEvent{Error: formatted}
 			return
 		}
 
