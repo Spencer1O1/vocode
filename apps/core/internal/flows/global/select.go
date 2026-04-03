@@ -65,10 +65,16 @@ func workspaceSelectSearchMiss(host flows.ID, vs *session.VoiceSession) protocol
 		}
 		return c
 	default: // flows.WorkspaceSelect
-		return protocol.VoiceTranscriptCompletion{
+		c := protocol.VoiceTranscriptCompletion{
 			Success:       true,
-			Summary:       "core transcript (stub)",
+			Summary:       "No search query was provided — say what to look for.",
 			UiDisposition: "hidden",
 		}
+		if ws := WorkspaceSearchStateFromSession(vs); ws != nil {
+			c.Search = ws
+			c.Summary = "Keeping current search results; add a phrase to search again."
+			c.UiDisposition = "browse"
+		}
+		return c
 	}
 }

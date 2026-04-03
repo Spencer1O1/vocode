@@ -28,7 +28,7 @@ Rules:
 - For "workspace_select", set "search_query" to the primary symbol or identifier name only (e.g. deltaTime, parseHeader, MyClass) — not a prose phrase like "delta time".
   - Exception — literal text search: user gave an exact phrase, error line, log snippet, comment text, or quoted string to find verbatim in files → put that substring in "search_query" (strip outer quotes only) and omit "search_symbol_kind".
   - Optional "search_symbol_kind" (workspace_select only): when you know what kind of symbol they mean, set one of: function, method, class, variable, constant, interface, enum, property, field, constructor, module, struct, type. Omit or use "" when unsure; never guess if ambiguous.
-- For "select_file", set "search_query" to a path or filename fragment (e.g. "test.js", "src/api"); set "search_symbol_kind" to "".
+- For "select_file", set "search_query" to a single file or folder name only (basename): e.g. game.js, README.md, Res. No slashes, no path segments, no absolute paths — never paste activeFile or any full system path. STT may say "dot" for a period in the name — rewrite to real punctuation in that one segment only. Set "search_symbol_kind" to "".
 - For "workspace_select" and "select_file", "search_query" must be non-empty.
 - For all other routes, set "search_query" to "" and "search_symbol_kind" to "".
 - No other keys. No markdown.
@@ -73,7 +73,7 @@ func ClassifierResponseJSONSchema(flow flows.ID) map[string]any {
 			},
 			"search_query": map[string]any{
 				"type":        "string",
-				"description": "workspace_select: symbol/identifier name or exact literal substring to find in file contents. select_file: path/filename fragment. Otherwise empty.",
+				"description": "workspace_select: symbol/identifier name or exact literal substring to find in file contents. select_file: single file or folder basename only (no slashes, no absolute path). Otherwise empty.",
 			},
 			"search_symbol_kind": map[string]any{
 				"type":        "string",

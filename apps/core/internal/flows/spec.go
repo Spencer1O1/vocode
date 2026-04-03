@@ -40,7 +40,7 @@ func (s Spec) RouteIDs() []string {
 
 var globalRoutes = []Route{
 	{ID: "workspace_select", Description: "User wants to find or select a symbol, identifier, or text in the codebase (by name or contents), not by file path alone. Prefer search_query = that name; optional search_symbol_kind = function, class, variable, etc.", Execution: ExecutionSerialized},
-	{ID: "select_file", Description: "User wants to find or select files or folders by path or filename fragment, not by searching inside file contents.", Execution: ExecutionSerialized},
+	{ID: "select_file", Description: "User wants to find or select files or folders by file or folder name (basename only), not by path and not by searching inside file contents. search_query is a single name segment (e.g. game.js, Res) — no slashes, no absolute path.", Execution: ExecutionSerialized},
 	{ID: "create", Description: "User wants to add new content to the file they have open in the editor (e.g. a function, variable, comment, or append at the end). Where it goes is resolved later. Not a new path on disk.", Execution: ExecutionSerialized},
 	{ID: "control", Description: "User wants to exit or steer the flow (cancel, go back, stop, etc.).", Execution: ExecutionImmediate},
 	{ID: "irrelevant", Description: "Nothing here matches what the user is trying to do in this flow.", Execution: ExecutionImmediate},
@@ -51,7 +51,7 @@ func rootSpec() Spec {
 		{ID: "question", Description: "User asks a question (not a command).", Execution: ExecutionImmediate},
 	}
 	return Spec{
-		Intro:  "You are Vocode's classifier for the ROOT flow.\n\nThe user is NOT in a sub-flow. They may have an active editor file and a text selection.\n\nGiven one voice transcript, choose exactly one route id. You only classify — details are resolved later.",
+		Intro:  "You are Vocode's classifier for the ROOT flow.\n\nThe user is NOT in a sub-flow. They may have an active editor file and a text selection.\n\nUser JSON may include activeFile for context only — for select_file, never put a path in search_query; output the file or folder basename only (e.g. game.js).\n\nGiven one voice transcript, choose exactly one route id. You only classify — details are resolved later.",
 		Routes: append(globalRoutes, rootRoutes...),
 	}
 }
@@ -74,14 +74,14 @@ func fileSelectSpec() Spec {
 		{ID: "file_select_control", Description: "User wants to move through the file hit list or pick a hit by position or number (next, previous, first, third, go to N, etc.).", Execution: ExecutionImmediate},
 		{ID: "move", Description: "User wants to move the selected file or folder to a different path.", Execution: ExecutionSerialized},
 		{ID: "rename", Description: "User wants to rename the selected file or folder (path/name).", Execution: ExecutionSerialized},
-		{ID: "create_entry", Description: "User wants to add a new file or folder on disk using the path list (not new text inside the open editor).", Execution: ExecutionSerialized},
-		{ID: "delete", Description: "User wants to delete the selected file or folder.", Execution: ExecutionSerialized},
+		{ID: "create_entry", Description: "User wants to add a new file on disk under the selected path (root, folder, or next to a file). Not editor buffer text. Empty folders are not created here; moving a file can create destination parent directories.", Execution: ExecutionSerialized},
+		{ID: "delete", Description: "User wants to delete the selected file. (Workspace root and folders are not deletable via this route.)", Execution: ExecutionSerialized},
 	}
 	return Spec{
 		Intro: "You are Vocode's classifier for the SELECT FILE result flow.\nThe user already has a list of search hits (files and folders). Choose exactly one route id. You only classify — details are resolved later.\n\n" +
 			"If they ask to find code, a function, symbol, or text inside files (e.g. \"main\", \"main function\", \"deltaTime\"), use workspace_select — not select_file. " +
-			"Use select_file only for path or filename fragments (e.g. \"src/api\", \"foo.go\").\n\n" +
-			"Route create adds content to the open editor file; create_entry adds a new file or folder path using the list.",
+			"Use select_file only when they name a file or folder by basename; search_query must be a single name with no slashes (not a path).\n\n" +
+			"Route create adds content to the open editor file; create_entry adds a new file path using the list (move creates missing destination folders).",
 		Routes: append(globalRoutes, fsRoutes...),
 	}
 }

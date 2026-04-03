@@ -9,4 +9,8 @@
 // file_select_control). Per-route stubs for non-global routes may live in edit.go, open.go, etc.
 //
 // Package selection holds shared list-navigation parsing ([selection.ParseNav]).
+//
+// File-selection flow: create_entry creates a new file under the focused path (including workspace root).
+// move_path (move route) may create parent directories on the host; create_entry does not create empty folders.
+// Workspace root cannot be deleted, renamed, or moved via file-select routes (same idea as VS Code).
 package flows

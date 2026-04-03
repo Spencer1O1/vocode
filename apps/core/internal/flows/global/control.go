@@ -38,7 +38,7 @@ func HandleControl(host flows.ID, _ protocol.VoiceTranscriptParams, vs *session.
 	default: // flows.Root
 		return protocol.VoiceTranscriptCompletion{
 			Success:       true,
-			Summary:       "core transcript (stub)",
+			Summary:       "Closed voice flow",
 			UiDisposition: "hidden",
 		}, ""
 	}

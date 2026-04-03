@@ -28,15 +28,15 @@ type PathMatch struct {
 }
 
 func pathFragmentMatches(rel, baseName, lowerFragment string) bool {
-	relLower := strings.ToLower(rel)
-	baseLower := strings.ToLower(baseName)
-	return strings.Contains(relLower, lowerFragment) || strings.Contains(baseLower, lowerFragment)
+	return pathContainsFold(rel, lowerFragment) || pathContainsFold(baseName, lowerFragment)
 }
 
 // PathFragmentMatches lists files and directories under root whose relative path or base name contains
-// fragment (case-insensitive). Used for select_file — not content search.
+// fragment (case-insensitive). For select_file the fragment is a single basename. Not content search.
+// Per-segment path resolution (e.g. voice move targets) uses [ResolveWorkspaceRelativePath] instead.
 // Paths strictly inside a matched directory are omitted so listing a folder (e.g. "Res") does not
-// also return every file under it. Returns up to maxPaths matches sorted by path. maxPaths <= 0 defaults to 20.
+// also return every file under it. Prepending the workspace root (when the query names that folder)
+// happens before pruning so children under that root are still dropped. maxPaths <= 0 defaults to 20.
 func PathFragmentMatches(root, fragment string, maxPaths int) ([]PathMatch, error) {
 	root = filepath.Clean(strings.TrimSpace(root))
 	fragment = strings.TrimSpace(fragment)
@@ -94,7 +94,9 @@ func PathFragmentMatches(root, fragment string, maxPaths int) ([]PathMatch, erro
 	if err != nil {
 		return nil, err
 	}
+	matches = prependWorkspaceRootIfBasenameMatches(root, fragment, matches)
 	matches = prunePathMatchesUnderMatchedDirs(matches)
+	rankPathFragmentMatches(matches, fragment)
 	return uniqueSortedPathMatchesCap(matches, maxPaths), nil
 }
 
@@ -149,6 +151,119 @@ func prunePathMatchesUnderMatchedDirs(matches []PathMatch) []PathMatch {
 		}
 	}
 	return out
+}
+
+// fileSearchQueryStopWords strips spoken noise from select_file search queries when matching basenames.
+var fileSearchQueryStopWords = map[string]struct{}{
+	"find": {}, "the": {}, "a": {}, "an": {}, "open": {}, "show": {}, "please": {},
+	"goto": {}, "to": {}, "folder": {}, "folders": {}, "directory": {}, "directories": {},
+	"file": {}, "path": {}, "need": {}, "want": {}, "where": {}, "is": {}, "my": {},
+	"this": {}, "that": {}, "me": {}, "can": {}, "you": {},
+}
+
+var pathSearchBinaryLikeExt = map[string]struct{}{
+	".exe": {}, ".dll": {}, ".dylib": {}, ".so": {}, ".bin": {}, ".pdb": {},
+	".obj": {}, ".o": {}, ".class": {}, ".jar": {}, ".wasm": {},
+	".png": {}, ".jpg": {}, ".jpeg": {}, ".gif": {}, ".webp": {}, ".ico": {},
+	".pdf": {}, ".zip": {}, ".gz": {}, ".7z": {}, ".rar": {},
+}
+
+func isPathSearchBinaryLikeBase(name string) bool {
+	_, ok := pathSearchBinaryLikeExt[strings.ToLower(filepath.Ext(name))]
+	return ok
+}
+
+// IsBinaryLikeFileName reports extensions we should not auto-open as editor text (executables, archives, images).
+func IsBinaryLikeFileName(name string) bool {
+	return isPathSearchBinaryLikeBase(name)
+}
+
+// fragmentRefersToBasename reports whether a spoken query is really about this path segment
+// (e.g. "find the evade directory" → base "Evade").
+func fragmentRefersToBasename(baseName, fragment string) bool {
+	baseName = strings.TrimSpace(baseName)
+	fragment = strings.TrimSpace(fragment)
+	if baseName == "" || fragment == "" {
+		return false
+	}
+	if strings.EqualFold(baseName, fragment) {
+		return true
+	}
+	if NormalizePathTokenForMatch(baseName) == NormalizePathTokenForMatch(fragment) {
+		return true
+	}
+	lowerB := strings.ToLower(baseName)
+	for _, w := range strings.Fields(strings.ToLower(fragment)) {
+		if len(w) < 2 {
+			continue
+		}
+		if _, stop := fileSearchQueryStopWords[w]; stop {
+			continue
+		}
+		if lowerB == w {
+			return true
+		}
+		if NormalizePathTokenForMatch(baseName) == NormalizePathTokenForMatch(w) {
+			return true
+		}
+	}
+	return false
+}
+
+// prependWorkspaceRootIfBasenameMatches adds the workspace folder itself when the walk never lists
+// path==root but the user is clearly asking for that folder (e.g. repo "Evade" + "Evade Exe.exe" inside).
+func prependWorkspaceRootIfBasenameMatches(root, fragment string, matches []PathMatch) []PathMatch {
+	root = filepath.Clean(strings.TrimSpace(root))
+	fragment = strings.TrimSpace(fragment)
+	if root == "" || fragment == "" {
+		return matches
+	}
+	base := filepath.Base(root)
+	if base == "" || base == "." || base == string(filepath.Separator) {
+		return matches
+	}
+	if !fragmentRefersToBasename(base, fragment) {
+		return matches
+	}
+	for _, m := range matches {
+		if strings.EqualFold(filepath.Clean(m.Path), root) {
+			return matches
+		}
+	}
+	return append([]PathMatch{{Path: root, IsDir: true}}, matches...)
+}
+
+func pathFragmentMatchScore(m PathMatch, fragment string) int {
+	score := 0
+	base := filepath.Base(m.Path)
+	depth := strings.Count(filepath.ToSlash(filepath.Clean(m.Path)), "/")
+	if m.IsDir {
+		score += 1000
+		if fragmentRefersToBasename(base, fragment) {
+			score += 500
+		}
+	} else {
+		score += 100
+		if isPathSearchBinaryLikeBase(base) {
+			score -= 400
+		}
+		if fragmentRefersToBasename(base, fragment) {
+			score += 200
+		}
+	}
+	score -= depth * 3
+	return score
+}
+
+func rankPathFragmentMatches(matches []PathMatch, fragment string) {
+	sort.SliceStable(matches, func(i, j int) bool {
+		si := pathFragmentMatchScore(matches[i], fragment)
+		sj := pathFragmentMatchScore(matches[j], fragment)
+		if si != sj {
+			return si > sj
+		}
+		return matches[i].Path < matches[j].Path
+	})
 }
 
 func uniqueSortedPathMatchesCap(items []PathMatch, max int) []PathMatch {

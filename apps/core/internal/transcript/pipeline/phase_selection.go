@@ -3,6 +3,7 @@ package pipeline
 import (
 	"strings"
 
+	globalflow "vocoding.net/vocode/v2/apps/core/internal/flows/global"
 	workspaceselectflow "vocoding.net/vocode/v2/apps/core/internal/flows/workspaceselect"
 	"vocoding.net/vocode/v2/apps/core/internal/transcript/outcome"
 	"vocoding.net/vocode/v2/apps/core/internal/transcript/run"
@@ -21,11 +22,16 @@ func runWorkspaceSelectPhase(
 	route, searchQuery, searchSymbolKind, ok := resolveWorkspaceSelectRoute(e, params, text, pre)
 	if !ok {
 		persist(e, key, *vs)
-		return protocol.VoiceTranscriptCompletion{
+		c := protocol.VoiceTranscriptCompletion{
 			Success:       true,
-			Summary:       "core transcript (stub)",
+			Summary:       "Voice routing failed for workspace search — try rephrasing or say next, previous, or pick a result number.",
 			UiDisposition: "hidden",
-		}, true, ""
+		}
+		if s := globalflow.WorkspaceSearchStateFromSession(vs); s != nil {
+			c.Search = s
+			c.UiDisposition = "browse"
+		}
+		return c, true, ""
 	}
 	execRes, failure := workspaceselectflow.DispatchRoute(selectionDeps(e), params, vs, text, route, searchQuery, searchSymbolKind)
 	if strings.TrimSpace(failure) != "" {

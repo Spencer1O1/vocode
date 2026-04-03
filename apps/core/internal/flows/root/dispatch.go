@@ -62,13 +62,7 @@ func DispatchRoute(
 		return workspaceselectflow.HandleCreate(deps.Editor, params, vs, text)
 
 	case "question":
-		ans := stubQuestionAnswer()
-		return protocol.VoiceTranscriptCompletion{
-			Success:       true,
-			UiDisposition: "hidden",
-			Summary:       ans,
-			Question:      &protocol.VoiceTranscriptQuestionAnswer{AnswerText: ans},
-		}, ""
+		return HandleQuestion(deps, params, text)
 
 	case "irrelevant":
 		return global.HandleIrrelevant(vs, flows.Root)
@@ -93,7 +87,7 @@ func ExecuteMainPhase(
 	if text == "" {
 		return protocol.VoiceTranscriptCompletion{
 			Success:       true,
-			Summary:       "core transcript (stub)",
+			Summary:       "Nothing transcribed",
 			UiDisposition: "hidden",
 		}, ""
 	}
@@ -107,8 +101,4 @@ func ExecuteMainPhase(
 		return IrrelevantSkipped()
 	}
 	return DispatchRoute(deps, params, vs, text, fr)
-}
-
-func stubQuestionAnswer() string {
-	return "Stub answer."
 }

@@ -53,6 +53,66 @@ func TestPathFragmentSearch_folderMatchDoesNotListAllDescendants(t *testing.T) {
 	}
 }
 
+func TestPathFragmentSearch_prependedWorkspaceRootPrunesChildFiles(t *testing.T) {
+	// Regression: prepend must run before prune, otherwise .exe/.jar under the repo root stay listed.
+	parent := t.TempDir()
+	evadeRoot := filepath.Join(parent, "Evade")
+	if err := os.MkdirAll(evadeRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"Evade Exe.exe", "Evade.jar"} {
+		if err := os.WriteFile(filepath.Join(evadeRoot, name), []byte{0}, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := PathFragmentMatches(evadeRoot, "evade", 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || !got[0].IsDir || filepath.Clean(got[0].Path) != filepath.Clean(evadeRoot) {
+		t.Fatalf("want only workspace root dir, got %#v", got)
+	}
+}
+
+func TestPathFragmentSearch_workspaceRootPreferredOverExe(t *testing.T) {
+	// Workspace is the repo folder itself; walk never lists root, only children like "Evade Exe.exe".
+	parent := t.TempDir()
+	evadeRoot := filepath.Join(parent, "Evade")
+	if err := os.MkdirAll(evadeRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(evadeRoot, "Evade Exe.exe"), []byte{0x4d, 0x5a}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := PathFragmentMatches(evadeRoot, "find the evade directory", 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || !got[0].IsDir || filepath.Clean(got[0].Path) != filepath.Clean(evadeRoot) {
+		t.Fatalf("want only workspace root dir, got %#v", got)
+	}
+}
+
+func TestPathFragmentSearch_directoryBeatsBinaryWhenBothMatch(t *testing.T) {
+	root := t.TempDir()
+	evadeDir := filepath.Join(root, "Evade")
+	if err := os.MkdirAll(evadeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(evadeDir, "Evade Exe.exe"), []byte{0x4d, 0x5a}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := PathFragmentMatches(root, "evade", 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) < 1 || !got[0].IsDir || filepath.Clean(got[0].Path) != filepath.Clean(evadeDir) {
+		t.Fatalf("want top match Evade folder, got %#v", got)
+	}
+}
+
 func TestPathFragmentSearch_skipsNodeModules(t *testing.T) {
 	root := t.TempDir()
 	nm := filepath.Join(root, "node_modules", "pkg")

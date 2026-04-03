@@ -8,7 +8,7 @@ import (
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
-// HandleDelete handles the "delete" route.
+// HandleDelete handles the "delete" route (files only; not workspace root or arbitrary folders).
 func HandleDelete(deps *SelectFileDeps, params protocol.VoiceTranscriptParams, vs *session.VoiceSession, text string) (protocol.VoiceTranscriptCompletion, string) {
 	_ = text
 	return fileSelectionDeletePath(deps, params, vs, strings.TrimSpace(vs.FileSelectionFocus))
@@ -18,6 +18,9 @@ func fileSelectionDeletePath(deps *SelectFileDeps, params protocol.VoiceTranscri
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return protocol.VoiceTranscriptCompletion{Success: false}, "delete: no file path"
+	}
+	if isOpenedWorkspaceRoot(params, path) {
+		return protocol.VoiceTranscriptCompletion{Success: false}, "delete: cannot delete the workspace folder"
 	}
 	if deps.HostApply == nil {
 		return protocol.VoiceTranscriptCompletion{Success: false}, "host apply client not configured"

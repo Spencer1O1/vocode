@@ -2,6 +2,7 @@ package searchapply
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"vocoding.net/vocode/v2/apps/core/internal/search"
@@ -11,7 +12,7 @@ import (
 )
 
 // FileSearchFromQuery walks the workspace for paths whose relative path or basename contains the
-// query fragment (case-insensitive), updates optional session file-list fields, and returns a
+// query basename (case-insensitive), updates optional session file-list fields, and returns a
 // completion with FileSelection plus host open of the first path when it is a file.
 func (e *TranscriptSearch) FileSearchFromQuery(params protocol.VoiceTranscriptParams, q string, vs *session.VoiceSession) (protocol.VoiceTranscriptCompletion, bool, string) {
 	q = strings.TrimSpace(q)
@@ -26,7 +27,12 @@ func (e *TranscriptSearch) FileSearchFromQuery(params protocol.VoiceTranscriptPa
 		}, true, "search requires workspaceRoot or activeFile"
 	}
 
-	matches, err := search.PathFragmentMatches(root, q, fileSearchMaxUniquePaths)
+	fragment := search.NormalizeSelectFileSearchQuery(root, q)
+	if fragment == "" {
+		return protocol.VoiceTranscriptCompletion{}, false, ""
+	}
+
+	matches, err := search.PathFragmentMatches(root, fragment, fileSearchMaxUniquePaths)
 	if err != nil {
 		return protocol.VoiceTranscriptCompletion{Success: false}, true, "file search failed: " + err.Error()
 	}
@@ -40,7 +46,7 @@ func (e *TranscriptSearch) FileSearchFromQuery(params protocol.VoiceTranscriptPa
 	if len(paths) == 0 {
 		// Do not mutate session: empty paths would clear FileSelectionPaths and break fallbacks
 		// (e.g. workspace search) and "keep file list" recovery in file-selection phase.
-		return completionFileSearchNoHits(q), true, ""
+		return completionFileSearchNoHits(fragment), true, ""
 	}
 	mutateSessionFilePathSearchResults(vs, paths, isDir)
 
@@ -51,7 +57,7 @@ func (e *TranscriptSearch) FileSearchFromQuery(params protocol.VoiceTranscriptPa
 		return protocol.VoiceTranscriptCompletion{Success: false}, true, "search engine not fully configured"
 	}
 	first := matches[0]
-	if !first.IsDir {
+	if !first.IsDir && !search.IsBinaryLikeFileName(filepath.Base(first.Path)) {
 		dirs := openFirstFileDirectives(first.Path)
 		batchID := e.NewBatchID()
 		if vs != nil {
@@ -77,7 +83,7 @@ func (e *TranscriptSearch) FileSearchFromQuery(params protocol.VoiceTranscriptPa
 		}
 	}
 
-	return completionFileSearchWithPaths(paths, isDir, q), true, ""
+	return completionFileSearchWithPaths(paths, isDir, fragment), true, ""
 }
 
 func mutateSessionFilePathSearchResults(vs *session.VoiceSession, paths []string, isDir []bool) {

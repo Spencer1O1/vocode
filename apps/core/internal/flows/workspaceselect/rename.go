@@ -19,7 +19,7 @@ func HandleRename(deps *SelectionDeps, params protocol.VoiceTranscriptParams, vs
 	if vs.ActiveSearchIndex < 0 || vs.ActiveSearchIndex >= len(vs.SearchResults) {
 		return protocol.VoiceTranscriptCompletion{Success: false}, "rename: invalid active hit"
 	}
-	newName, ok := parseSymbolRenameNewName(strings.TrimSpace(text))
+	newName, ok := ParseSpokenRenameNewName(strings.TrimSpace(text))
 	if !ok {
 		return protocol.VoiceTranscriptCompletion{Success: false}, `rename: use "rename … to <newName>" (single identifier)`
 	}
@@ -77,7 +77,8 @@ func HandleRename(deps *SelectionDeps, params protocol.VoiceTranscriptParams, vs
 	}, ""
 }
 
-func parseSymbolRenameNewName(text string) (string, bool) {
+// ParseSpokenRenameNewName extracts a new identifier from phrases like "rename foo to bar".
+func ParseSpokenRenameNewName(text string) (string, bool) {
 	t := strings.ToLower(text)
 	if !strings.Contains(t, "rename") {
 		return "", false

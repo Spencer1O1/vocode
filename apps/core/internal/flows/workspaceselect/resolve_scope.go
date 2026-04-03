@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"vocoding.net/vocode/v2/apps/core/internal/transcript/hostdirectives"
+	"vocoding.net/vocode/v2/apps/core/internal/transcript/session"
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
@@ -65,6 +66,54 @@ func normalizeRange(lines []string, sl, sc, el, ec *int) bool {
 		*ec = len(lines[*el])
 	}
 	return true
+}
+
+// IsWholeFileRange reports whether (sl,sc)-(el,ec) spans the entire file (0,0 through end of last line).
+func IsWholeFileRange(fileText string, sl, sc, el, ec int) bool {
+	lines := strings.Split(fileText, "\n")
+	if len(lines) == 0 {
+		return true
+	}
+	last := len(lines) - 1
+	return sl == 0 && sc == 0 && el == last && ec == len(lines[last])
+}
+
+// RangeForSearchHit maps a ripgrep-style hit (0-based line/char, byte length) to an end position in the file.
+// End column is exclusive, consistent with [extractRangeText].
+func RangeForSearchHit(fileText string, hit session.SearchHit) (sl, sc, el, ec int, ok bool) {
+	lines := strings.Split(fileText, "\n")
+	if hit.Line < 0 || hit.Line >= len(lines) {
+		return 0, 0, 0, 0, false
+	}
+	sl, sc = hit.Line, hit.Character
+	if sc < 0 || sc > len(lines[sl]) {
+		return 0, 0, 0, 0, false
+	}
+	length := hit.Len
+	if length <= 0 {
+		length = 1
+	}
+	line, col := sl, sc
+	rem := length
+	for {
+		if line >= len(lines) {
+			return 0, 0, 0, 0, false
+		}
+		cur := lines[line]
+		avail := len(cur) - col
+		if rem <= avail {
+			return sl, sc, line, col + rem, true
+		}
+		rem -= avail
+		line++
+		col = 0
+		if rem > 0 {
+			rem-- // newline
+		}
+		if rem == 0 {
+			return sl, sc, line, 0, true
+		}
+	}
 }
 
 func extractRangeText(fileText string, sl, sc, el, ec int) (string, bool) {

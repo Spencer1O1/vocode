@@ -24,7 +24,7 @@ export function SearchPanel({ state }: { state: PanelState }) {
         <div className="card history-card interrupt-search-card interrupt-panel-empty">
           <div className="interrupt-panel-lead">{msg}</div>
           <p className="interrupt-panel-footnote">
-            Try a different name, path fragment, or symbol. Say “cancel” or
+            Try a different file name or symbol. Say “cancel” or
             close when you’re done.
           </p>
         </div>
@@ -55,7 +55,7 @@ export function SearchPanel({ state }: { state: PanelState }) {
     ss.results.length - 1,
   );
   const kicker = isFile
-    ? `${ss.results.length} file${ss.results.length === 1 ? "" : "s"} — the highlighted row is active in the editor.`
+    ? `${ss.results.length} path match${ss.results.length === 1 ? "" : "es"} — the highlighted row is active in the editor.`
     : `${ss.results.length} match${ss.results.length === 1 ? "" : "es"} — the highlighted row is active in the editor.`;
 
   return (

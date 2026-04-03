@@ -3,13 +3,14 @@ package searchapply
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
 type fakeHostApply struct {
-	lastBatch string
+	lastBatch   string
 	nDirectives int
 }
 
@@ -61,5 +62,35 @@ func TestFileSearchFromQuery_findsByPathNotBody(t *testing.T) {
 	}
 	if host.nDirectives != 1 {
 		t.Fatalf("host directives: %d", host.nDirectives)
+	}
+}
+
+func TestFileSearchFromQuery_absoluteQueryUnderWorkspace(t *testing.T) {
+	root := t.TempDir()
+	res := filepath.Join(root, "Res")
+	if err := os.MkdirAll(res, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(res, "game.js")
+	if err := os.WriteFile(path, []byte("// x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	e := &TranscriptSearch{
+		HostApply:  &fakeHostApply{},
+		NewBatchID: func() string { return "b" },
+	}
+	params := protocol.VoiceTranscriptParams{WorkspaceRoot: root}
+	comp, handled, msg := e.FileSearchFromQuery(params, path, nil)
+	if !handled || msg != "" || !comp.Success {
+		t.Fatalf("handled=%v msg=%q success=%v", handled, msg, comp.Success)
+	}
+	if comp.FileSelection == nil || comp.FileSelection.NoHits || len(comp.FileSelection.Results) == 0 {
+		t.Fatalf("expected hits: %#v", comp.FileSelection)
+	}
+	if filepath.Clean(comp.FileSelection.Results[0].Path) != filepath.Clean(path) {
+		t.Fatalf("path %q want %q", comp.FileSelection.Results[0].Path, path)
+	}
+	if !strings.Contains(strings.ToLower(comp.Summary), "game.js") {
+		t.Fatalf("summary should mention basename: %q", comp.Summary)
 	}
 }

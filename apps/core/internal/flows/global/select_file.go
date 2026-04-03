@@ -10,7 +10,7 @@ import (
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
-// TryHandleSelectFileSearch runs file-path search using the classifier-provided fragment.
+// TryHandleSelectFileSearch runs file-path search using the classifier-provided file/folder basename.
 // If path search yields noHits, it tries workspace (symbol/content) search with the same query so
 // utterances like "main" still resolve when the classifier wrongly chose select_file.
 // host is the flow that dispatched select_file (Root, SelectFile, or WorkspaceSelect) for preserve behavior.
@@ -43,7 +43,7 @@ func TryHandleSelectFileSearch(
 			}
 			if host == flows.SelectFile && (len(vs.FileSelectionPaths) > 0 || strings.TrimSpace(vs.FileSelectionFocus) != "") {
 				c := selectFileSearchMiss(host, vs)
-				c.Summary = fmt.Sprintf("no file path matches for %q", q)
+				c.Summary = fmt.Sprintf("No file path matches for %q — showing your previous selection.", q)
 				return c, "", true
 			}
 		}
@@ -87,10 +87,16 @@ func selectFileSearchMiss(host flows.ID, vs *session.VoiceSession) protocol.Voic
 		}
 		return c
 	default: // flows.WorkspaceSelect
-		return protocol.VoiceTranscriptCompletion{
+		c := protocol.VoiceTranscriptCompletion{
 			Success:       true,
-			Summary:       "core transcript (stub)",
+			Summary:       "No file name was provided — say a file or folder name to find.",
 			UiDisposition: "hidden",
 		}
+		if ws := WorkspaceSearchStateFromSession(vs); ws != nil {
+			c.Search = ws
+			c.Summary = "Keeping current search results; say a file or folder name to search."
+			c.UiDisposition = "browse"
+		}
+		return c
 	}
 }

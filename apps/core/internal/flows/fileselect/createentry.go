@@ -10,8 +10,9 @@ import (
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
-// HandleCreateEntry creates a new file under the focused file-selection row: sibling of a file,
-// or inside a selected directory.
+// HandleCreateEntry creates a new file under the focused file-selection row: workspace root,
+// a selected directory, or next to a selected file (sibling). It does not create empty directories;
+// use move to a path whose parent chain should exist — the host creates missing parent dirs for move_path.
 func HandleCreateEntry(deps *SelectFileDeps, params protocol.VoiceTranscriptParams, vs *session.VoiceSession, text string) (protocol.VoiceTranscriptCompletion, string) {
 	focus := strings.TrimSpace(vs.FileSelectionFocus)
 	if focus == "" {
