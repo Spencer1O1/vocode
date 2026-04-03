@@ -116,50 +116,41 @@ type voiceCommandPlan struct {
 	TimeoutMs          *int64   `json:"timeoutMs"`
 }
 
+// voiceCommandResponseSchema must be a JSON object at the root with type "object".
+// OpenAI response_format json_schema rejects root-level oneOf (no root type → API error "type: None").
 func voiceCommandResponseSchema() map[string]any {
 	return map[string]any{
-		"oneOf": []any{
-			map[string]any{
-				"type":                 "object",
-				"additionalProperties": false,
-				"required":             []string{"status", "command", "args"},
-				"properties": map[string]any{
-					"status": map[string]any{
-						"type": "string",
-						"enum": []string{"ok"},
-					},
-					"command": map[string]any{
-						"type":        "string",
-						"description": "Single shell executable only: cmd, powershell, pwsh, sh, bash, zsh, or fish (basename or with .exe on Windows).",
-					},
-					"args": map[string]any{
-						"type":  "array",
-						"items": map[string]any{"type": "string"},
-					},
-					"workingDirectory": map[string]any{
-						"type":        "string",
-						"description": "Absolute directory for spawn cwd; use workspace root when appropriate.",
-					},
-					"timeoutMs": map[string]any{
-						"type":        "integer",
-						"description": "Optional timeout in ms; omit to use daemon default.",
-					},
-				},
+		"type":                 "object",
+		"additionalProperties": false,
+		"required":             []string{"status"},
+		"properties": map[string]any{
+			"status": map[string]any{
+				"type":        "string",
+				"enum":        []string{"ok", "insufficient_context"},
+				"description": `Use "ok" with command and args, or "insufficient_context" with message only.`,
 			},
-			map[string]any{
-				"type":                 "object",
-				"additionalProperties": false,
-				"required":             []string{"status", "message"},
-				"properties": map[string]any{
-					"status": map[string]any{
-						"type": "string",
-						"enum": []string{"insufficient_context"},
-					},
-					"message": map[string]any{
-						"type":        "string",
-						"description": "Short reason for the user (no markdown fences).",
-					},
-				},
+			"message": map[string]any{
+				"type":        "string",
+				"description": "When status is insufficient_context: short reason for the user (no markdown). Omit when status is ok.",
+			},
+			"command": map[string]any{
+				"type": "string",
+				"description": "When status is ok: ONLY a shell executable — powershell.exe, pwsh, cmd.exe, bash, sh, zsh, or fish. " +
+					"INVALID (host will reject): npx, npm, pnpm, yarn, node, git, cargo, go, python.",
+			},
+			"args": map[string]any{
+				"type":  "array",
+				"items": map[string]any{"type": "string"},
+				"description": "When status is ok: arguments for that shell only. Put the full dev invocation inside -Command (win32) or -c / -lc (Unix) — " +
+					"e.g. args [\"-NoProfile\",\"-NonInteractive\",\"-Command\",\"npx create-expo-app@latest myapp\"].",
+			},
+			"workingDirectory": map[string]any{
+				"type":        "string",
+				"description": "Optional absolute cwd when status is ok.",
+			},
+			"timeoutMs": map[string]any{
+				"type":        "integer",
+				"description": "Optional timeout in ms when status is ok.",
 			},
 		},
 	}
@@ -184,21 +175,33 @@ func HandleCommand(
 	ctxBody, _ := gatherWorkspaceCommandContext(deps.ExtensionHost, root)
 
 	sys := strings.TrimSpace(`You are Vocode's voice command planner inside an IDE.
-The user wants a shell command executed. You output ONE JSON object matching the schema.
+The host runs your JSON by spawning EXACTLY ONE process: the string in "command" must be a shell binary only. It will REJECT npx, npm, pnpm, node, git, cargo, etc. as "command".
+
+Output ONE JSON object matching the schema.
+
+status "insufficient_context": set "message"; leave command/args empty or omit.
+
+status "ok": REQUIRED SHAPE
+- "command": one of powershell.exe, pwsh, cmd.exe, bash, sh, zsh, fish (no other values).
+- "args": that shell's argv. The dev tools (npx, npm, pnpm, …) appear ONLY inside the script string passed to -Command (Windows) or -c / -lc (macOS/Linux), never as "command".
+
+Concrete win32 example (Expo scaffold):
+  "command": "powershell.exe",
+  "args": ["-NoProfile","-NonInteractive","-Command","npx create-expo-app@latest VocodedApp --yes"]
+
+Concrete Unix example:
+  "command": "bash",
+  "args": ["-lc","npx create-expo-app@latest VocodedApp --yes"]
+
+WRONG (will fail): "command":"npx","args":["create-expo-app",...]
 
 Rules:
-- status "ok": emit a real command as a trusted shell + args (non-interactive).
-  - Windows (hostPlatform win32): prefer powershell.exe with -NoProfile, -NonInteractive, -Command, and ONE string containing the full script, OR cmd.exe with /c and one string.
-  - macOS/Linux: prefer bash with -lc and ONE string for the script, or sh -c.
-- The executable in "command" must be ONLY a shell from this set: cmd.exe, powershell, pwsh, sh, bash, zsh, fish (single token, no spaces).
-- Put dev tools (pnpm, npm, npx, pnpm dlx, yarn, yarn dlx, bun, cargo, go, etc.) inside the script string passed to -Command or -c, not as "command".
-- You choose which runner and subcommands to use from the gathered workspace files, stack conventions, and hostPlatform — unless the user explicitly names a tool or command (e.g. "with pnpm", "use npx"), in which case follow their choice.
-- workingDirectory: absolute path. Use the workspace root when running installs or project commands. For monorepos, you may use a package directory if the active file path implies it and the user intent is local to that package.
-- If the user names a tool explicitly (pnpm, npx, …), you MUST honor it even when package.json is missing (greenfield).
-- If the user is vague about scaffolding (e.g. "create an expo app") and there are no repo signals, emit a conventional one-shot command and pick a reasonable runner yourself (npx, pnpm dlx, etc.); the host will surface stderr if it fails.
-- If the user asks to install dependencies but there is no package.json or Node lockfile in the gathered context AND they did not name a package manager or tool: status MUST be "insufficient_context" with a short message (ask them to name a tool or open the project folder).
-- status "insufficient_context": when you cannot responsibly choose a command (ambiguous with no evidence and no tool named, or missing critical info). Include message only; no command/args.
-- Never emit markdown. JSON only.`)
+- Pick runners (npx vs pnpm dlx, etc.) inside the script; honor the user's tool if they name one.
+- workingDirectory: absolute when needed; default to workspace root for installs/scaffolds.
+- Greenfield: user may name pnpm/npx explicitly — still wrap in a shell as above.
+- Vague scaffold + no repo files: pick a conventional script (e.g. npx create-expo-app@latest); stderr shows if it fails.
+- "install dependencies" with no package.json/lockfile and no tool named → insufficient_context.
+- Never markdown. JSON only.`)
 
 	var userPayload strings.Builder
 	userPayload.WriteString("User transcript:\n")
@@ -259,7 +262,8 @@ Rules:
 
 	cmd := strings.TrimSpace(plan.Command)
 	if !isAllowedShellCommand(cmd) {
-		return protocol.VoiceTranscriptCompletion{Success: false}, "command: model returned a non-shell executable"
+		return protocol.VoiceTranscriptCompletion{Success: false},
+			`command: "command" must be a shell (powershell.exe, bash, sh, …) — put npx/npm/pnpm inside -Command or -c, not in "command"`
 	}
 	if len(plan.Args) == 0 {
 		return protocol.VoiceTranscriptCompletion{Success: false}, "command: model returned empty args"
