@@ -261,7 +261,7 @@ test("uiDisposition=hidden prevents adding items to Recent while clarify is acti
   assert.equal(store.getSnapshot().recentHandled[0]?.skipped, true);
 });
 
-test("uiDisposition=hidden keeps search updates out of Recent/History", () => {
+test("uiDisposition=hidden keeps search updates out of Recent/History when no summary", () => {
   const store = new MainPanelStore();
   const id = store.enqueueCommitted("find foo") as number;
   store.markHandled(id, {
@@ -271,7 +271,6 @@ test("uiDisposition=hidden keeps search updates out of Recent/History", () => {
       activeIndex: 0,
     },
   });
-  // Search flows are not edits; don't add them to history.
   assert.equal(store.getSnapshot().recentHandled.length, 0);
 
   const nav = store.enqueueCommitted("next") as number;
@@ -283,6 +282,42 @@ test("uiDisposition=hidden keeps search updates out of Recent/History", () => {
     },
   });
   assert.equal(store.getSnapshot().recentHandled.length, 0);
+});
+
+test("markHandled logs search to History when hidden but core sent a summary", () => {
+  const store = new MainPanelStore();
+  const id = store.enqueueCommitted("find foo") as number;
+  store.markHandled(id, {
+    uiDisposition: "hidden",
+    summary: 'found 2 matches for "foo"',
+    search: {
+      results: [{ path: "a.ts", line: 0, character: 0, preview: "hit" }],
+      activeIndex: 0,
+    },
+  });
+  assert.equal(store.getSnapshot().recentHandled.length, 1);
+  assert.equal(
+    store.getSnapshot().recentHandled[0]?.summary,
+    'found 2 matches for "foo"',
+  );
+});
+
+test("markHandled workspace noHits opens empty search state for sidebar", () => {
+  const store = new MainPanelStore();
+  const id = store.enqueueCommitted("find zzz") as number;
+  store.markHandled(id, {
+    uiDisposition: "hidden",
+    summary: 'no matches for "zzz"',
+    search: { noHits: true },
+  });
+  const ss = store.getSnapshot().searchState;
+  assert.ok(ss);
+  assert.equal(ss?.noHits, true);
+  assert.equal(ss?.results.length, 0);
+  assert.ok(
+    (ss?.noHitsSummary ?? "").includes("zzz") ||
+      ss?.noHitsSummary === 'no matches for "zzz"',
+  );
 });
 
 test("uiDisposition=hidden prevents noise in Recent while searchState is active", () => {

@@ -31,18 +31,31 @@ Rules:
 - For all other routes, set "search_query" to "" and "search_symbol_kind" to "".
 - No other keys. No markdown.
 `)
+	if flow == flows.WorkspaceSelect {
+		b.WriteString(`
+
+Workspace select flow (user JSON may include activeFile and hasNonemptySelection):
+- The editor may have a non-empty selection while this flow is active. If the user is giving an imperative to modify code (e.g. "make it pass X into Y", "add a parameter", "rename this") and is not starting a new workspace search, choose route "edit" with empty search_query. Words that sound like symbol names in that case describe what to change, not a new search_query for "workspace_select".
+- When hasNonemptySelection is true and the utterance is clearly a code change (not "find"/"search for"/"where is"), prefer "edit" over "workspace_select".
+- Use "workspace_select" only when they explicitly want a new search (find, search for, locate, another symbol, etc.).
+`)
+	}
 	return strings.TrimSpace(b.String())
 }
 
 // ClassifierUserJSON is the minimal user payload for route classification (flow + utterance).
 func ClassifierUserJSON(in Context) ([]byte, error) {
 	type payload struct {
-		Flow        flows.ID `json:"flow"`
-		Instruction string   `json:"instruction"`
+		Flow                 flows.ID `json:"flow"`
+		Instruction          string   `json:"instruction"`
+		ActiveFile           string   `json:"activeFile,omitempty"`
+		HasNonemptySelection bool     `json:"hasNonemptySelection,omitempty"`
 	}
 	p := payload{
-		Flow:        in.Flow,
-		Instruction: strings.TrimSpace(in.Instruction),
+		Flow:                 in.Flow,
+		Instruction:          strings.TrimSpace(in.Instruction),
+		ActiveFile:           strings.TrimSpace(in.ActiveFile),
+		HasNonemptySelection: in.HasNonemptySelection,
 	}
 	return json.MarshalIndent(p, "", "  ")
 }

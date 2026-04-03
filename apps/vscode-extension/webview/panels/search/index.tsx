@@ -3,15 +3,57 @@ import type { PanelState } from "../../types";
 
 export function SearchPanel({ state }: { state: PanelState }) {
   const ss = state.searchState;
-  if (!ss || !Array.isArray(ss.results) || ss.results.length === 0) {
+  if (!ss) {
     return null;
   }
+
+  const isFile = ss.listKind === "file";
+  const cancelControl = isFile ? "cancel_file_selection" : "cancel_selection";
+
+  if (ss.noHits) {
+    const msg =
+      ss.noHitsSummary?.trim() ||
+      (isFile
+        ? "No files or folders matched that search."
+        : "No matches in the workspace for that search.");
+    return (
+      <div className="interrupt-panel">
+        <p className="interrupt-panel-kicker">
+          {isFile ? "File search" : "Workspace search"}
+        </p>
+        <div className="card history-card interrupt-search-card interrupt-panel-empty">
+          <div className="interrupt-panel-lead">{msg}</div>
+          <p className="interrupt-panel-footnote">
+            Try a different name, path fragment, or symbol. Say “cancel” or
+            close when you’re done.
+          </p>
+        </div>
+        <div className="interrupt-actions">
+          <button
+            type="button"
+            className="interrupt-secondary-btn"
+            onClick={() =>
+              getVsCodeApi()?.postMessage({
+                type: "transcriptControl",
+                control: cancelControl,
+              })
+            }
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!Array.isArray(ss.results) || ss.results.length === 0) {
+    return null;
+  }
+
   const active = Math.min(
     Math.max(0, Number.isFinite(ss.activeIndex) ? ss.activeIndex : 0),
     ss.results.length - 1,
   );
-  const isFile = ss.listKind === "file";
-  const cancelControl = isFile ? "cancel_file_selection" : "cancel_selection";
   const kicker = isFile
     ? `${ss.results.length} file${ss.results.length === 1 ? "" : "s"} — the highlighted row is active in the editor.`
     : `${ss.results.length} match${ss.results.length === 1 ? "" : "es"} — the highlighted row is active in the editor.`;
@@ -32,9 +74,7 @@ export function SearchPanel({ state }: { state: PanelState }) {
                 {i + 1}
               </span>
               <span className="muted-transcript">
-                {isFile
-                  ? r.path
-                  : `${r.path}:${r.line + 1}:${r.character + 1}`}
+                {isFile ? r.path : `${r.path}:${r.line + 1}:${r.character + 1}`}
               </span>
             </div>
             <div className="text mono interrupt-search-preview">

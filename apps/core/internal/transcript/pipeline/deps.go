@@ -73,17 +73,14 @@ func rootDeps(e *run.Env) *rootflow.RootDeps {
 	}
 }
 
-func resolveWorkspaceSelectRoute(e *run.Env, text string, pre preOpts) (route, searchQuery, searchSymbolKind string, ok bool) {
+func resolveWorkspaceSelectRoute(e *run.Env, params protocol.VoiceTranscriptParams, text string, pre preOpts) (route, searchQuery, searchSymbolKind string, ok bool) {
 	if pre.has && pre.flow == flows.WorkspaceSelect {
 		return pre.route, pre.searchQuery, pre.searchSymbolKind, true
 	}
 	if e.FlowRouter == nil {
 		return "", "", "", false
 	}
-	fr, err := e.FlowRouter.ClassifyFlow(context.Background(), router.Context{
-		Flow:        flows.WorkspaceSelect,
-		Instruction: text,
-	})
+	fr, err := e.FlowRouter.ClassifyFlow(context.Background(), router.ContextForClassification(flows.WorkspaceSelect, text, params))
 	if err != nil {
 		return "", "", "", false
 	}

@@ -55,11 +55,11 @@ func rootSpec() Spec {
 func workspaceSelectSpec() Spec {
 	wsRoutes := []Route{
 		{ID: "workspace_select_control", Description: "Navigate the workspace hit list (next/previous, jump/goto by number).", Execution: ExecutionImmediate},
-		{ID: "edit", Description: "They want to edit or change code (scoped edit), not just navigate the list.", Execution: ExecutionSerialized},
+		{ID: "edit", Description: "They want to edit or change code in the editor (scoped edit), e.g. pass an argument, refactor the selection — not start a new workspace_select search for words they mention.", Execution: ExecutionSerialized},
 		{ID: "delete", Description: "They want to delete this selection.", Execution: ExecutionSerialized},
 	}
 	return Spec{
-		Intro:  "You are Vocode's classifier for the WORKSPACE SELECT flow.\nThe user already has a list of workspace text/symbol search hits. Choose exactly one route id. You only classify — details are resolved later.",
+		Intro:  "You are Vocode's classifier for the WORKSPACE SELECT flow.\nThe user already has a list of workspace text/symbol search hits. They also have the editor focused with a text selection.\n\nChoose exactly one route id. You only classify — details are resolved later.",
 		Routes: append(globalRoutes, wsRoutes...),
 	}
 }

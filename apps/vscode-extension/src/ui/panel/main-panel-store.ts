@@ -1,12 +1,11 @@
 import path from "node:path";
-
 import type {
   VoiceTranscriptClarifyOffer,
   VoiceTranscriptFileListHit,
   VoiceTranscriptFileSearchState,
   VoiceTranscriptQuestionAnswer,
-  VoiceTranscriptWorkspaceSearchState,
   VoiceTranscriptWorkspaceHints,
+  VoiceTranscriptWorkspaceSearchState,
 } from "@vocode/protocol";
 
 /**
@@ -53,9 +52,7 @@ function inferVoiceTranscriptUiDisposition(opts: {
   return "shown";
 }
 
-function sidebarRowsFromFileHits(
-  hits: readonly VoiceTranscriptFileListHit[],
-): {
+function sidebarRowsFromFileHits(hits: readonly VoiceTranscriptFileListHit[]): {
   path: string;
   line: number;
   character: number;
@@ -109,6 +106,9 @@ export type MainPanelSnapshot = {
     readonly activeIndex: number;
     /** Workspace text hits vs file path hits (same sidebar list UX). */
     readonly listKind?: "workspace" | "file";
+    /** Search / file path ran but returned no hits — show empty-state in Search panel. */
+    readonly noHits?: boolean;
+    readonly noHitsSummary?: string;
   };
   /** Latest question answer (`VoiceTranscriptCompletion.question`). */
   readonly answerState?: {
@@ -184,6 +184,8 @@ export class MainPanelStore {
         }[];
         activeIndex: number;
         listKind?: "workspace" | "file";
+        noHits?: boolean;
+        noHitsSummary?: string;
         /** Daemon session key for this hit list; used for cancel_* RPC after voice stops. */
         contextSessionId?: string;
       }
@@ -464,8 +466,19 @@ export class MainPanelStore {
     }
     if (options?.search) {
       const s = options.search;
-      if (s.closed || s.noHits) {
+      if (s.closed) {
         this.searchState = undefined;
+      } else if (s.noHits) {
+        const prevCtx = this.searchState?.contextSessionId;
+        this.searchState = {
+          results: [],
+          activeIndex: 0,
+          listKind: "workspace",
+          noHits: true,
+          noHitsSummary:
+            summary && summary !== "" ? summary : "No matches for this search.",
+          contextSessionId: options.contextSessionId ?? prevCtx,
+        };
       } else if (s.results && s.results.length > 0) {
         const prevCtx = this.searchState?.contextSessionId;
         this.searchState = {
@@ -479,8 +492,21 @@ export class MainPanelStore {
 
     if (options?.fileSelection) {
       const f = options.fileSelection;
-      if (f.closed || f.noHits) {
+      if (f.closed) {
         this.searchState = undefined;
+      } else if (f.noHits) {
+        const prevCtx = this.searchState?.contextSessionId;
+        this.searchState = {
+          results: [],
+          activeIndex: 0,
+          listKind: "file",
+          noHits: true,
+          noHitsSummary:
+            summary && summary !== ""
+              ? summary
+              : "No file paths matched this search.",
+          contextSessionId: options.contextSessionId ?? prevCtx,
+        };
       } else if (f.results && f.results.length > 0) {
         const prevCtx = this.searchState?.contextSessionId;
         const ai = Math.max(0, f.activeIndex ?? 0);
@@ -524,7 +550,12 @@ export class MainPanelStore {
       });
 
     // Don't put answers into Recent — they belong in Chat.
-    const shouldLogToRecent = disp !== "hidden" && !filledAnswer;
+    // Search / file-selection completions often use uiDisposition "hidden" to avoid main-panel
+    // noise, but users still want a History row when the core returned a useful summary.
+    const shouldLogToRecent =
+      !filledAnswer &&
+      (disp !== "hidden" ||
+        this.shouldLogSearchOrFileDespiteHidden(disp, summary, options));
     if (shouldLogToRecent) {
       this.recentHandled.unshift({
         text: removed.text,
@@ -563,8 +594,19 @@ export class MainPanelStore {
           : undefined;
     if (options?.search) {
       const s = options.search;
-      if (s.closed || s.noHits) {
+      if (s.closed) {
         this.searchState = undefined;
+      } else if (s.noHits) {
+        const prevCtx = this.searchState?.contextSessionId;
+        this.searchState = {
+          results: [],
+          activeIndex: 0,
+          listKind: "workspace",
+          noHits: true,
+          noHitsSummary:
+            summary && summary !== "" ? summary : "No matches for this search.",
+          contextSessionId: options.contextSessionId ?? prevCtx,
+        };
       } else if (s.results && s.results.length > 0) {
         const prevCtx = this.searchState?.contextSessionId;
         this.searchState = {
@@ -578,8 +620,21 @@ export class MainPanelStore {
 
     if (options?.fileSelection) {
       const f = options.fileSelection;
-      if (f.closed || f.noHits) {
+      if (f.closed) {
         this.searchState = undefined;
+      } else if (f.noHits) {
+        const prevCtx = this.searchState?.contextSessionId;
+        this.searchState = {
+          results: [],
+          activeIndex: 0,
+          listKind: "file",
+          noHits: true,
+          noHitsSummary:
+            summary && summary !== ""
+              ? summary
+              : "No file paths matched this search.",
+          contextSessionId: options.contextSessionId ?? prevCtx,
+        };
       } else if (f.results && f.results.length > 0) {
         const prevCtx = this.searchState?.contextSessionId;
         const ai = Math.max(0, f.activeIndex ?? 0);
@@ -623,7 +678,10 @@ export class MainPanelStore {
       });
 
     // Don't put answers into Recent — they belong in Chat.
-    const shouldLogToRecent = disp !== "hidden" && !filledAnswer;
+    const shouldLogToRecent =
+      !filledAnswer &&
+      (disp !== "hidden" ||
+        this.shouldLogSearchOrFileDespiteHidden(disp, summary, options));
     if (shouldLogToRecent) {
       this.recentHandled.unshift({
         text: normalized,
@@ -682,6 +740,10 @@ export class MainPanelStore {
               ...(this.searchState.listKind
                 ? { listKind: this.searchState.listKind }
                 : {}),
+              ...(this.searchState.noHits ? { noHits: true as const } : {}),
+              ...(this.searchState.noHitsSummary
+                ? { noHitsSummary: this.searchState.noHitsSummary }
+                : {}),
             },
           }
         : {}),
@@ -720,5 +782,23 @@ export class MainPanelStore {
       clearTimeout(this.partialClearTimer);
       this.partialClearTimer = undefined;
     }
+  }
+
+  /** Voice completions often force `hidden` for search/file flows; still log History when core sent a summary. */
+  private shouldLogSearchOrFileDespiteHidden(
+    disp: "shown" | "skipped" | "hidden",
+    summary: string | undefined,
+    options?: TranscriptHandledOptions,
+  ): boolean {
+    if (disp !== "hidden") {
+      return false;
+    }
+    const sum = summary?.trim();
+    if (!sum) {
+      return false;
+    }
+    return (
+      options?.search !== undefined || options?.fileSelection !== undefined
+    );
   }
 }

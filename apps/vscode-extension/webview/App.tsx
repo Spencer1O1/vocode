@@ -4,6 +4,7 @@ import { getVsCodeApi } from "./api/vscode";
 import type { VocodeConfig } from "./config";
 import { vocodeConfigFromMessage } from "./config";
 import { ClarifyPanel, MainPanel, SearchPanel, SettingsPanel } from "./panels";
+import { ProcessingStrip } from "./panels/processing-strip";
 import type { PanelState } from "./types";
 import { emptyState, normalizePanelState } from "./util";
 import { VoiceVisualization } from "./voice-visualization";
@@ -183,6 +184,7 @@ export function App() {
             <div className="voice-viz-slot">
               <VoiceVisualization state={panel} />
             </div>
+            <ProcessingStrip pending={panel.pending} />
             <ClarifyPanel state={panel} />
           </>
         ) : null}
@@ -191,6 +193,7 @@ export function App() {
             <div className="voice-viz-slot">
               <VoiceVisualization state={panel} />
             </div>
+            <ProcessingStrip pending={panel.pending} />
             <SearchPanel state={panel} />
           </>
         ) : null}

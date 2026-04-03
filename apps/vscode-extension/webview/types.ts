@@ -14,6 +14,8 @@ export type PanelState = {
     }[];
     activeIndex: number;
     listKind?: "workspace" | "file";
+    noHits?: boolean;
+    noHitsSummary?: string;
   };
   answerState?: {
     question: string;

@@ -1,5 +1,49 @@
 import type { PanelState } from "./types";
 
+function normalizeSearchStateWire(
+  ss: Record<string, unknown>,
+): PanelState["searchState"] | undefined {
+  if (!Array.isArray(ss.results)) {
+    return undefined;
+  }
+  const results = ss.results
+    .map((r) => r as Record<string, unknown>)
+    .filter(
+      (r) =>
+        typeof r.path === "string" &&
+        typeof r.line === "number" &&
+        typeof r.character === "number" &&
+        typeof r.preview === "string",
+    )
+    .map((r) => ({
+      path: r.path as string,
+      line: r.line as number,
+      character: r.character as number,
+      preview: r.preview as string,
+    }));
+  const activeIndex =
+    typeof ss.activeIndex === "number" && Number.isFinite(ss.activeIndex)
+      ? ss.activeIndex
+      : 0;
+  const listKind =
+    ss.listKind === "file" || ss.listKind === "workspace"
+      ? ss.listKind
+      : undefined;
+  const noHits = ss.noHits === true;
+  const noHitsSummary =
+    typeof ss.noHitsSummary === "string" ? ss.noHitsSummary : undefined;
+  if (results.length === 0 && !noHits) {
+    return undefined;
+  }
+  return {
+    results,
+    activeIndex,
+    ...(listKind ? { listKind } : {}),
+    ...(noHits ? { noHits: true as const } : {}),
+    ...(noHitsSummary ? { noHitsSummary } : {}),
+  };
+}
+
 export function fmtTime(iso: string): string {
   try {
     return new Intl.DateTimeFormat(undefined, {
@@ -99,36 +143,10 @@ export function normalizePanelState(raw: unknown): PanelState {
   }
 
   const ss = o.searchState as Record<string, unknown> | undefined;
-  if (ss && Array.isArray(ss.results)) {
-    const results = ss.results
-      .map((r) => r as Record<string, unknown>)
-      .filter(
-        (r) =>
-          typeof r.path === "string" &&
-          typeof r.line === "number" &&
-          typeof r.character === "number" &&
-          typeof r.preview === "string",
-      )
-      .map((r) => ({
-        path: r.path as string,
-        line: r.line as number,
-        character: r.character as number,
-        preview: r.preview as string,
-      }));
-    if (results.length > 0) {
-      const activeIndex =
-        typeof ss.activeIndex === "number" && Number.isFinite(ss.activeIndex)
-          ? ss.activeIndex
-          : 0;
-      const listKind =
-        ss.listKind === "file" || ss.listKind === "workspace"
-          ? ss.listKind
-          : undefined;
-      base.searchState = {
-        results,
-        activeIndex,
-        ...(listKind ? { listKind } : {}),
-      };
+  if (ss) {
+    const normalized = normalizeSearchStateWire(ss);
+    if (normalized) {
+      base.searchState = normalized;
     }
   }
 

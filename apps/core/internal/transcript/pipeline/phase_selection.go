@@ -18,7 +18,7 @@ func runWorkspaceSelectPhase(
 	text string,
 	pre preOpts,
 ) (protocol.VoiceTranscriptCompletion, bool, string) {
-	route, searchQuery, searchSymbolKind, ok := resolveWorkspaceSelectRoute(e, text, pre)
+	route, searchQuery, searchSymbolKind, ok := resolveWorkspaceSelectRoute(e, params, text, pre)
 	if !ok {
 		persist(e, key, *vs)
 		return protocol.VoiceTranscriptCompletion{

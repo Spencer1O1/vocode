@@ -76,7 +76,7 @@ func classifyWithStub(in Context) Result {
 	var res Result
 	switch in.Flow {
 	case flows.WorkspaceSelect:
-		res = stubWorkspaceSelect(t, raw)
+		res = stubWorkspaceSelect(in, t, raw)
 	case flows.SelectFile:
 		res = stubSelectFile(t, raw)
 	default:
@@ -109,7 +109,20 @@ func stubRoot(t, raw string) Result {
 	return Result{Flow: flows.Root, Route: "irrelevant"}
 }
 
-func stubWorkspaceSelect(t, raw string) Result {
+// stubImperativeEditLike matches common spoken edit intents (lowercased instruction).
+func stubImperativeEditLike(t string) bool {
+	for _, kw := range []string{
+		"make ", "pass ", "change ", "add ", "remove ", "fix ", "rename ", "refactor",
+		"update ", "edit ", "insert ", "delete ", "replace ",
+	} {
+		if strings.Contains(t, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+func stubWorkspaceSelect(in Context, t, raw string) Result {
 	if t == "" {
 		return Result{Flow: flows.WorkspaceSelect, Route: "irrelevant"}
 	}
@@ -118,6 +131,9 @@ func stubWorkspaceSelect(t, raw string) Result {
 	}
 	if strings.Contains(t, "find file ") || strings.Contains(t, "open file ") || strings.Contains(t, "show file ") {
 		return Result{Flow: flows.WorkspaceSelect, Route: "select_file", SearchQuery: raw}
+	}
+	if in.HasNonemptySelection && stubImperativeEditLike(t) {
+		return Result{Flow: flows.WorkspaceSelect, Route: "edit"}
 	}
 	if strings.Contains(t, "find ") || strings.Contains(t, "search ") {
 		return Result{Flow: flows.WorkspaceSelect, Route: "workspace_select", SearchQuery: raw}
