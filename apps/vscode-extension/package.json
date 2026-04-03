@@ -127,8 +127,8 @@
         },
         "vocode.daemonAgentProvider": {
           "type": "string",
-          "default": "stub",
-          "description": "Which AI runs your voice commands: built-in (no cloud), OpenAI, or Anthropic. OpenAI and Anthropic need API keys under Vocode settings."
+          "default": "openai",
+          "description": "Which cloud model runs voice command routing and edits: OpenAI or Anthropic. Requires the matching API key in the Vocode panel (Settings → API keys) and an ElevenLabs key for speech-to-text."
         },
         "vocode.daemonVoiceLogTranscript": {
           "type": "number",

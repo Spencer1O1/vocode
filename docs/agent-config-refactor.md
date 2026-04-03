@@ -10,7 +10,6 @@ This document describes a future refactor to stop using environment variables fo
 type AgentProvider string
 
 const (
-	AgentProviderStub      AgentProvider = "stub"
 	AgentProviderOpenAI    AgentProvider = "openai"
 	AgentProviderAnthropic AgentProvider = "anthropic"
 )
@@ -28,8 +27,7 @@ type AgentConfig struct {
 
 ```go
 // NewWithConfig constructs an Agent from an explicit config.
-func NewWithConfig(cfg AgentConfig, logger *log.Logger) *Agent {
-	var model ModelClient
+func NewWithConfig(cfg AgentConfig, logger *log.Logger) (*Agent, error) {
 	switch cfg.Provider {
 	case AgentProviderOpenAI:
 		c, err := openai.NewWithConfig(openai.Config{
@@ -38,13 +36,9 @@ func NewWithConfig(cfg AgentConfig, logger *log.Logger) *Agent {
 			BaseURL: cfg.OpenAIBaseURL,
 		})
 		if err != nil {
-			if logger != nil {
-				logger.Printf("vocode agent: OpenAI unavailable (%v); using stub model client", err)
-			}
-			model = stub.New()
-		} else {
-			model = c
+			return nil, fmt.Errorf("openai: %w", err)
 		}
+		return &Agent{model: c}, nil
 	case AgentProviderAnthropic:
 		c, err := anthropic.NewWithConfig(anthropic.Config{
 			APIKey:  os.Getenv("ANTHROPIC_API_KEY"),
@@ -52,21 +46,16 @@ func NewWithConfig(cfg AgentConfig, logger *log.Logger) *Agent {
 			BaseURL: cfg.AnthropicBaseURL,
 		})
 		if err != nil {
-			if logger != nil {
-				logger.Printf("vocode agent: Anthropic unavailable (%v); using stub model client", err)
-			}
-			model = stub.New()
-		} else {
-			model = c
+			return nil, fmt.Errorf("anthropic: %w", err)
 		}
+		return &Agent{model: c}, nil
 	default:
-		model = stub.New()
+		return nil, fmt.Errorf("unknown agent provider %q", cfg.Provider)
 	}
-	return &Agent{model: model}
 }
 ```
 
-- Keep the existing `New` / `selectModelClient` / `NewFromEnv` paths as thin shims for CLI and legacy use, but have them build an `AgentConfig` from env and call `NewWithConfig`.
+- Keep the existing `New` / `NewFromEnv` paths as thin shims for CLI and legacy use, but have them build an `AgentConfig` from env and call `NewWithConfig`.
 
 #### 2. Add config-aware constructors in model clients
 
@@ -97,8 +86,8 @@ func NewFromEnv() (*Client, error) {
 #### 3. Change core bootstrap to accept explicit config
 
 - In `apps/core/internal/app/app.go`:
-  - Replace direct calls to `selectModelClient(logger)` with a path that can accept an `AgentConfig`.
-  - For now, build `AgentConfig` from env inside `selectModelClient` and delegate to `agent.NewWithConfig`, so behaviour stays identical while the extension is still passing provider/model/base URL via env.
+  - Replace direct env reads with a path that can accept an `AgentConfig`.
+  - For now, build `AgentConfig` from env inside bootstrap and delegate to `agent.NewWithConfig`, so behaviour stays identical while the extension is still passing provider/model/base URL via env.
   - Later, add a way to pass `AgentConfig` into `New` without env (e.g. command-line flags or a small JSON config file).
 
 #### 4. Update the extension to stop using env for provider/model/base URL
@@ -124,12 +113,9 @@ func NewFromEnv() (*Client, error) {
 
 - Add tests around:
   - `openai.NewWithConfig` and `anthropic.NewWithConfig` (no env reads).
-  - `agent.NewWithConfig`:
-    - Selects OpenAI/Anthropic/stub based on `Provider`.
-    - Falls back to stub when a provider-specific config is incomplete or the client constructor errors.
+  - `agent.NewWithConfig`: selects OpenAI or Anthropic based on `Provider`; returns an error when the client constructor fails or the provider is unknown.
   - End-to-end executor tests that construct an `Agent` via `NewWithConfig` and run a transcript without relying on provider/model/base URL env vars.
 
 - Once the extension is updated and tests are green:
   - Consider marking env-based provider/model/base URL selection as deprecated in comments.
   - Optionally remove those env reads from the main core path, keeping them only for direct `go run`/CLI workflows if needed.
-

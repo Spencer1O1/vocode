@@ -43,7 +43,7 @@ type transcriptAcceptResp struct {
 
 func NewService(flowRouter *router.FlowRouter, editModel agent.ModelClient) *Service {
 	if flowRouter == nil {
-		flowRouter = router.NewFlowRouter(nil)
+		panic("transcript.NewService: flowRouter is required")
 	}
 	ephemeral := session.VoiceSession{}
 	env := &run.Env{

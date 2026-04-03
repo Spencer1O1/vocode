@@ -1,6 +1,6 @@
 import type * as vscode from "vscode";
 
-import { registerCommands } from "./helpers";
+import { type RegisterCommandsOptions, registerCommands } from "./helpers";
 import { initWorkspaceVocodeCommand } from "./init-workspace-vocode";
 import { pingCommand } from "./ping";
 import { sendTranscriptCommand } from "./send-transcript";
@@ -19,6 +19,7 @@ const definitions: CommandDefinition[] = [
 
 export function registerAllCommands(
   services: ExtensionServices,
+  commandOptions?: RegisterCommandsOptions,
 ): vscode.Disposable[] {
-  return registerCommands(services, definitions);
+  return registerCommands(services, definitions, commandOptions);
 }

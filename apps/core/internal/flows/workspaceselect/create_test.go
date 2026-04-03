@@ -5,22 +5,6 @@ import (
 	"testing"
 )
 
-func TestStubMatchesWorkspaceCreate(t *testing.T) {
-	t.Parallel()
-	if !StubMatchesWorkspaceCreate("insert foo on line 12", "insert foo on line 12") {
-		t.Fatal("expected on line + insert")
-	}
-	if !StubMatchesWorkspaceCreate("add a new function at the beginning of the file", "raw") {
-		t.Fatal("expected beginning")
-	}
-	if !StubMatchesWorkspaceCreate("put exports at the end of the file", "raw") {
-		t.Fatal("expected end of file")
-	}
-	if StubMatchesWorkspaceCreate("make it compile on line 9", "make it compile on line 9") {
-		t.Fatal("did not expect create without add/insert/new/put")
-	}
-}
-
 func TestNumberedFileSnippet_shortFile(t *testing.T) {
 	t.Parallel()
 	s := numberedFileSnippet([]string{"a", "b", "c"})

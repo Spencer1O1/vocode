@@ -71,7 +71,7 @@ export async function buildVocodePanelConfigMessage(
     anthropicApiKeyConfigured: await anthropicApiKeyIsConfigured(context),
     voiceVadDebug: c.get<boolean>("voiceVadDebug") === true,
     voiceSidecarLogProtocol: c.get<boolean>("voiceSidecarLogProtocol") === true,
-    daemonAgentProvider: c.get<string>("daemonAgentProvider") ?? "stub",
+    daemonAgentProvider: c.get<string>("daemonAgentProvider") ?? "openai",
     daemonOpenaiModel: c.get<string>("daemonOpenaiModel") ?? "gpt-4o-mini",
     daemonAnthropicModel:
       c.get<string>("daemonAnthropicModel") ?? "claude-3-5-haiku-latest",

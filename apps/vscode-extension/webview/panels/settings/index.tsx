@@ -33,15 +33,16 @@ function LlmWarnings({ config }: { config: VocodeConfig | null }) {
       "Speech-to-text is not set up yet. Add an ElevenLabs API key under API keys to use voice.",
     );
   }
-  if (!config.daemonAgentProvider) {
+  const p = (config.daemonAgentProvider ?? "").trim().toLowerCase();
+  if (p !== "openai" && p !== "anthropic") {
     items.push(
-      "No AI provider is selected. Choose one under AI for voice commands, or use Built-in to run without a cloud model.",
+      "Choose OpenAI or Anthropic under AI for voice commands, then add the matching API key under API keys.",
     );
   }
   if (config.daemonAgentProvider === "openai") {
     if (!config.openaiApiKeyConfigured) {
       items.push(
-        "OpenAI is selected, but no OpenAI API key is saved. Add one under API keys so commands use OpenAI; otherwise Vocode uses the built-in agent.",
+        "OpenAI is selected, but no OpenAI API key is saved. Add one under API keys.",
       );
     }
     if (!config.daemonOpenaiModel) {
@@ -53,7 +54,7 @@ function LlmWarnings({ config }: { config: VocodeConfig | null }) {
   if (config.daemonAgentProvider === "anthropic") {
     if (!config.anthropicApiKeyConfigured) {
       items.push(
-        "Anthropic is selected, but no Anthropic API key is saved. Add one under API keys so commands use Anthropic; otherwise Vocode uses the built-in agent.",
+        "Anthropic is selected, but no Anthropic API key is saved. Add one under API keys.",
       );
     }
     if (!config.daemonAnthropicModel) {
@@ -322,9 +323,8 @@ export function SettingsPanel(props: { config: VocodeConfig | null }) {
         <section className="settings-section">
           <h2 className="settings-section-title">AI for voice commands</h2>
           <p className="settings-subtle">
-            Chooses which model interprets what you say and plans edits.
-            Built-in works offline without an API key; OpenAI and Anthropic use
-            the keys below.
+            Cloud models interpret what you say and plan edits. Save the
+            matching API key under API keys above.
           </p>
           <div className="settings-field-stack">
             <div className="settings-field">
@@ -334,14 +334,6 @@ export function SettingsPanel(props: { config: VocodeConfig | null }) {
                 role="group"
                 aria-label="AI provider for voice commands"
               >
-                <button
-                  type="button"
-                  className={`settings-segment ${config.daemonAgentProvider === "stub" ? "settings-segment-active" : ""}`}
-                  disabled={disabled}
-                  onClick={() => patchConfig({ daemonAgentProvider: "stub" })}
-                >
-                  Built-in
-                </button>
                 <button
                   type="button"
                   className={`settings-segment ${config.daemonAgentProvider === "openai" ? "settings-segment-active" : ""}`}

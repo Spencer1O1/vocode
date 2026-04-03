@@ -241,3 +241,40 @@ export async function anthropicApiKeyIsConfigured(
   const secret = await context.secrets.get(ANTHROPIC_API_KEY_SECRET);
   return secret !== undefined && secret.trim() !== "";
 }
+
+/**
+ * When non-null, the extension must not spawn core/voice; message is safe to show in the UI.
+ */
+export async function getVocodeSetupBlockReason(
+  context: vscode.ExtensionContext,
+): Promise<string | null> {
+  if (!(await elevenLabsApiKeyIsConfigured(context))) {
+    return "Add an ElevenLabs API key in the Vocode panel (Settings → API keys) so speech-to-text can run.";
+  }
+
+  const c = vscode.workspace.getConfiguration("vocode");
+  const provider = (c.get<string>("daemonAgentProvider") ?? "")
+    .trim()
+    .toLowerCase();
+  if (provider !== "openai" && provider !== "anthropic") {
+    return "Choose OpenAI or Anthropic under AI for voice commands in the Vocode panel Settings, then save the matching API key.";
+  }
+
+  if (provider === "openai") {
+    if (!(await openaiApiKeyIsConfigured(context))) {
+      return "OpenAI is selected: add an OpenAI API key in the Vocode panel (Settings → API keys).";
+    }
+    if ((c.get<string>("daemonOpenaiModel") ?? "").trim() === "") {
+      return "OpenAI is selected: pick a model under AI for voice commands in the Vocode panel Settings.";
+    }
+    return null;
+  }
+
+  if (!(await anthropicApiKeyIsConfigured(context))) {
+    return "Anthropic is selected: add an Anthropic API key in the Vocode panel (Settings → API keys).";
+  }
+  if ((c.get<string>("daemonAnthropicModel") ?? "").trim() === "") {
+    return "Anthropic is selected: pick a model under AI for voice commands in the Vocode panel Settings.";
+  }
+  return null;
+}

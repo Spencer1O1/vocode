@@ -19,6 +19,7 @@ import {
 import {
   ANTHROPIC_API_KEY_SECRET,
   ELEVENLABS_API_KEY_SECRET,
+  getVocodeSetupBlockReason,
   OPENAI_API_KEY_SECRET,
 } from "./config/spawn-env";
 import { DaemonClient } from "./daemon/client";
@@ -55,7 +56,28 @@ async function wireVocodeBackend(
   services: ExtensionServices,
   daemonProcRef: { current: ChildProcessWithoutNullStreams | null },
   voiceProcRef: { current: ChildProcessWithoutNullStreams | null },
+  mainPanel: MainPanelViewProvider,
 ): Promise<void> {
+  const setupBlock = await getVocodeSetupBlockReason(context);
+  if (setupBlock !== null) {
+    mainPanel.revealPanelView("settings");
+    void vscode.window
+      .showErrorMessage(
+        `Vocode is paused until setup is finished: ${setupBlock}`,
+        "Focus Vocode panel",
+      )
+      .then((choice) => {
+        if (choice === "Focus Vocode panel") {
+          mainPanel.revealPanelView("settings");
+        }
+      });
+    services.client = null;
+    services.voiceSidecar = null;
+    daemonProcRef.current = null;
+    voiceProcRef.current = null;
+    return;
+  }
+
   try {
     const daemon = await spawnDaemon(context);
     console.log(`Vocode core (vocode-cored) started from ${daemon.binaryPath}`);
@@ -219,7 +241,13 @@ export async function activate(context: vscode.ExtensionContext) {
       services.disposeTranscriptPipeline?.();
       services.disposeTranscriptPipeline = undefined;
 
-      await wireVocodeBackend(context, services, daemonProcRef, voiceProcRef);
+      await wireVocodeBackend(
+        context,
+        services,
+        daemonProcRef,
+        voiceProcRef,
+        mainPanel,
+      );
 
       if (services.client) {
         void vscode.window.showInformationMessage(
@@ -263,7 +291,13 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   };
 
-  await wireVocodeBackend(context, services, daemonProcRef, voiceProcRef);
+  await wireVocodeBackend(
+    context,
+    services,
+    daemonProcRef,
+    voiceProcRef,
+    mainPanel,
+  );
 
   // Some daemon settings are passed via spawn env (provider/model/base URL) and therefore
   // require a restart to take effect. Keep the running backend consistent with settings.
@@ -307,8 +341,8 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     context.secrets.onDidChange((e) => {
       if (e.key === ELEVENLABS_API_KEY_SECRET) {
-        // Only the voice sidecar consumes ELEVENLABS_API_KEY.
-        void services.restartVoiceSidecar?.();
+        // Core may not have started when the key was missing; restart everything.
+        void services.restartVocode?.();
         return;
       }
       if (
@@ -321,11 +355,18 @@ export async function activate(context: vscode.ExtensionContext) {
     }),
   );
 
-  context.subscriptions.push(voiceStatus, ...registerAllCommands(services), {
-    dispose: () => {
-      services.client?.dispose();
+  context.subscriptions.push(
+    voiceStatus,
+    ...registerAllCommands(services, {
+      extensionContext: context,
+      mainPanel,
+    }),
+    {
+      dispose: () => {
+        services.client?.dispose();
+      },
     },
-  });
+  );
 }
 
 export function deactivate() {}

@@ -91,6 +91,12 @@ export function App() {
       if (msg.type === "panelConfig") {
         setPanelConfig(vocodeConfigFromMessage(msg));
       }
+      if (msg.type === "openPanelView") {
+        const v = msg.panelView;
+        if (v === "settings" || v === "main") {
+          setPanelView(v);
+        }
+      }
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);

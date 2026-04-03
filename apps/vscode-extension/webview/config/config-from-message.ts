@@ -10,7 +10,7 @@ export function vocodeConfigFromMessage(
     anthropicApiKeyConfigured: msg.anthropicApiKeyConfigured === true,
     voiceVadDebug: msg.voiceVadDebug === true,
     voiceSidecarLogProtocol: msg.voiceSidecarLogProtocol === true,
-    daemonAgentProvider: String(msg.daemonAgentProvider ?? "stub"),
+    daemonAgentProvider: String(msg.daemonAgentProvider ?? "openai"),
     daemonOpenaiModel: String(msg.daemonOpenaiModel ?? "gpt-4o-mini"),
     daemonAnthropicModel: String(
       msg.daemonAnthropicModel ?? "claude-3-5-haiku-latest",

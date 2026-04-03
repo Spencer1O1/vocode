@@ -8,7 +8,7 @@ import {
 import {
   ANTHROPIC_API_KEY_SECRET,
   ELEVENLABS_API_KEY_SECRET,
-  elevenLabsApiKeyIsConfigured,
+  getVocodeSetupBlockReason,
   OPENAI_API_KEY_SECRET,
 } from "../../config/spawn-env";
 import { sendTranscriptControlRequest } from "../../voice-transcript/transcript-control";
@@ -25,6 +25,7 @@ export class MainPanelViewProvider
   implements vscode.WebviewViewProvider, vscode.Disposable
 {
   private view?: vscode.WebviewView;
+  private pendingOpenPanelView: "settings" | "main" | null = null;
   private readonly unsubscribe: () => void;
 
   constructor(
@@ -36,6 +37,26 @@ export class MainPanelViewProvider
     this.unsubscribe = this.store.onDidChange(() => {
       this.postState();
     });
+  }
+
+  /** Focuses the sidebar view and switches the webview to Settings (or Main). */
+  revealPanelView(panelView: "settings" | "main"): void {
+    this.pendingOpenPanelView = panelView;
+    void vscode.commands
+      .executeCommand(`${mainPanelViewId}.focus`)
+      .then(() => this.flushPendingPanelView());
+  }
+
+  private flushPendingPanelView(): void {
+    const v = this.pendingOpenPanelView;
+    if (v === null) {
+      return;
+    }
+    if (!this.view) {
+      return;
+    }
+    this.pendingOpenPanelView = null;
+    void this.view.webview.postMessage({ type: "openPanelView", panelView: v });
   }
 
   resolveWebviewView(
@@ -60,6 +81,7 @@ export class MainPanelViewProvider
       }
     });
     this.postState();
+    this.flushPendingPanelView();
 
     const wv = webviewView.webview;
     const disposables: vscode.Disposable[] = [];
@@ -77,16 +99,17 @@ export class MainPanelViewProvider
         };
         if (m.type === "webviewReady") {
           void (async () => {
-            const ok = await elevenLabsApiKeyIsConfigured(
+            const block = await getVocodeSetupBlockReason(
               this.extensionContext,
             );
             void wv.postMessage({
               type: "initialRoute",
-              panelView: ok ? "main" : "settings",
+              panelView: block === null ? "main" : "settings",
             });
             void wv.postMessage(
               await buildVocodePanelConfigMessage(this.extensionContext),
             );
+            this.flushPendingPanelView();
           })();
           return;
         }

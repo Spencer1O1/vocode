@@ -1,19 +1,45 @@
 package transcript
 
 import (
+	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
+	"vocoding.net/vocode/v2/apps/core/internal/agent"
 	"vocoding.net/vocode/v2/apps/core/internal/flows/router"
 	"vocoding.net/vocode/v2/apps/core/internal/transcript/clarify"
 	"vocoding.net/vocode/v2/apps/core/internal/transcript/session"
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
+// fsmTestClassifier returns minimal valid classifier JSON for FSM tests that still hit ClassifyFlow.
+type fsmTestClassifier struct{}
+
+func (fsmTestClassifier) Call(_ context.Context, req agent.CompletionRequest) (string, error) {
+	var payload struct {
+		Flow        string `json:"flow"`
+		Instruction string `json:"instruction"`
+	}
+	if err := json.Unmarshal([]byte(req.User), &payload); err != nil {
+		return "", err
+	}
+	instr := strings.ToLower(strings.TrimSpace(payload.Instruction))
+	if payload.Flow == "select_file" && instr == "next" {
+		return `{"route":"file_select_control","search_query":"","search_symbol_kind":""}`, nil
+	}
+	return `{"route":"irrelevant","search_query":"","search_symbol_kind":""}`, nil
+}
+
+func testFlowRouter() *router.FlowRouter {
+	return router.NewFlowRouter(fsmTestClassifier{})
+}
+
 func TestCancelSelection_clearsSelectionAndDismissesClarify(t *testing.T) {
-	s := NewService(router.NewFlowRouter(nil), nil)
+	s := NewService(testFlowRouter(), nil)
 	*s.env.Ephemeral = session.VoiceSession{
 		BasePhase:             session.BasePhaseSelection,
 		SearchResults:         []session.SearchHit{{Path: "x.go", Line: 0, Character: 0, Preview: ""}},
@@ -56,7 +82,7 @@ func TestCancelFileSelection_clearsFileList(t *testing.T) {
 	if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	s := NewService(router.NewFlowRouter(nil), nil)
+	s := NewService(testFlowRouter(), nil)
 	*s.env.Ephemeral = session.VoiceSession{
 		BasePhase:          session.BasePhaseFileSelection,
 		FileSelectionPaths: []string{p},
@@ -83,7 +109,7 @@ func TestCancelFileSelection_clearsFileList(t *testing.T) {
 }
 
 func TestClarifyAnswer_editWhileSelection_closesSelection(t *testing.T) {
-	s := NewService(router.NewFlowRouter(nil), nil)
+	s := NewService(testFlowRouter(), nil)
 	*s.env.Ephemeral = session.VoiceSession{
 		BasePhase:         session.BasePhaseSelection,
 		SearchResults:     []session.SearchHit{{Path: "x.go", Line: 0, Character: 0, Preview: ""}},
@@ -136,7 +162,7 @@ func TestFileSelectionNavigation_nextUpdatesFocus(t *testing.T) {
 	sort.Strings(paths)
 	expected := paths[1]
 
-	s := NewService(router.NewFlowRouter(nil), nil)
+	s := NewService(testFlowRouter(), nil)
 	*s.env.Ephemeral = session.VoiceSession{
 		BasePhase:          session.BasePhaseFileSelection,
 		FileSelectionPaths: paths,
@@ -170,7 +196,7 @@ func TestFileSelectionExit_doneReturnsMain(t *testing.T) {
 		t.Fatalf("write a.go: %v", err)
 	}
 
-	s := NewService(router.NewFlowRouter(nil), nil)
+	s := NewService(testFlowRouter(), nil)
 	*s.env.Ephemeral = session.VoiceSession{
 		BasePhase: session.BasePhaseFileSelection,
 	}

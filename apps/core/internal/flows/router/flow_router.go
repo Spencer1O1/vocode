@@ -7,17 +7,14 @@ import (
 	"strings"
 
 	"vocoding.net/vocode/v2/apps/core/internal/agent"
-	"vocoding.net/vocode/v2/apps/core/internal/flows"
-	workspaceselectflow "vocoding.net/vocode/v2/apps/core/internal/flows/workspaceselect"
 )
 
-// FlowRouter maps a transcript to a route for the active flow. When Model is nil, it uses
-// built-in stubs for tests / offline dev (still returns a structured search_query for rg routes).
+// FlowRouter maps a transcript to a route for the active flow.
 type FlowRouter struct {
 	Model agent.ModelClient
 }
 
-// NewFlowRouter returns a router. Pass model=nil for stub routing.
+// NewFlowRouter returns a router backed by a cloud model client. Model must be non-nil.
 func NewFlowRouter(model agent.ModelClient) *FlowRouter {
 	return &FlowRouter{Model: model}
 }
@@ -28,7 +25,7 @@ func (r *FlowRouter) ClassifyFlow(ctx context.Context, in Context) (Result, erro
 		return Result{}, fmt.Errorf("router: nil FlowRouter")
 	}
 	if r.Model == nil {
-		return classifyWithStub(in), nil
+		return Result{}, fmt.Errorf("router: AI model is not configured")
 	}
 	return classifyWithModel(ctx, r.Model, in)
 }
@@ -69,169 +66,4 @@ func classifyWithModel(ctx context.Context, m agent.ModelClient, in Context) (Re
 		return Result{}, err
 	}
 	return res, nil
-}
-
-func classifyWithStub(in Context) Result {
-	t := strings.TrimSpace(strings.ToLower(in.Instruction))
-	raw := strings.TrimSpace(in.Instruction)
-	var res Result
-	switch in.Flow {
-	case flows.WorkspaceSelect:
-		res = stubWorkspaceSelect(in, t, raw)
-	case flows.SelectFile:
-		res = stubSelectFile(t, raw)
-	default:
-		res = stubRoot(t, raw)
-	}
-	if err := res.Validate(); err != nil {
-		return Result{Flow: in.Flow, Route: "irrelevant"}
-	}
-	return res
-}
-
-func stubRoot(t, raw string) Result {
-	if t == "" {
-		return Result{Flow: flows.Root, Route: "irrelevant"}
-	}
-	if strings.HasPrefix(t, "find file ") || strings.HasPrefix(t, "find files ") ||
-		strings.HasPrefix(t, "open file ") || strings.HasPrefix(t, "show file ") ||
-		strings.HasPrefix(t, "file named ") || strings.HasPrefix(t, "locate file ") {
-		return Result{Flow: flows.Root, Route: "select_file", SearchQuery: raw}
-	}
-	if strings.HasPrefix(t, "find ") || strings.HasPrefix(t, "search ") || strings.HasPrefix(t, "where is ") || strings.HasPrefix(t, "locate ") {
-		return Result{Flow: flows.Root, Route: "workspace_select", SearchQuery: raw}
-	}
-	if workspaceselectflow.StubMatchesWorkspaceCreate(t, raw) {
-		return Result{Flow: flows.Root, Route: "create"}
-	}
-	if strings.HasSuffix(t, "?") || strings.HasPrefix(t, "what ") || strings.HasPrefix(t, "why ") || strings.HasPrefix(t, "how ") {
-		return Result{Flow: flows.Root, Route: "question"}
-	}
-	if globalExitLike(t) {
-		return Result{Flow: flows.Root, Route: "control"}
-	}
-	return Result{Flow: flows.Root, Route: "irrelevant"}
-}
-
-// stubImperativeEditLike matches common spoken edit intents (lowercased instruction).
-func stubImperativeEditLike(t string) bool {
-	for _, kw := range []string{
-		"make ", "pass ", "change ", "add ", "remove ", "fix ", "rename ", "refactor",
-		"update ", "edit ", "insert ", "delete ", "replace ",
-	} {
-		if strings.Contains(t, kw) {
-			return true
-		}
-	}
-	return false
-}
-
-func stubWorkspaceSelect(in Context, t, raw string) Result {
-	if t == "" {
-		return Result{Flow: flows.WorkspaceSelect, Route: "irrelevant"}
-	}
-	if globalExitLike(t) {
-		return Result{Flow: flows.WorkspaceSelect, Route: "control"}
-	}
-	if strings.Contains(t, "find file ") || strings.Contains(t, "open file ") || strings.Contains(t, "show file ") {
-		return Result{Flow: flows.WorkspaceSelect, Route: "select_file", SearchQuery: raw}
-	}
-	if strings.Contains(t, "rename") && strings.Contains(t, " to ") {
-		return Result{Flow: flows.WorkspaceSelect, Route: "rename"}
-	}
-	if workspaceselectflow.StubMatchesWorkspaceCreate(t, raw) {
-		return Result{Flow: flows.WorkspaceSelect, Route: "create"}
-	}
-	if in.HasNonemptySelection && stubImperativeEditLike(t) {
-		return Result{Flow: flows.WorkspaceSelect, Route: "edit"}
-	}
-	if strings.Contains(t, "find ") || strings.Contains(t, "search ") {
-		return Result{Flow: flows.WorkspaceSelect, Route: "workspace_select", SearchQuery: raw}
-	}
-	if strings.Contains(t, "next") || strings.Contains(t, "forward") ||
-		strings.Contains(t, "back") || strings.Contains(t, "prev") {
-		return Result{Flow: flows.WorkspaceSelect, Route: "workspace_select_control"}
-	}
-	if strings.Contains(t, "delete") || strings.Contains(t, "remove") {
-		return Result{Flow: flows.WorkspaceSelect, Route: "delete"}
-	}
-	for _, w := range []string{"one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "1", "2", "3", "4", "5", "6", "7", "8", "9"} {
-		if strings.Contains(t, w) {
-			return Result{Flow: flows.WorkspaceSelect, Route: "workspace_select_control"}
-		}
-	}
-	if strings.Contains(t, "edit") || strings.Contains(t, "change") {
-		return Result{Flow: flows.WorkspaceSelect, Route: "edit"}
-	}
-	return Result{Flow: flows.WorkspaceSelect, Route: "irrelevant"}
-}
-
-func stubSelectFile(t, raw string) Result {
-	if t == "" {
-		return Result{Flow: flows.SelectFile, Route: "irrelevant"}
-	}
-	if globalExitLike(t) {
-		return Result{Flow: flows.SelectFile, Route: "control"}
-	}
-	if strings.Contains(t, "next") || strings.Contains(t, "forward") ||
-		strings.Contains(t, "back") || strings.Contains(t, "prev") {
-		return Result{Flow: flows.SelectFile, Route: "file_select_control"}
-	}
-	for _, w := range []string{"one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "1", "2", "3", "4", "5", "6", "7", "8", "9"} {
-		if strings.Contains(t, w) {
-			return Result{Flow: flows.SelectFile, Route: "file_select_control"}
-		}
-	}
-	if strings.Contains(t, "delete") || strings.Contains(t, "remove") || strings.Contains(t, "trash") {
-		return Result{Flow: flows.SelectFile, Route: "delete"}
-	}
-	if strings.Contains(t, "open") || strings.Contains(t, "show") || strings.Contains(t, "reveal") {
-		return Result{Flow: flows.SelectFile, Route: "irrelevant"}
-	}
-	if strings.Contains(t, "rename") {
-		return Result{Flow: flows.SelectFile, Route: "rename"}
-	}
-	if strings.Contains(t, "move") {
-		return Result{Flow: flows.SelectFile, Route: "move"}
-	}
-	if workspaceselectflow.StubMatchesWorkspaceCreate(t, raw) {
-		return Result{Flow: flows.SelectFile, Route: "create"}
-	}
-	if stubSelectFileDiskCreate(t) {
-		return Result{Flow: flows.SelectFile, Route: "create_entry"}
-	}
-	return Result{Flow: flows.SelectFile, Route: "irrelevant"}
-}
-
-// stubSelectFileDiskCreate matches spoken intent for a new path on disk (route create_entry), not editor create.
-func stubSelectFileDiskCreate(t string) bool {
-	if strings.Contains(t, "new file") || strings.Contains(t, "new folder") {
-		return true
-	}
-	if strings.Contains(t, "create file") || strings.Contains(t, "create folder") {
-		return true
-	}
-	if strings.HasPrefix(t, "create ") && (strings.Contains(t, ".") || strings.Contains(t, "/") || strings.Contains(t, `\`)) {
-		return true
-	}
-	if strings.HasPrefix(t, "create ") && strings.Contains(t, " dot ") {
-		return true
-	}
-	// add / make + filename pattern (align with classifier: intent not only the word "create")
-	if strings.HasPrefix(t, "add ") || strings.HasPrefix(t, "make ") {
-		if strings.Contains(t, ".") || strings.Contains(t, "/") || strings.Contains(t, `\`) || strings.Contains(t, " dot ") {
-			return true
-		}
-	}
-	return false
-}
-
-func globalExitLike(t string) bool {
-	t = strings.TrimSpace(strings.ToLower(t))
-	for _, w := range []string{"cancel", "exit", "close", "stop", "done", "quit", "leave", "abort"} {
-		if strings.Contains(t, w) {
-			return true
-		}
-	}
-	return false
 }

@@ -6,7 +6,7 @@ const allowedExecutables = new Set<string>([
   "powershell.exe",
   "powershell",
   "pwsh",
-  // `echo` is a builtin on Windows; but the daemon stub uses `cmd.exe /c echo`.
+  // `echo` is a builtin on Windows; Windows policy still allows `cmd.exe /c echo`.
   // Keeping `echo` allows the unix-like environments where `echo` is a real binary.
   "echo",
 ]);

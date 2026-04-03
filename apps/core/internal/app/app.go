@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -24,13 +25,33 @@ func New(opts Options) (*App, error) {
 	var stdin io.Reader = opts.Stdin
 	var stdout io.Writer = opts.Stdout
 
-	var editModel agent.ModelClient
-	if c, err := openai.NewFromEnv(); err == nil {
-		editModel = c
-	} else if c2, err2 := anthropic.NewFromEnv(); err2 == nil {
-		editModel = c2
+	provider := strings.ToLower(strings.TrimSpace(os.Getenv("VOCODE_AGENT_PROVIDER")))
+	var modelClient agent.ModelClient
+	var err error
+	switch provider {
+	case "openai":
+		modelClient, err = openai.NewFromEnv()
+	case "anthropic":
+		modelClient, err = anthropic.NewFromEnv()
+	default:
+		return nil, fmt.Errorf(
+			`vocode agent: VOCODE_AGENT_PROVIDER must be "openai" or "anthropic" (got %q)`,
+			os.Getenv("VOCODE_AGENT_PROVIDER"),
+		)
 	}
-	voiceService := transcript.NewService(selectFlowRouter(opts.Logger), editModel)
+	if err != nil {
+		return nil, fmt.Errorf("vocode agent: %w", err)
+	}
+	flowRouter := router.NewFlowRouter(modelClient)
+	if opts.Logger != nil {
+		switch provider {
+		case "openai":
+			opts.Logger.Printf("vocode agent: using OpenAI model for flow routing and edits")
+		case "anthropic":
+			opts.Logger.Printf("vocode agent: using Anthropic model for flow routing and edits")
+		}
+	}
+	voiceService := transcript.NewService(flowRouter, modelClient)
 
 	r := rpc.NewRouter(opts.Logger)
 	for _, def := range rpc.BuildHandlers(voiceService) {
@@ -50,43 +71,6 @@ func New(opts Options) (*App, error) {
 		logger: opts.Logger,
 		server: server,
 	}, nil
-}
-
-func selectFlowRouter(logger *log.Logger) *router.FlowRouter {
-	provider := strings.ToLower(strings.TrimSpace(os.Getenv("VOCODE_AGENT_PROVIDER")))
-	switch provider {
-	case "", "stub":
-		return router.NewFlowRouter(nil)
-	case "openai":
-		c, err := openai.NewFromEnv()
-		if err != nil {
-			if logger != nil {
-				logger.Printf("vocode agent: OpenAI unavailable (%v); using heuristic flow router", err)
-			}
-			return router.NewFlowRouter(nil)
-		}
-		if logger != nil {
-			logger.Printf("vocode agent: using OpenAI model for flow routing")
-		}
-		return router.NewFlowRouter(c)
-	case "anthropic":
-		c, err := anthropic.NewFromEnv()
-		if err != nil {
-			if logger != nil {
-				logger.Printf("vocode agent: Anthropic unavailable (%v); using heuristic flow router", err)
-			}
-			return router.NewFlowRouter(nil)
-		}
-		if logger != nil {
-			logger.Printf("vocode agent: using Anthropic model for flow routing")
-		}
-		return router.NewFlowRouter(c)
-	default:
-		if logger != nil {
-			logger.Printf("vocode agent: unknown VOCODE_AGENT_PROVIDER %q; using heuristic flow router", provider)
-		}
-		return router.NewFlowRouter(nil)
-	}
 }
 
 func (a *App) Run() error {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 	"unicode/utf8"
 
@@ -16,44 +15,6 @@ import (
 
 // emptySHA256 is the hex SHA-256 of an empty string (zero-width replace_range).
 const emptySHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-
-var (
-	reOnAtLineStub = regexp.MustCompile(`(?i)\b(?:on|at)\s+line\s*(\d+)\b`)
-	reNewWord      = regexp.MustCompile(`(?i)\bnew\s+`)
-)
-
-// stubCreateIntentVerbs matches common spoken verbs for adding content (avoid a bare "new " substring — it hits inside "newline").
-func stubCreateIntentVerbs(tLower string) bool {
-	for _, kw := range []string{"add ", "insert ", "put "} {
-		if strings.Contains(tLower, kw) {
-			return true
-		}
-	}
-	if strings.Contains(tLower, "append") || strings.Contains(tLower, "prepend") {
-		return true
-	}
-	return reNewWord.MatchString(tLower)
-}
-
-// StubMatchesWorkspaceCreate is a heuristic for offline flow routing (nil classifier model).
-// It does not run the placement model; it only guesses that the utterance is about adding new content to the open file.
-func StubMatchesWorkspaceCreate(tLower, raw string) bool {
-	if tLower == "" {
-		return false
-	}
-	if strings.Contains(tLower, "at the beginning") || strings.Contains(tLower, "at the start") ||
-		strings.Contains(tLower, "top of the file") || strings.Contains(tLower, "start of the file") {
-		return stubCreateIntentVerbs(tLower)
-	}
-	if strings.Contains(tLower, "end of the file") || strings.Contains(tLower, "bottom of the file") ||
-		(strings.Contains(tLower, "at the end") && strings.Contains(tLower, "file")) {
-		return stubCreateIntentVerbs(tLower)
-	}
-	if reOnAtLineStub.MatchString(raw) {
-		return stubCreateIntentVerbs(tLower)
-	}
-	return false
-}
 
 // HandleCreate adds new text to the active file. Placement (beginning, end, before_line, after_line) and newText
 // come from the placement model, which must interpret the full user transcript (including informal phrasing).
