@@ -1,6 +1,10 @@
 package stt
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/gorilla/websocket"
+)
 
 func TestExtractStreamingEvent(t *testing.T) {
 	tests := []struct {
@@ -43,3 +47,34 @@ func assertErr(msg string) error {
 type errString string
 
 func (e errString) Error() string { return string(e) }
+
+func TestNormalizeInactivityTimeoutSeconds(t *testing.T) {
+	tests := []struct {
+		name string
+		in   int
+		want int
+	}{
+		{name: "default when zero", in: 0, want: 20},
+		{name: "default when negative", in: -5, want: 20},
+		{name: "within range", in: 45, want: 45},
+		{name: "clamped to max", in: 999, want: 180},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := normalizeInactivityTimeoutSeconds(tt.in); got != tt.want {
+				t.Fatalf("normalizeInactivityTimeoutSeconds(%d) = %d, want %d", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestWebsocketCloseDetails(t *testing.T) {
+	code, reason, ok := websocketCloseDetails(&websocket.CloseError{Code: 1008, Text: "policy"})
+	if !ok {
+		t.Fatalf("expected websocket close details")
+	}
+	if code != 1008 || reason != "policy" {
+		t.Fatalf("got code=%d reason=%q, want code=1008 reason=%q", code, reason, "policy")
+	}
+}

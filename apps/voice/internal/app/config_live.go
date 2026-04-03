@@ -50,6 +50,13 @@ func applyConfigPatch(base SidecarConfig, patch *ConfigPatch) (SidecarConfig, er
 		out.SttLanguageCode = code
 	}
 
+	if patch.SttInactivityTimeoutSeconds != nil {
+		if *patch.SttInactivityTimeoutSeconds < 0 || *patch.SttInactivityTimeoutSeconds > 180 {
+			return SidecarConfig{}, fmt.Errorf("sttInactivityTimeoutSeconds must be within [0, 180]")
+		}
+		out.SttInactivityTimeoutSeconds = *patch.SttInactivityTimeoutSeconds
+	}
+
 	if patch.VadDebug != nil {
 		out.VadDebugEnabled = *patch.VadDebug
 	}
@@ -113,4 +120,3 @@ func applyConfigPatch(base SidecarConfig, patch *ConfigPatch) (SidecarConfig, er
 
 	return out, nil
 }
-

@@ -26,9 +26,10 @@ type Event struct {
 // All values are validated/clamped by the sidecar.
 type ConfigPatch struct {
 	// STT tuning (non-secret).
-	SttModelId   *string `json:"sttModelId,omitempty"`
-	SttLanguage  *string `json:"sttLanguage,omitempty"`
-	VadDebug      *bool   `json:"vadDebug,omitempty"`
+	SttModelId                  *string `json:"sttModelId,omitempty"`
+	SttLanguage                 *string `json:"sttLanguage,omitempty"`
+	SttInactivityTimeoutSeconds *int    `json:"sttInactivityTimeoutSeconds,omitempty"`
+	VadDebug                    *bool   `json:"vadDebug,omitempty"`
 
 	// VAD tuning.
 	VadThresholdMultiplier *float64 `json:"vadThresholdMultiplier,omitempty"`
