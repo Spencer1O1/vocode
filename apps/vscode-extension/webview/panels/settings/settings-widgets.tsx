@@ -3,16 +3,16 @@ import { type ReactNode, useEffect, useId, useState } from "react";
 import type { VocodeConfig } from "../../config";
 
 export const STT_LANGUAGE_PRESETS = [
-  "en",
-  "auto",
-  "es",
-  "fr",
-  "de",
-  "ja",
-  "zh",
-  "pt",
-  "it",
-  "ko",
+  { iso: "en", name: "English" },
+  { iso: "auto", name: "Auto" },
+  { iso: "es", name: "Español" },
+  { iso: "fr", name: "Français" },
+  { iso: "de", name: "Deutsch" },
+  { iso: "ja", name: "日本語" },
+  { iso: "zh", name: "中文" },
+  { iso: "pt", name: "Português" },
+  { iso: "it", name: "Italiano" },
+  { iso: "ko", name: "한국어" },
 ] as const;
 
 export const DEFAULT_STT_MODEL_ID = "scribe_v2_realtime";
@@ -236,7 +236,7 @@ export function OptionalZeroSliderRow({
 }
 
 function isSttLanguagePreset(value: string): boolean {
-  return (STT_LANGUAGE_PRESETS as readonly string[]).includes(value);
+  return STT_LANGUAGE_PRESETS.some((lang) => lang.iso === value);
 }
 
 export function LanguageSelectRow(props: {
@@ -265,9 +265,6 @@ export function LanguageSelectRow(props: {
       <label className="settings-field-label" htmlFor={selectId}>
         STT language
       </label>
-      <span className="settings-field-hint">
-        ElevenLabs language_code (ISO 639-1) or auto
-      </span>
       <select
         id={selectId}
         className="settings-select"
@@ -285,28 +282,33 @@ export function LanguageSelectRow(props: {
         }}
       >
         {STT_LANGUAGE_PRESETS.map((code) => (
-          <option key={code} value={code}>
-            {code}
+          <option key={code.iso} value={code.iso}>
+            {code.name}
           </option>
         ))}
         <option value="__custom__">Other…</option>
       </select>
       {customOpen ? (
-        <input
-          id={customId}
-          type="text"
-          className="settings-input settings-input-mt"
-          disabled={disabled}
-          value={customDraft}
-          placeholder="e.g. nl"
-          onChange={(e) => setCustomDraft(e.target.value)}
-          onBlur={() => {
-            const t = customDraft.trim();
-            if (t) {
-              onCommit(t);
-            }
-          }}
-        />
+        <>
+          <span className="settings-field-hint">
+            Enter ElevenLabs language_code (ISO 639-1)
+          </span>
+          <input
+            id={customId}
+            type="text"
+            className="settings-input settings-input-mt"
+            disabled={disabled}
+            value={customDraft}
+            placeholder="e.g. nl"
+            onChange={(e) => setCustomDraft(e.target.value)}
+            onBlur={() => {
+              const t = customDraft.trim();
+              if (t) {
+                onCommit(t);
+              }
+            }}
+          />
+        </>
       ) : null}
     </div>
   );
