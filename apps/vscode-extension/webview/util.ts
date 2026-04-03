@@ -86,9 +86,9 @@ export function normalizePanelState(raw: unknown): PanelState {
   const am = (o.audioMeter as Record<string, unknown>) || {};
   const base: PanelState = {
     pending: Array.isArray(o.pending)
-      ? o.pending.map((row) => {
-          const r = row as Record<string, unknown>;
-          return {
+      ? o.pending.map((entry) => {
+          const r = entry as Record<string, unknown>;
+          const pendingRow: PanelState["pending"][number] = {
             id: typeof r.id === "number" ? r.id : 0,
             text: typeof r.text === "string" ? r.text : "",
             receivedAt:
@@ -97,6 +97,19 @@ export function normalizePanelState(raw: unknown): PanelState {
                 : new Date(0).toISOString(),
             status: r.status === "processing" ? "processing" : "queued",
           };
+          if (
+            typeof r.applyingCommandLine === "string" &&
+            r.applyingCommandLine.length > 0
+          ) {
+            pendingRow.applyingCommandLine = r.applyingCommandLine;
+          }
+          if (
+            typeof r.applyingCommandOutput === "string" &&
+            r.applyingCommandOutput.length > 0
+          ) {
+            pendingRow.applyingCommandOutput = r.applyingCommandOutput;
+          }
+          return pendingRow;
         })
       : [],
     recentHandled: Array.isArray(o.recentHandled)

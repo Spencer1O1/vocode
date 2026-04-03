@@ -144,3 +144,8 @@
   flex-direction: column;
   gap: 4px;
 }
+
+/* Tighter log when the Applying strip is embedded above Search / Clarify */
+.pending-apply-strip .applying-command-log-pre {
+  max-height: 7rem;
+}

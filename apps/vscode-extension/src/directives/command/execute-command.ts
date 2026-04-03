@@ -56,7 +56,15 @@ function validateCommandParams(params: CommandDirective): string | undefined {
   return undefined;
 }
 
-export async function runAllowedCommand(params: CommandDirective): Promise<{
+export type CommandStreamChunk = {
+  stream: "stdout" | "stderr";
+  text: string;
+};
+
+export async function runAllowedCommand(
+  params: CommandDirective,
+  onStreamChunk?: (chunk: CommandStreamChunk) => void,
+): Promise<{
   ok: boolean;
   stdout: string;
   stderr: string;
@@ -79,10 +87,14 @@ export async function runAllowedCommand(params: CommandDirective): Promise<{
   let stderr = "";
 
   child.stdout?.on("data", (d) => {
-    stdout += d.toString();
+    const text = d.toString();
+    stdout += text;
+    onStreamChunk?.({ stream: "stdout", text });
   });
   child.stderr?.on("data", (d) => {
-    stderr += d.toString();
+    const text = d.toString();
+    stderr += text;
+    onStreamChunk?.({ stream: "stderr", text });
   });
 
   let timedOut = false;

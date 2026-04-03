@@ -26,7 +26,7 @@ export function dispatchTranscript(
     case "edit":
       return dispatchEdit(transcriptDirective.editDirective, ctx);
     case "command":
-      return dispatchCommand(transcriptDirective.commandDirective);
+      return dispatchCommand(transcriptDirective.commandDirective, ctx);
     case "navigate":
       return dispatchNavigation(transcriptDirective, ctx);
     case "undo":

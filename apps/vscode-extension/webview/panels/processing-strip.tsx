@@ -1,5 +1,6 @@
 import type { PendingRow } from "../types";
 import { fmtTime, statusBadgeTitle, statusLabel } from "../util";
+import { ApplyingCommandLog } from "./main/applying-command-log";
 import {
   ProcessingStepRow,
   processingPipelineSteps,
@@ -29,6 +30,7 @@ export function ProcessingStrip({
         </span>
       </div>
       <div className="pending-apply-strip-text">{p.text}</div>
+      <ApplyingCommandLog row={p} />
       <div
         className="pending-apply-strip-steps"
         role="list"

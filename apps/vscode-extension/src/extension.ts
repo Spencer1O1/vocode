@@ -103,9 +103,28 @@ async function wireVocodeBackend(
           );
         }
 
+        const pendingId =
+          services.mainPanelStore.activeVoiceTranscriptRpcPendingId();
         const outcomes = await applyDirectives(
           params.directives,
           params.activeFile,
+          pendingId === undefined
+            ? undefined
+            : {
+                commandApplyUi: {
+                  pendingId,
+                  onStart: (line) =>
+                    services.mainPanelStore.setApplyingCommandLine(
+                      pendingId,
+                      line,
+                    ),
+                  onOutput: (chunk) =>
+                    services.mainPanelStore.appendApplyingCommandOutput(
+                      pendingId,
+                      chunk,
+                    ),
+                },
+              },
         );
 
         return {

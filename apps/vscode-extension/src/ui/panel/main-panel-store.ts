@@ -106,11 +106,17 @@ export type TranscriptHandledOptions = {
 /** Committed voice text not yet finished processing through the daemon + apply pipeline. */
 export type PendingStatus = "queued" | "processing";
 
+/** Cap stored command output so the webview stays responsive for noisy CLIs. */
+const maxApplyingCommandOutputChars = 96_000;
+
 export type PendingTranscript = {
   readonly id: number;
   readonly text: string;
   readonly receivedAt: Date;
   status: PendingStatus;
+  /** Set while the host runs a shell directive for this row (voice transcript RPC). */
+  applyingCommandLine?: string;
+  applyingCommandOutput?: string;
 };
 
 export type MainPanelSnapshot = {
@@ -445,6 +451,38 @@ export class MainPanelStore {
       item.status = "processing";
       this.emit();
     }
+  }
+
+  /**
+   * Shows the shell invocation line in the Applying card while `host.applyDirectives` runs a command.
+   */
+  setApplyingCommandLine(id: number, commandLine: string): void {
+    const item = this.pending.find((p) => p.id === id);
+    if (!item) {
+      return;
+    }
+    const line = commandLine.trim();
+    item.applyingCommandLine = line !== "" ? line : undefined;
+    item.applyingCommandOutput = "";
+    this.emit();
+  }
+
+  /** Appends streamed stdout/stderr (already formatted) for the Applying card. */
+  appendApplyingCommandOutput(id: number, chunk: string): void {
+    if (chunk === "") {
+      return;
+    }
+    const item = this.pending.find((p) => p.id === id);
+    if (!item) {
+      return;
+    }
+    let next = (item.applyingCommandOutput ?? "") + chunk;
+    if (next.length > maxApplyingCommandOutputChars) {
+      const marker = "\n…(earlier output truncated)…\n";
+      next = marker + next.slice(next.length - maxApplyingCommandOutputChars + marker.length);
+    }
+    item.applyingCommandOutput = next;
+    this.emit();
   }
 
   /** Call immediately before `client.transcript` for a voice-committed line. */

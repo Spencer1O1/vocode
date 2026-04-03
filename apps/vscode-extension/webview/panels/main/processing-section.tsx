@@ -1,5 +1,6 @@
 import type { PendingRow } from "../../types";
 import { fmtTime, statusBadgeTitle, statusLabel } from "../../util";
+import { ApplyingCommandLog } from "./applying-command-log";
 import { CompactQueuedCard } from "./compact-queued-card";
 import {
   ProcessingStepRow,
@@ -32,6 +33,7 @@ export function ProcessingSection({
               <span>{fmtTime(primary.receivedAt)}</span>
             </div>
             <div className="text">{primary.text}</div>
+            <ApplyingCommandLog row={primary} />
             <div className="processing-steps" role="list" aria-label="Pipeline">
               {processingPipelineSteps(primary.status).map((s) => (
                 <ProcessingStepRow key={s.label} {...s} />

@@ -317,3 +317,66 @@
 .skipped-summary {
   font-size: 12px;
 }
+
+.applying-command-log-block {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.2));
+}
+
+.applying-command-log-line {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.applying-command-log-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vscode-descriptionForeground);
+}
+
+.applying-command-log-cmd {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 6px 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  word-break: break-all;
+  white-space: pre-wrap;
+  border-radius: 4px;
+  background: var(--vscode-textCodeBlock-background, var(--vscode-input-background));
+  color: var(--vscode-textPreformat-foreground, var(--vscode-foreground));
+  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.2));
+  box-sizing: border-box;
+}
+
+.applying-command-log-pre {
+  margin: 0;
+  max-height: 14rem;
+  overflow: auto;
+  padding: 8px 10px;
+  font-family: var(
+    --vscode-editor-font-family,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace
+  );
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-radius: 4px;
+  background: var(--vscode-editor-background, var(--vscode-input-background));
+  color: var(--vscode-editor-foreground, var(--vscode-foreground));
+  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.2));
+  box-sizing: border-box;
+}

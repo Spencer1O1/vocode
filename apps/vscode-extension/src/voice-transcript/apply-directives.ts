@@ -5,7 +5,7 @@ import {
   beginTranscriptUndoSession,
   finalizeTranscriptUndoSessionIfEditsApplied,
 } from "../directives/undo/transcript-undo-ledger";
-import type { TranscriptApplyContext } from "./context";
+import type { CommandApplyUiHandlers, TranscriptApplyContext } from "./context";
 
 export type DirectiveApplyOutcome = {
   status: "ok" | "failed" | "skipped";
@@ -28,11 +28,16 @@ export async function applyDirectives(
   activeDocumentPath: string,
   options?: {
     onProgress?: (event: ApplyTranscriptProgressEvent) => void;
+    /** When set, shell command stdout/stderr is streamed to the main panel for this pending row. */
+    commandApplyUi?: CommandApplyUiHandlers;
   },
 ): Promise<DirectiveApplyOutcome[]> {
   const ctx: TranscriptApplyContext = {
     activeDocumentPath,
     editLocations: {},
+    ...(options?.commandApplyUi !== undefined
+      ? { commandApplyUi: options.commandApplyUi }
+      : {}),
   };
 
   const dirs = directives ?? [];

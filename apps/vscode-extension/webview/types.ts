@@ -41,6 +41,8 @@ export type PendingRow = {
   text: string;
   receivedAt: string;
   status: "queued" | "processing";
+  applyingCommandLine?: string;
+  applyingCommandOutput?: string;
 };
 
 export type HandledRow = {
