@@ -34,7 +34,14 @@ func (a *App) transcribeLoop(ctx context.Context, apiKey string, rec *mic.Record
 
 	cfg := a.getSidecarConfig()
 
-	client, err := stt.NewElevenLabsStreamingClient(ctx, apiKey, cfg.SttModelId, 16000, cfg.SttLanguageCode)
+	client, err := stt.NewElevenLabsStreamingClient(
+		ctx,
+		apiKey,
+		cfg.SttModelId,
+		16000,
+		cfg.SttLanguageCode,
+		cfg.SttInactivityTimeoutSeconds,
+	)
 	if err != nil {
 		_ = a.write(Event{Type: "error", Message: fmt.Sprintf("failed to start elevenlabs streaming stt: %v", err)})
 		return
@@ -102,7 +109,7 @@ func (a *App) transcribeLoop(ctx context.Context, apiKey string, rec *mic.Record
 
 		// Apply any pending live config updates before draining STT events.
 		reload := false
-		drainUpdates:
+	drainUpdates:
 		for {
 			select {
 			case <-a.cfgUpdateCh:
@@ -118,7 +125,10 @@ func (a *App) transcribeLoop(ctx context.Context, apiKey string, rec *mic.Record
 			// Always refresh the commit timeout: it only matters for future commit holds.
 			commitResponseTimeoutMS = newCfg.SttCommitResponseTimeoutMs
 
-			sttChanged := newCfg.SttModelId != prevCfg.SttModelId || newCfg.SttLanguageCode != prevCfg.SttLanguageCode
+			sttChanged :=
+				newCfg.SttModelId != prevCfg.SttModelId ||
+					newCfg.SttLanguageCode != prevCfg.SttLanguageCode ||
+					newCfg.SttInactivityTimeoutSeconds != prevCfg.SttInactivityTimeoutSeconds
 			vadChanged :=
 				newCfg.VadDebugEnabled != prevCfg.VadDebugEnabled ||
 					newCfg.VadThresholdMultiplier != prevCfg.VadThresholdMultiplier ||
@@ -133,7 +143,14 @@ func (a *App) transcribeLoop(ctx context.Context, apiKey string, rec *mic.Record
 			if sttChanged {
 				// Close the websocket so we don't keep draining a client that no longer matches tuning.
 				_ = client.Close()
-				client, err = stt.NewElevenLabsStreamingClient(ctx, apiKey, newCfg.SttModelId, 16000, newCfg.SttLanguageCode)
+				client, err = stt.NewElevenLabsStreamingClient(
+					ctx,
+					apiKey,
+					newCfg.SttModelId,
+					16000,
+					newCfg.SttLanguageCode,
+					newCfg.SttInactivityTimeoutSeconds,
+				)
 				if err != nil {
 					_ = a.write(Event{Type: "error", Message: fmt.Sprintf("failed to reconnect elevenlabs streaming stt: %v", err)})
 					return
@@ -337,7 +354,15 @@ func (a *App) drainSTTClientEvents(client *stt.ElevenLabsStreamingClient, contex
 				return true, false
 			}
 			if evt.Error != nil {
-				_ = a.write(Event{Type: "error", Message: fmt.Sprintf("elevenlabs streaming stt failed: %v", evt.Error)})
+				msg := fmt.Sprintf("elevenlabs streaming stt failed: %v", evt.Error)
+				if evt.CloseCode == 1008 {
+					msg = fmt.Sprintf(
+						"elevenlabs streaming stt failed: %v (websocket close code 1008 policy violation; possible concurrent realtime sessions). close_1008_count=%d",
+						evt.Error,
+						client.CloseCodeCount(1008),
+					)
+				}
+				_ = a.write(Event{Type: "error", Message: msg})
 				return true, false
 			}
 			if strings.TrimSpace(evt.Text) != "" {

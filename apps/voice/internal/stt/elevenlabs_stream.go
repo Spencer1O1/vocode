@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -23,6 +25,9 @@ type StreamingEvent struct {
 	Text    string
 	IsFinal bool
 	Error   error
+	// CloseCode / CloseReason are populated when Error came from a websocket close frame.
+	CloseCode   int
+	CloseReason string
 	// SessionStarted is true for the server session_started handshake (no transcript text).
 	SessionStarted bool
 }
@@ -40,9 +45,21 @@ type ElevenLabsStreamingClient struct {
 	sentAudioChunk bool
 	// Bytes sent with commit:false since the last successful commit (server-side uncommitted buffer).
 	pendingUncommittedBytes int
+	// Count websocket close frames by code for diagnostics.
+	closeCodeCounts map[int]int
 }
 
-func NewElevenLabsStreamingClient(ctx context.Context, apiKey string, modelID string, sampleRate int, languageCode string) (*ElevenLabsStreamingClient, error) {
+func normalizeInactivityTimeoutSeconds(timeoutSeconds int) int {
+	if timeoutSeconds <= 0 {
+		return 20
+	}
+	if timeoutSeconds > 180 {
+		return 180
+	}
+	return timeoutSeconds
+}
+
+func NewElevenLabsStreamingClient(ctx context.Context, apiKey string, modelID string, sampleRate int, languageCode string, inactivityTimeoutSeconds int) (*ElevenLabsStreamingClient, error) {
 	if strings.TrimSpace(apiKey) == "" {
 		return nil, fmt.Errorf("ELEVENLABS_API_KEY is empty")
 	}
@@ -63,6 +80,7 @@ func NewElevenLabsStreamingClient(ctx context.Context, apiKey string, modelID st
 	query.Set("model_id", modelID)
 	// Required / expected by realtime AsyncAPI so PCM16 @ sample_rate matches negotiated format.
 	query.Set("audio_format", "pcm_16000")
+	query.Set("inactivity_timeout", strconv.Itoa(normalizeInactivityTimeoutSeconds(inactivityTimeoutSeconds)))
 	if lc := strings.TrimSpace(languageCode); lc != "" {
 		query.Set("language_code", lc)
 	}
@@ -94,15 +112,22 @@ func NewElevenLabsStreamingClient(ctx context.Context, apiKey string, modelID st
 	}
 
 	c := &ElevenLabsStreamingClient{
-		conn:         conn,
-		events:       make(chan StreamingEvent, 256),
-		done:         make(chan struct{}),
-		sessionReady: make(chan struct{}),
-		sampleRate:   sampleRate,
+		conn:            conn,
+		events:          make(chan StreamingEvent, 256),
+		done:            make(chan struct{}),
+		sessionReady:    make(chan struct{}),
+		sampleRate:      sampleRate,
+		closeCodeCounts: make(map[int]int),
 	}
 
 	go c.readLoop()
 	return c, nil
+}
+
+func (c *ElevenLabsStreamingClient) CloseCodeCount(code int) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.closeCodeCounts[code]
 }
 
 func (c *ElevenLabsStreamingClient) Events() <-chan StreamingEvent {
@@ -161,6 +186,14 @@ func formatWebSocketErr(err error) error {
 		return fmt.Errorf("websocket closed: code=%d reason=%q", ce.Code, detail)
 	}
 	return err
+}
+
+func websocketCloseDetails(err error) (code int, reason string, ok bool) {
+	var ce *websocket.CloseError
+	if !errors.As(err, &ce) {
+		return 0, "", false
+	}
+	return ce.Code, strings.TrimSpace(ce.Text), true
 }
 
 // minUncommittedBytesBeforeCommit is how much commit:false audio ElevenLabs expects before commit:true
@@ -255,7 +288,26 @@ func (c *ElevenLabsStreamingClient) readLoop() {
 		_, data, err := c.conn.ReadMessage()
 		if err != nil {
 			c.unblockSessionWait()
-			c.events <- StreamingEvent{Error: formatWebSocketErr(err)}
+			closeCode, closeReason, hasCloseCode := websocketCloseDetails(err)
+			if hasCloseCode {
+				c.mu.Lock()
+				c.closeCodeCounts[closeCode]++
+				closeCodeCount := c.closeCodeCounts[closeCode]
+				c.mu.Unlock()
+				if closeCode == websocket.ClosePolicyViolation {
+					fmt.Fprintf(
+						os.Stderr,
+						"[vocode-stt] websocket_close code=1008 count=%d reason=%q (possible session concurrency/policy limit)\n",
+						closeCodeCount,
+						closeReason,
+					)
+				}
+			}
+			c.events <- StreamingEvent{
+				Error:       formatWebSocketErr(err),
+				CloseCode:   closeCode,
+				CloseReason: closeReason,
+			}
 			return
 		}
 

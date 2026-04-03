@@ -7,9 +7,11 @@ import "strings"
 // at runtime without restarting the sidecar via a JSON event request.
 type SidecarConfig struct {
 	// STT tuning.
-	SttModelId     string
-	SttLanguage    string
+	SttModelId      string
+	SttLanguage     string
 	SttLanguageCode string
+	// ElevenLabs realtime websocket inactivity timeout (seconds).
+	SttInactivityTimeoutSeconds int
 
 	// VAD tuning.
 	VadDebugEnabled        bool
@@ -23,15 +25,16 @@ type SidecarConfig struct {
 	SttCommitResponseTimeoutMs int
 	StreamMinChunkMs           int
 	StreamMaxChunkMs           int
-	StreamMaxUtteranceMs      int
+	StreamMaxUtteranceMs       int
 }
 
 func defaultSidecarConfig() SidecarConfig {
 	lang := "en"
 	return SidecarConfig{
-		SttModelId:      "scribe_v2_realtime",
-		SttLanguage:     lang,
-		SttLanguageCode: lang,
+		SttModelId:                  "scribe_v2_realtime",
+		SttLanguage:                 lang,
+		SttLanguageCode:             lang,
+		SttInactivityTimeoutSeconds: 20,
 
 		VadDebugEnabled:        false,
 		VadThresholdMultiplier: 1.65,
@@ -43,7 +46,7 @@ func defaultSidecarConfig() SidecarConfig {
 		SttCommitResponseTimeoutMs: 5000,
 		StreamMinChunkMs:           200,
 		StreamMaxChunkMs:           500,
-		StreamMaxUtteranceMs:      0,
+		StreamMaxUtteranceMs:       0,
 	}
 }
 
