@@ -20,7 +20,7 @@ func SpecFor(f ID) Spec {
 	case WorkspaceSelect:
 		return workspaceSelectSpec()
 	case SelectFile:
-		return selectFileSpec()
+		return fileSelectSpec()
 	default:
 		return rootSpec()
 	}
@@ -64,8 +64,8 @@ func workspaceSelectSpec() Spec {
 	}
 }
 
-func selectFileSpec() Spec {
-	selectFileRoutes := []Route{
+func fileSelectSpec() Spec {
+	fsRoutes := []Route{
 		{ID: "file_select_control", Description: "Navigate the file hit list (next/previous, jump/goto by number).", Execution: ExecutionImmediate},
 		{ID: "open", Description: "Open the selected file.", Execution: ExecutionSerialized},
 		{ID: "move", Description: "Move selected file or folder to a new location.", Execution: ExecutionSerialized},
@@ -77,6 +77,6 @@ func selectFileSpec() Spec {
 		Intro: "You are Vocode's classifier for the SELECT FILE result flow.\nThe user already has a list of search hits (files and folders). Choose exactly one route id. You only classify — details are resolved later.\n\n" +
 			"If they ask to find code, a function, symbol, or text inside files (e.g. \"main\", \"main function\", \"deltaTime\"), use workspace_select — not select_file. " +
 			"Use select_file only for path or filename fragments (e.g. \"src/api\", \"foo.go\").",
-		Routes: append(globalRoutes, selectFileRoutes...),
+		Routes: append(globalRoutes, fsRoutes...),
 	}
 }
