@@ -424,11 +424,20 @@
 }
 
 .preview-btn-reject {
-  background: var(--vscode-button-secondaryBackground, var(--vscode-input-background));
+  background: var(
+    --vscode-button-secondaryBackground,
+    var(--vscode-input-background)
+  );
   color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
-  border-color: var(--vscode-button-secondaryBackground, var(--vscode-widget-border, rgba(128, 128, 128, 0.3)));
+  border-color: var(
+    --vscode-button-secondaryBackground,
+    var(--vscode-widget-border, rgba(128, 128, 128, 0.3))
+  );
 }
 
 .preview-btn-reject:hover {
-  background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
+  background: var(
+    --vscode-button-secondaryHoverBackground,
+    var(--vscode-list-hoverBackground)
+  );
 }

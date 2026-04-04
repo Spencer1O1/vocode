@@ -1,11 +1,7 @@
 import { getVsCodeApi } from "../../api/vscode";
 import type { PanelState } from "../../types";
 
-export function PreviewSection({
-  state,
-}: {
-  state: PanelState;
-}) {
+export function PreviewSection({ state }: { state: PanelState }) {
   const preview = state.pendingPreview;
   if (!preview || preview.paths.length === 0) {
     return null;
