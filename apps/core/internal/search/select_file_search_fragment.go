@@ -10,7 +10,7 @@ import (
 // this still strips mistakes such as a full absolute path or "Res/game.js" down to "game.js".
 func NormalizeSelectFileSearchQuery(root, q string) string {
 	_ = root // search scope is the caller's workspace root; basename does not depend on it
-	q = strings.TrimSpace(q)
+	q = strings.TrimSpace(StripFileSearchSpokenFiller(strings.TrimSpace(q)))
 	if q == "" {
 		return ""
 	}

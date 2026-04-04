@@ -31,8 +31,8 @@ func TestClassifierSystem_workspaceSelectAddendum(t *testing.T) {
 	if !strings.Contains(s, "WORKSPACE SELECT flow") {
 		t.Error("expected workspace select intro from spec")
 	}
-	if !strings.Contains(s, "Starting a brand-new search") {
-		t.Error("expected workspace-select-specific tie-break block")
+	if !strings.Contains(s, "Starting a new search") {
+		t.Error("expected workspace-select new-search vs navigation guidance")
 	}
 }
 
@@ -41,8 +41,8 @@ func TestClassifierSystem_selectFileAddendum(t *testing.T) {
 	if !strings.Contains(s, "SELECT FILE flow") {
 		t.Error("expected select file intro from spec")
 	}
-	if !strings.Contains(s, `search_query must be "" for create_entry`) {
-		t.Error("expected select-file create_entry rule")
+	if !strings.Contains(s, "create_entry") || !strings.Contains(s, "search_query") {
+		t.Error("expected select-file create_entry search_query rule")
 	}
 }
 

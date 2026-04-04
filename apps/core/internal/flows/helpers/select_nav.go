@@ -40,6 +40,37 @@ func ParseNav(transcript string) (kind string, ord int, ok bool) {
 	return "", 0, false
 }
 
+// pickOrdinalNeighborHint is true for words that suggest the previous/next token is a list index, not part of a symbol name (e.g. "tab two screen" spoken for TabTwo).
+func pickOrdinalNeighborHint(tok string) bool {
+	switch strings.Trim(tok, ".,;:!?") {
+	case "the", "a", "an", "hit", "hits", "result", "results", "match", "matches",
+		"item", "items", "entry", "entries", "number", "pick", "row", "rows", "choice", "choices":
+		return true
+	default:
+		return false
+	}
+}
+
+// ordinalPickContext reports whether a spoken ordinal at fields[idx] is meant as list position, not a syllable inside a name ("… tab two screen …").
+func ordinalPickContext(fields []string, idx int) bool {
+	n := len(fields)
+	if n <= 3 {
+		return true
+	}
+	if idx == n-1 {
+		return true
+	}
+	prev := ""
+	if idx > 0 {
+		prev = strings.ToLower(strings.Trim(fields[idx-1], ".,;:!?"))
+	}
+	next := ""
+	if idx+1 < n {
+		next = strings.ToLower(strings.Trim(fields[idx+1], ".,;:!?"))
+	}
+	return pickOrdinalNeighborHint(prev) || pickOrdinalNeighborHint(next)
+}
+
 func parsePickOrdinal(s string) int {
 	if n := parseAnyIntToken(s); n > 0 {
 		if navIntRe.MatchString(strings.TrimSpace(s)) && len(strings.Fields(strings.TrimSpace(s))) == 1 {
@@ -47,28 +78,36 @@ func parsePickOrdinal(s string) int {
 		}
 	}
 	t := strings.TrimSpace(strings.ToLower(s))
-	for _, w := range strings.Fields(t) {
-		switch strings.Trim(w, ".,;:!?") {
+	fields := strings.Fields(t)
+	for i, raw := range fields {
+		w := strings.Trim(raw, ".,;:!?")
+		var ord int
+		switch w {
 		case "one", "1st", "first":
-			return 1
+			ord = 1
 		case "two", "2nd", "second":
-			return 2
+			ord = 2
 		case "three", "3rd", "third":
-			return 3
+			ord = 3
 		case "four", "4th", "fourth":
-			return 4
+			ord = 4
 		case "five", "5th", "fifth":
-			return 5
+			ord = 5
 		case "six", "6th", "sixth":
-			return 6
+			ord = 6
 		case "seven", "7th", "seventh":
-			return 7
+			ord = 7
 		case "eight", "8th", "eighth":
-			return 8
+			ord = 8
 		case "nine", "9th", "ninth":
-			return 9
+			ord = 9
 		case "ten", "10th", "tenth":
-			return 10
+			ord = 10
+		default:
+			continue
+		}
+		if ordinalPickContext(fields, i) {
+			return ord
 		}
 	}
 	return 0

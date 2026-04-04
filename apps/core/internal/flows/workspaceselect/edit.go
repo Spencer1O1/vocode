@@ -121,7 +121,10 @@ func callScopedEditModel(ctx context.Context, m agent.ModelClient, instruction, 
 		"additionalProperties": false,
 		"required":             []string{"replacementText"},
 		"properties": map[string]any{
-			"replacementText": map[string]any{"type": "string"},
+			"replacementText": map[string]any{
+				"type":        "string",
+				"description": "Replacement for targetText only; must match language, libraries, and idioms evident in targetText and the file path.",
+			},
 		},
 	}
 	type targetPayload struct {
@@ -148,8 +151,13 @@ func callScopedEditModel(ctx context.Context, m agent.ModelClient, instruction, 
 		return "", err
 	}
 	sys := strings.TrimSpace(`
-You are Vocode's scoped edit model. You receive the user's instruction, active file path, a target range, and the exact current text in that range.
-Respond with one JSON object: {"replacementText":"..."}. Only change what is needed inside the target range. No markdown fences or extra keys.
+You are Vocode's scoped edit model. You receive the user's instruction, active file path, a target range, and targetText: the exact current source in that range.
+
+Infer language, runtime, and libraries from targetText together with the file path (extension and path segments). Your replacement must stay in that same world: reuse the same APIs, module patterns, markup or component vocabulary, and formatting conventions already visible in targetText. Do not introduce syntax or library calls from a different platform or stack than targetText implies.
+
+replacementText should read as if the same author wrote it: consistent naming, imports-style, and structure with the rest of targetText.
+
+Respond with one JSON object: {"replacementText":"..."}. Only change what the instruction requires within the semantic scope of the replacement; no markdown fences or extra keys.
 `)
 	out, err := m.Call(ctx, agent.CompletionRequest{
 		System:     sys,

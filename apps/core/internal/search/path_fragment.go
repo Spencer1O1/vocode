@@ -166,10 +166,30 @@ func prunePathMatchesUnderMatchedDirs(matches []PathMatch) []PathMatch {
 	return out
 }
 
+// StripFileSearchSpokenFiller removes common speech tokens so path matching sees name tokens
+// (e.g. "go to the explore file" → "explore"). Used by [NormalizeSelectFileSearchQuery].
+func StripFileSearchSpokenFiller(q string) string {
+	var b strings.Builder
+	for _, raw := range strings.Fields(strings.TrimSpace(q)) {
+		w := strings.Trim(raw, ".,;:!?")
+		if w == "" {
+			continue
+		}
+		if _, stop := fileSearchQueryStopWords[strings.ToLower(w)]; stop {
+			continue
+		}
+		if b.Len() > 0 {
+			b.WriteByte(' ')
+		}
+		b.WriteString(w)
+	}
+	return b.String()
+}
+
 // fileSearchQueryStopWords strips spoken noise from file_select search queries when matching basenames.
 var fileSearchQueryStopWords = map[string]struct{}{
 	"find": {}, "the": {}, "a": {}, "an": {}, "open": {}, "show": {}, "please": {},
-	"goto": {}, "to": {}, "folder": {}, "folders": {}, "directory": {}, "directories": {},
+	"goto": {}, "go": {}, "to": {}, "folder": {}, "folders": {}, "directory": {}, "directories": {},
 	"file": {}, "path": {}, "need": {}, "want": {}, "where": {}, "is": {}, "my": {},
 	"this": {}, "that": {}, "me": {}, "can": {}, "you": {},
 }

@@ -39,3 +39,13 @@ func TestNormalizeSelectFileSearchQuery_basenameOnly(t *testing.T) {
 		t.Fatalf("outside workspace abs: got %q want x.js", g)
 	}
 }
+
+func TestNormalizeSelectFileSearchQuery_stripsSpokenGoTo(t *testing.T) {
+	root := t.TempDir()
+	if g := NormalizeSelectFileSearchQuery(root, "go to the explore file"); g != "explore" {
+		t.Fatalf("got %q want explore", g)
+	}
+	if g := NormalizeSelectFileSearchQuery(root, "find the explore file"); g != "explore" {
+		t.Fatalf("got %q want explore", g)
+	}
+}

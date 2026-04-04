@@ -117,7 +117,10 @@ func callFileCreatePlanModel(ctx context.Context, m agent.ModelClient, instructi
 				"type":        "integer",
 				"description": "1-based line from the snippet: required for before_line and after_line (before_line = insert before that line; after_line = insert after that line). Use 0 for beginning or end.",
 			},
-			"newText": map[string]any{"type": "string"},
+			"newText": map[string]any{
+				"type":        "string",
+				"description": "Only the new block to insert; must reflect what the classifier already gated (type of addition). No markdown fences.",
+			},
 		},
 	}
 	userObj := map[string]any{
@@ -132,7 +135,10 @@ func callFileCreatePlanModel(ctx context.Context, m agent.ModelClient, instructi
 		return fileCreatePlan{}, err
 	}
 	sys := strings.TrimSpace(`
-You are Vocode's file-create helper. From the user instruction and the numbered snippet (each line is "N|content"), decide exactly where NEW content should go in the active file.
+You are Vocode's file-create helper. The route classifier only reaches you when the user already named or clearly implied what to add; produce newText that matches that intent.
+
+From the user instruction and the numbered snippet (each line is "N|content"), decide exactly where NEW content should go in the active file. If they did not specify placement in speech, infer a reasonable placement from the snippet and conventions (e.g. append at end, after related code).
+
 Respond with one JSON object: {"placement":"beginning"|"end"|"before_line"|"after_line","line":<int>,"newText":"..."}.
 
 You must map the user's wording to the correct placement yourself, including informal speech:
