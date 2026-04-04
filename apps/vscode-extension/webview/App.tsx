@@ -1,3 +1,4 @@
+import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import { getVsCodeApi } from "./api/vscode";
@@ -7,9 +8,47 @@ import { ClarifyPanel, MainPanel, SearchPanel, SettingsPanel } from "./panels";
 import { ProcessingStrip } from "./panels/processing-strip";
 import type { PanelState } from "./types";
 import { emptyState, normalizePanelState } from "./util";
-import { VoiceVisualization } from "./voice-visualization";
+import {
+  VoiceVisualization,
+  type VoiceUiStatus,
+} from "./voice-visualization";
 
 type PanelView = "main" | "settings" | "clarify" | "search";
+
+function handleHostPanelMessage(
+  msg: Record<string, unknown>,
+  initialRouteApplied: MutableRefObject<boolean>,
+  setPanel: Dispatch<SetStateAction<PanelState>>,
+  setPanelView: Dispatch<SetStateAction<PanelView>>,
+  setPanelConfig: Dispatch<SetStateAction<VocodeConfig | null>>,
+  setVoiceUiStatus: Dispatch<SetStateAction<VoiceUiStatus>>,
+): void {
+  if (msg.type === "update" && msg.state !== undefined) {
+    setPanel(normalizePanelState(msg.state));
+  }
+  if (msg.type === "initialRoute" && !initialRouteApplied.current) {
+    initialRouteApplied.current = true;
+    const v = msg.panelView;
+    if (v === "settings" || v === "main") {
+      setPanelView(v);
+    }
+  }
+  if (msg.type === "panelConfig") {
+    setPanelConfig(vocodeConfigFromMessage(msg));
+  }
+  if (msg.type === "openPanelView") {
+    const v = msg.panelView;
+    if (v === "settings" || v === "main") {
+      setPanelView(v);
+    }
+  }
+  if (msg.type === "voiceUiStatus") {
+    const s = msg.state;
+    if (s === "idle" || s === "listening" || s === "processing") {
+      setVoiceUiStatus(s);
+    }
+  }
+}
 
 function GearIcon() {
   return (
@@ -65,6 +104,7 @@ export function App() {
   const [panel, setPanel] = useState<PanelState>(emptyState);
   const [panelView, setPanelView] = useState<PanelView>("main");
   const [panelConfig, setPanelConfig] = useState<VocodeConfig | null>(null);
+  const [voiceUiStatus, setVoiceUiStatus] = useState<VoiceUiStatus>("idle");
   const initialRouteApplied = useRef(false);
 
   const hasClarifyInterrupt = Boolean(panel.clarifyPrompt?.question);
@@ -78,25 +118,14 @@ export function App() {
       if (!msg || typeof msg !== "object") {
         return;
       }
-      if (msg.type === "update" && msg.state !== undefined) {
-        setPanel(normalizePanelState(msg.state));
-      }
-      if (msg.type === "initialRoute" && !initialRouteApplied.current) {
-        initialRouteApplied.current = true;
-        const v = msg.panelView;
-        if (v === "settings" || v === "main") {
-          setPanelView(v);
-        }
-      }
-      if (msg.type === "panelConfig") {
-        setPanelConfig(vocodeConfigFromMessage(msg));
-      }
-      if (msg.type === "openPanelView") {
-        const v = msg.panelView;
-        if (v === "settings" || v === "main") {
-          setPanelView(v);
-        }
-      }
+      handleHostPanelMessage(
+        msg,
+        initialRouteApplied,
+        setPanel,
+        setPanelView,
+        setPanelConfig,
+        setVoiceUiStatus,
+      );
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -177,7 +206,7 @@ export function App() {
         {panelView === "main" ? (
           <>
             <div className="voice-viz-slot">
-              <VoiceVisualization state={panel} />
+              <VoiceVisualization state={panel} voiceUiStatus={voiceUiStatus} />
             </div>
             <MainPanel state={panel} />
           </>
@@ -188,7 +217,7 @@ export function App() {
         {panelView === "clarify" ? (
           <>
             <div className="voice-viz-slot">
-              <VoiceVisualization state={panel} />
+              <VoiceVisualization state={panel} voiceUiStatus={voiceUiStatus} />
             </div>
             <ProcessingStrip pending={panel.pending} />
             <ClarifyPanel state={panel} />
@@ -197,7 +226,7 @@ export function App() {
         {panelView === "search" ? (
           <>
             <div className="voice-viz-slot">
-              <VoiceVisualization state={panel} />
+              <VoiceVisualization state={panel} voiceUiStatus={voiceUiStatus} />
             </div>
             <ProcessingStrip pending={panel.pending} />
             <SearchPanel state={panel} />

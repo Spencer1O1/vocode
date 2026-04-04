@@ -72,6 +72,11 @@
   gap: 10px;
 }
 
+.voice-viz-status-toggle {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
 .voice-viz-orb {
   width: 10px;
   height: 10px;
@@ -139,8 +144,10 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 6px;
+  flex: 1;
+  min-width: 0;
 }
 
 .voice-viz-badge {
@@ -213,4 +220,27 @@
 
 .voice-viz-typing {
   margin-top: 6px;
+}
+
+.panel-status-toggle {
+  font-family: var(--vscode-font-family);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 20px;
+  padding: 2px 8px;
+  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.35));
+  border-radius: 5px;
+  background: var(--vscode-button-primaryBackground, rgba(128, 128, 128, 0.12));
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.panel-status-toggle:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.18));
+}
+
+.panel-status-toggle:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
 }
