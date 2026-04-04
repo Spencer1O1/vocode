@@ -12,10 +12,10 @@ type Result struct {
 	Flow  flows.ID
 	Route string
 	// SearchQuery is the primary search string: for workspace_select, prefer the symbol/identifier name
-	// (LSP + ripgrep); for select_file, a file or folder basename only (no path segments). Must be non-empty when those routes are chosen.
+	// (LSP + ripgrep); for file_select, a file or folder basename only (no path segments). Must be non-empty when those routes are chosen.
 	SearchQuery string
 	// SearchSymbolKind is an optional classifier hint for workspace_select only (LSP SymbolKind filter on the host).
-	// Empty means no kind filter. Ignored for select_file.
+	// Empty means no kind filter. Ignored for file_select.
 	SearchSymbolKind string
 }
 
@@ -27,7 +27,7 @@ func (r Result) Validate() error {
 		return err
 	}
 	switch r.Route {
-	case "workspace_select", "select_file":
+	case "workspace_select", "file_select":
 		if strings.TrimSpace(r.SearchQuery) == "" {
 			return fmt.Errorf("flow router: route %q requires non-empty search_query", r.Route)
 		}

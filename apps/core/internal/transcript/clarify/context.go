@@ -7,6 +7,6 @@ type ClarificationContext struct {
 	ClarifyQuestion    string
 	AnswerText         string
 
-	// ClarifyTargetResolution is a protocol string such as "workspace_select", "edit", "select_file", etc.
+	// ClarifyTargetResolution is a protocol string such as "workspace_select", "edit", "file_select", etc.
 	ClarifyTargetResolution string
 }

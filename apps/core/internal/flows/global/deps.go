@@ -11,7 +11,7 @@ type WorkspaceSearchApply interface {
 	FileSearchFromQuery(params protocol.VoiceTranscriptParams, q string, vs *session.VoiceSession) (protocol.VoiceTranscriptCompletion, bool, string)
 }
 
-// RouteDeps carries dependencies shared by global route handlers (select, select_file, …).
+// RouteDeps carries dependencies shared by global route handlers (select, file_select, …).
 type RouteDeps struct {
 	Search WorkspaceSearchApply
 }

@@ -2,7 +2,7 @@ package search
 
 // Path matching in this package combines two ideas:
 //
-//   - Substring discovery (select_file): case-fold the haystack and needle, then strings.Contains.
+//   - Substring discovery (file_select): case-fold the haystack and needle, then strings.Contains.
 //     See pathContainsFold and [PathFragmentMatches].
 //
 //   - Segment resolution (e.g. move target): walk each path component and match exact name, then

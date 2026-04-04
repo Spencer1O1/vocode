@@ -30,7 +30,7 @@ Run through these in the Extension Development Host after `pnpm codegen`, `pnpm 
 | Startup | Extension activates; sidebar/status usable; no spawn error toast. |
 | Send Transcript → deterministic edit | README-style edit phrases apply; undo ledger behaves. |
 | `workspace_select` | Core tries `host.workspaceSymbolSearch` first (extension runs VS Code workspace symbols with query variants such as phrase → `camelCase`, then case-tolerant client filter); falls back to ripgrep fixed-string if there are no symbol hits. Selection expands to smallest LSP symbol containing the rg anchor when the hit file is the active file and symbols were sent. |
-| `select_file` | Path/filename fragment (e.g. `test.js`) lists files even when file bodies do not contain that text. |
+| `file_select` | Path/filename fragment (e.g. `test.js`) lists files even when file bodies do not contain that text. |
 | Ripgrep | `VOCODE_RG_BIN` set when bundled rg exists (`tools/ripgrep/...`); otherwise `rg` on PATH works. |
 
 ## Minimal repros to capture
@@ -53,7 +53,7 @@ For each issue, record:
 - Check `VOCODE_RG_BIN` / `rg` on PATH; workspace root in params.
 - Windows: compare rg output paths to `editor.document.uri.fsPath`.
 
-### File path search (`select_file`)
+### File path search (`file_select`)
 
 - Symptom: `fileSelection.noHits` while a matching path exists, or sidebar list empty.
 - Confirm completion includes `fileSelection.results` and `activeIndex` (protocol validator requires both when `results` is non-empty).

@@ -28,7 +28,7 @@ func (fsmTestClassifier) Call(_ context.Context, req agent.CompletionRequest) (s
 		return "", err
 	}
 	instr := strings.ToLower(strings.TrimSpace(payload.Instruction))
-	if payload.Flow == "select_file" && instr == "next" {
+	if payload.Flow == "file_select" && instr == "next" {
 		return `{"route":"file_select_control","search_query":"","search_symbol_kind":""}`, nil
 	}
 	return `{"route":"irrelevant","search_query":"","search_symbol_kind":""}`, nil

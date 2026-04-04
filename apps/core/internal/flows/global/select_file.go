@@ -10,11 +10,11 @@ import (
 	protocol "vocoding.net/vocode/v2/packages/protocol/go"
 )
 
-// TryHandleSelectFileSearch runs file-path search using the classifier-provided file/folder basename.
+// TryHandleFileSelectSearch runs file-path search using the classifier-provided file/folder basename.
 // If path search yields noHits, it tries workspace (symbol/content) search with the same query so
-// utterances like "main" still resolve when the classifier wrongly chose select_file.
-// host is the flow that dispatched select_file (Root, SelectFile, or WorkspaceSelect) for preserve behavior.
-func TryHandleSelectFileSearch(
+// utterances like "main" still resolve when the classifier wrongly chose file_select.
+// host is the flow that dispatched file_select (Root, SelectFile, or WorkspaceSelect) for preserve behavior.
+func TryHandleFileSelectSearch(
 	deps *RouteDeps,
 	params protocol.VoiceTranscriptParams,
 	vs *session.VoiceSession,
@@ -52,8 +52,8 @@ func TryHandleSelectFileSearch(
 	return protocol.VoiceTranscriptCompletion{}, "", false
 }
 
-// HandleSelectFile handles the global "select_file" route for a sub-flow host or root.
-func HandleSelectFile(
+// HandleFileSelect handles the global "file_select" route for a sub-flow host or root.
+func HandleFileSelect(
 	deps *RouteDeps,
 	params protocol.VoiceTranscriptParams,
 	vs *session.VoiceSession,
@@ -61,7 +61,7 @@ func HandleSelectFile(
 	searchQuery string,
 	searchSymbolKind string,
 ) (protocol.VoiceTranscriptCompletion, string) {
-	if res, fail, ok := TryHandleSelectFileSearch(deps, params, vs, searchQuery, searchSymbolKind, host); ok {
+	if res, fail, ok := TryHandleFileSelectSearch(deps, params, vs, searchQuery, searchSymbolKind, host); ok {
 		return res, fail
 	}
 	return selectFileSearchMiss(host, vs), ""

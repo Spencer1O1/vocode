@@ -7,7 +7,7 @@ import "strings"
 const (
 	ClarifyTargetQuestion        = "question"
 	ClarifyTargetWorkspaceSelect = "workspace_select"
-	ClarifyTargetSelectFile      = "select_file"
+	ClarifyTargetSelectFile      = "file_select"
 
 	ClarifyTargetEdit = "edit"
 
@@ -23,7 +23,7 @@ type BaseFlowKind string
 const (
 	BaseFlowMain            BaseFlowKind = "main"
 	BaseFlowWorkspaceSelect BaseFlowKind = "workspace_select"
-	BaseFlowSelectFile      BaseFlowKind = "select_file"
+	BaseFlowSelectFile      BaseFlowKind = "file_select"
 )
 
 // ClarifyTargetAllowed is true iff target names a resolution allowed to be clarified under parent/base phase.

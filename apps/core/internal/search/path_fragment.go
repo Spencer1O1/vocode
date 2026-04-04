@@ -43,7 +43,7 @@ func dirBasenameMatchesSelectFileFragment(dirName, fragment string) bool {
 	return strings.HasSuffix(strings.ToLower(dirName), strings.ToLower(fragment))
 }
 
-// PathFragmentMatches lists paths for select_file. Directories match only when their basename ends with
+// PathFragmentMatches lists paths for file_select. Directories match only when their basename ends with
 // the fragment (case-insensitive): src/assets, src/things/assets, my-assets, vocoded-app for "app".
 // Exact / spoken-token names rank above suffix-only names (e.g. assets before my-assets). Files still
 // match on basename or any relative path substring. Per-segment resolution uses [ResolveWorkspaceRelativePath].
@@ -166,7 +166,7 @@ func prunePathMatchesUnderMatchedDirs(matches []PathMatch) []PathMatch {
 	return out
 }
 
-// fileSearchQueryStopWords strips spoken noise from select_file search queries when matching basenames.
+// fileSearchQueryStopWords strips spoken noise from file_select search queries when matching basenames.
 var fileSearchQueryStopWords = map[string]struct{}{
 	"find": {}, "the": {}, "a": {}, "an": {}, "open": {}, "show": {}, "please": {},
 	"goto": {}, "to": {}, "folder": {}, "folders": {}, "directory": {}, "directories": {},

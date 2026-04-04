@@ -1,7 +1,7 @@
 package flows
 
 // Global route "create" adds new text in the active editor file (placement resolved in a later step).
-// Flow select_file also defines "create_entry": a new file or folder on disk from the path list — not editor content.
+// Flow file_select also defines "create_entry": a new file or folder on disk from the path list — not editor content.
 
 // Route is one transcript resolution option within a flow.
 type Route struct {
@@ -40,7 +40,7 @@ func (s Spec) RouteIDs() []string {
 
 var globalRoutes = []Route{
 	{ID: "workspace_select", Description: "User wants to find or select a symbol, identifier, or text in the codebase (by name or contents), not by file path alone. Prefer search_query = that name; optional search_symbol_kind = function, class, variable, etc.", Execution: ExecutionSerialized},
-	{ID: "select_file", Description: "User wants to find or select files or folders by file or folder name (basename only), not by path and not by searching inside file contents. search_query is a single name segment (e.g. game.js, Res) — no slashes, no absolute path.", Execution: ExecutionSerialized},
+	{ID: "file_select", Description: "User wants to find or select files or folders by file or folder name (basename only), not by path and not by searching inside file contents. search_query is a single name segment (e.g. game.js, Res) — no slashes, no absolute path.", Execution: ExecutionSerialized},
 	{ID: "create", Description: "User wants to add new content to the file they have open in the editor (e.g. a function, variable, comment, or append at the end). Where it goes is resolved later. Not a new path on disk.", Execution: ExecutionSerialized},
 	{ID: "command", Description: "User wants the assistant to run a terminal/shell action (install dependencies, start the dev server, scaffold a project with npx/pnpm, run tests, git commands, etc.). Not a question about how something works, and not editing the open file buffer.", Execution: ExecutionSerialized},
 	{ID: "control", Description: "User wants to exit or steer the flow (cancel, go back, stop, etc.).", Execution: ExecutionImmediate},
@@ -52,7 +52,7 @@ func rootSpec() Spec {
 		{ID: "question", Description: "User asks a question (not a command).", Execution: ExecutionImmediate},
 	}
 	return Spec{
-		Intro:  "You are Vocode's classifier for the ROOT flow.\n\nThe user is NOT in a sub-flow. They may have an active editor file and a text selection.\n\nUser JSON may include activeFile for context only — for select_file, never put a path in search_query; output the file or folder basename only (e.g. game.js).\n\nGiven one voice transcript, choose exactly one route id. You only classify — details are resolved later.",
+		Intro:  "You are Vocode's classifier for the ROOT flow.\n\nThe user is NOT in a sub-flow. They may have an active editor file and a text selection.\n\nUser JSON may include activeFile for context only — for file_select, never put a path in search_query; output the file or folder basename only (e.g. game.js).\n\nGiven one voice transcript, choose exactly one route id. You only classify — details are resolved later.",
 		Routes: append(globalRoutes, rootRoutes...),
 	}
 }
@@ -80,7 +80,7 @@ func fileSelectSpec() Spec {
 	}
 	return Spec{
 		Intro: "You are Vocode's classifier for the SELECT FILE result flow.\nThe user already has a list of search hits (files and folders). Choose exactly one route id. You only classify — details are resolved later.\n\n" +
-			"workspace_select: find code, symbols, or text inside files. select_file: name a file or folder by basename to look up paths — not contents search.\n\n" +
+			"workspace_select: find code, symbols, or text inside files. file_select: name a file or folder by basename to look up paths — not contents search.\n\n" +
 			"create_entry: new path on disk under the selection (empty search_query). create: open editor buffer only — not for naming a new file in this flow.",
 		Routes: append(globalRoutes, fsRoutes...),
 	}
