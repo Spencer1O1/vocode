@@ -84,6 +84,7 @@ export async function runAllowedCommand(
 
   let stdout = "";
   let stderr = "";
+  let spawnErr: Error | undefined;
 
   child.stdout?.on("data", (d) => {
     const text = d.toString();
@@ -114,7 +115,10 @@ export async function runAllowedCommand(
       resolve(code);
     };
 
-    child.on("error", () => finish(-1));
+    child.on("error", (err: Error) => {
+      spawnErr = err;
+      finish(-1);
+    });
     child.on("close", (code) => finish(code));
   });
 
@@ -131,13 +135,27 @@ export async function runAllowedCommand(
     };
   }
 
-  const code = exitCode ?? -1;
-  if (code !== 0) {
+  if (spawnErr !== undefined) {
     return {
       ok: false,
       stdout,
       stderr,
-      message: `command exited with code ${code}`,
+      message: `failed to start process: ${spawnErr.message}`,
+    };
+  }
+
+  const code = exitCode ?? -1;
+  if (code !== 0) {
+    const tail = stdout.trimEnd();
+    const tailHint =
+      tail.length > 0 && stderr.trim().length === 0
+        ? ` (stdout: ${tail.length > 400 ? `${tail.slice(-400)}…` : tail})`
+        : "";
+    return {
+      ok: false,
+      stdout,
+      stderr,
+      message: `command exited with code ${code}${tailHint}`,
     };
   }
 

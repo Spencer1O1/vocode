@@ -256,7 +256,7 @@ func insertAffixForZeroWidth(lines []string, sl, sc int, core string) (pfx, suf 
 	return "", ""
 }
 
-// byteOffsetAtLineChar returns the byte offset in body for 0-based line and character (byte index within the line — matches replace_range columns for ASCII).
+// byteOffsetAtLineChar returns the byte offset in body for 0-based line and LSP UTF-16 character within that line.
 func byteOffsetAtLineChar(body string, line0, char0 int) int {
 	if line0 < 0 {
 		line0 = 0
@@ -270,11 +270,12 @@ func byteOffsetAtLineChar(body string, line0, char0 int) int {
 		return len(body)
 	}
 	line := lines[line0]
+	maxCol := LineUTF16Len(line)
 	c := char0
-	if c > len(line) {
-		c = len(line)
+	if c > maxCol {
+		c = maxCol
 	}
-	return off + c
+	return off + UTF16ColToByteOffset(line, c)
 }
 
 // alignCoreAnchorByteOffset returns the byte offset where coreBlock actually starts in postN, fixing off-by-one

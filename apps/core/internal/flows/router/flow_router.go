@@ -44,7 +44,7 @@ func classifyWithModel(ctx context.Context, m agent.ModelClient, in Context) (Re
 	if err != nil {
 		return Result{}, err
 	}
-	content = strings.TrimSpace(content)
+	content = trimClassifierJSONResponse(content)
 	if content == "" {
 		return Result{}, ErrEmptyModelContent
 	}
@@ -66,4 +66,35 @@ func classifyWithModel(ctx context.Context, m agent.ModelClient, in Context) (Re
 		return Result{}, err
 	}
 	return res, nil
+}
+
+// trimClassifierJSONResponse strips markdown code fences and leading prose so the model output
+// parses as one JSON object. Anthropic (and some OpenAI models) often wrap JSON in ``` fences.
+func trimClassifierJSONResponse(content string) string {
+	s := strings.TrimSpace(content)
+	if s == "" {
+		return s
+	}
+	if strings.HasPrefix(s, "```") {
+		rest := s
+		if nl := strings.IndexByte(rest, '\n'); nl >= 0 {
+			rest = rest[nl+1:]
+		} else {
+			rest = ""
+		}
+		if end := strings.LastIndex(rest, "```"); end >= 0 {
+			s = strings.TrimSpace(rest[:end])
+		} else {
+			s = strings.TrimSpace(rest)
+		}
+	}
+	if i := strings.IndexByte(s, '{'); i > 0 {
+		s = s[i:]
+	} else if i < 0 {
+		return strings.TrimSpace(s)
+	}
+	if j := strings.LastIndexByte(s, '}'); j >= 0 && j < len(s)-1 {
+		s = s[:j+1]
+	}
+	return strings.TrimSpace(s)
 }

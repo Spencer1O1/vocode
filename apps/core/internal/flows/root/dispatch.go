@@ -2,6 +2,7 @@ package rootflow
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"vocoding.net/vocode/v2/apps/core/internal/flows"
@@ -106,12 +107,14 @@ func ExecuteMainPhase(
 	}
 
 	if deps == nil || deps.FlowRouter == nil {
-		return IrrelevantSkipped()
+		return protocol.VoiceTranscriptCompletion{},
+			"Voice routing is unavailable (flow router not configured)."
 	}
 
 	fr, err := deps.FlowRouter.ClassifyFlow(context.Background(), router.ContextForClassification(flows.Root, text, params))
 	if err != nil {
-		return IrrelevantSkipped()
+		return protocol.VoiceTranscriptCompletion{},
+			fmt.Sprintf("Voice routing (classifier) failed: %v", err)
 	}
 	return DispatchRoute(deps, params, vs, text, fr)
 }

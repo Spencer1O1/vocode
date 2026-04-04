@@ -1,4 +1,5 @@
 #main-root {
+  --panel-section-scroll-max: min(280px, 40vh);
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -13,8 +14,62 @@
   min-height: 0;
 }
 
+/* Cap section bodies so list growth scrolls inside instead of shifting the whole panel. */
+.panel-section-body {
+  max-height: var(--panel-section-scroll-max);
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+.skipped-details {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.skipped-details > summary {
+  cursor: pointer;
+  list-style: none;
+  margin: 0 0 var(--gap);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vscode-descriptionForeground);
+  user-select: none;
+}
+
+.skipped-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.skipped-details > summary::before {
+  content: "";
+  display: inline-block;
+  width: 0;
+  height: 0;
+  margin-right: 6px;
+  margin-bottom: 1px;
+  border-left: 4px solid var(--vscode-descriptionForeground);
+  border-top: 3px solid transparent;
+  border-bottom: 3px solid transparent;
+  transform: rotate(0deg);
+  transition: transform 0.15s ease;
+  vertical-align: middle;
+  opacity: 0.75;
+}
+
+.skipped-details[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.skipped-details .panel-section-body {
+  margin-top: 0;
+}
+
 .chat-thread {
-  max-height: min(320px, 42vh);
+  max-height: var(--panel-section-scroll-max);
   overflow-y: auto;
   overflow-x: hidden;
   display: flex;

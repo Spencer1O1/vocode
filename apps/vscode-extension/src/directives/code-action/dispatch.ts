@@ -37,6 +37,9 @@ export async function dispatchCodeAction(
     )) as (vscode.CodeAction | vscode.Command)[] | undefined;
 
     if (!actions || actions.length === 0) {
+      if (directive.actionKind === "source.organizeImports") {
+        return { ok: true };
+      }
       return {
         ok: false,
         message: `code_action failed: no actions for ${directive.actionKind}`,

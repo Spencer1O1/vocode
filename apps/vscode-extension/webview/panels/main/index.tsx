@@ -14,8 +14,8 @@ export function MainPanel({ state }: { state: PanelState }) {
 
   return (
     <div id="main-root">
-      <ChatSection state={state} />
       <ProcessingSection pending={pending} />
+      <ChatSection state={state} />
       <HistorySection items={historyItems} />
       <SkippedSection items={skippedItems} />
       <p className="hint">Vocode · Speak code</p>

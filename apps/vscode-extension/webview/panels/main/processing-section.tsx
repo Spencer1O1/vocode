@@ -19,7 +19,7 @@ export function ProcessingSection({
     <section className="panel-section">
       <h1>Processing</h1>
       {primary ? (
-        <div className="stack processing-stack">
+        <div className="stack processing-stack panel-section-body">
           <div
             className={`card pending processing-primary-card ${primary.status}`}
           >

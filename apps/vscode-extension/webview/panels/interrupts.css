@@ -62,6 +62,21 @@
   padding: 12px 14px;
 }
 
+/* Path sits in .meta beside the index badge; reset transcript margins so flex centers them. */
+.interrupt-search-card .meta {
+  align-items: center;
+}
+
+.interrupt-search-card .meta .badge {
+  flex-shrink: 0;
+}
+
+.interrupt-search-card .meta .muted-transcript {
+  margin-top: 0;
+  flex: 1;
+  min-width: 0;
+}
+
 .interrupt-search-preview {
   font-size: 12px;
   line-height: 1.4;

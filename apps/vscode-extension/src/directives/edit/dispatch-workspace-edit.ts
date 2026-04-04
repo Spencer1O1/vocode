@@ -53,13 +53,17 @@ function selectDocumentRangeInVisibleEditors(
   const b = Math.max(a, Math.min(endOffExclusive, max));
   const start = doc.positionAt(a);
   const end = doc.positionAt(b);
+  const range = new vscode.Range(start, end);
+  const active = vscode.window.activeTextEditor;
+  const shouldReveal =
+    active !== undefined && active.document.uri.toString() === uri.toString();
   for (const ed of vscode.window.visibleTextEditors) {
-    if (ed.document.uri.toString() === uri.toString()) {
-      ed.selection = new vscode.Selection(start, end);
-      ed.revealRange(
-        new vscode.Range(start, end),
-        vscode.TextEditorRevealType.InCenterIfOutsideViewport,
-      );
+    if (ed.document.uri.toString() !== uri.toString()) {
+      continue;
+    }
+    ed.selection = new vscode.Selection(start, end);
+    if (shouldReveal && ed === active) {
+      ed.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
     }
   }
 }

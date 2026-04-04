@@ -34,13 +34,17 @@ export function SkippedSection({ items }: { items: readonly HandledRow[] }) {
     return null;
   }
   return (
-    <section className="panel-section">
-      <h1>Skipped</h1>
-      <div className="stack">
-        {items.map((h) => (
-          <SkippedCard key={`s-${h.receivedAt}-${h.text}`} h={h} />
-        ))}
-      </div>
+    <section className="panel-section skipped-section">
+      <details className="skipped-details">
+        <summary>
+          Skipped ({items.length})
+        </summary>
+        <div className="stack panel-section-body">
+          {items.map((h) => (
+            <SkippedCard key={`s-${h.receivedAt}-${h.text}`} h={h} />
+          ))}
+        </div>
+      </details>
     </section>
   );
 }
