@@ -2,12 +2,12 @@ import type { VoiceTranscriptParams } from "@vocode/protocol";
 import * as vscode from "vscode";
 
 import type { ExtensionServices } from "../commands/services";
+import { readWorkspaceVocodeTranscriptHints } from "../config/workspace-vocode";
 import type { DaemonClient } from "../daemon/client";
 import {
   FAILED_TO_PROCESS_TRANSCRIPT,
   userFacingTranscriptRpcError,
 } from "./messages";
-import { readWorkspaceVocodeTranscriptHints } from "../config/workspace-vocode";
 import {
   transcriptPathSearchWorkspaceRoot,
   transcriptWorkspaceFolderOpen,

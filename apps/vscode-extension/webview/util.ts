@@ -27,9 +27,7 @@ function normalizeSearchStateWire(
           ? rawPrev.trim()
           : basenameFromPath(pathStr);
       const line =
-        typeof r.line === "number" && Number.isFinite(r.line)
-          ? r.line
-          : 0;
+        typeof r.line === "number" && Number.isFinite(r.line) ? r.line : 0;
       const character =
         typeof r.character === "number" && Number.isFinite(r.character)
           ? r.character

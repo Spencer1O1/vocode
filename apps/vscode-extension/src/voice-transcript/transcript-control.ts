@@ -34,7 +34,10 @@ export async function sendTranscriptControlRequest(
     ...(activeFile ? { focusedWorkspacePath: activeFile } : {}),
     workspaceRoot: transcriptWorkspaceRoot(activeFile),
     ...(activeFile
-      ? { pathSearchWorkspaceRoot: transcriptPathSearchWorkspaceRoot(activeFile) }
+      ? {
+          pathSearchWorkspaceRoot:
+            transcriptPathSearchWorkspaceRoot(activeFile),
+        }
       : {}),
     cursorPosition: editor
       ? {
