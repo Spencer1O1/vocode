@@ -207,8 +207,9 @@
     "lint:fix": "biome check --write src",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "vscode:stage-assets": "node scripts/stage-marketplace-assets.cjs",
-    "vscode:prepublish": "pnpm --dir ../.. --filter @vocode/protocol build && pnpm --dir ../.. --filter @vocode/core build && pnpm build && pnpm vscode:stage-assets",
-    "vscode:package": "pnpm exec vsce package --no-dependencies --follow-symlinks"
+    "vscode:prepublish": "node scripts/run-vscode-prepublish.cjs",
+    "vscode:package": "node scripts/run-vsix-package.cjs",
+    "vscode:package:fat": "node scripts/run-vsix-package.cjs --fat"
   },
   "devDependencies": {
     "@vscode/vsce": "^3.7.1",

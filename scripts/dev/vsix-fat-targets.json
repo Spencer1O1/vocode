@@ -1,0 +1,66 @@
+[
+  {
+    "slug": "win32-x64",
+    "goos": "windows",
+    "goarch": "amd64",
+    "rgTarget": "x86_64-pc-windows-msvc",
+    "rgVersion": "v15.0.1"
+  },
+  {
+    "slug": "win32-arm64",
+    "goos": "windows",
+    "goarch": "arm64",
+    "rgTarget": "aarch64-pc-windows-msvc",
+    "rgVersion": "v15.0.1"
+  },
+  {
+    "slug": "darwin-x64",
+    "goos": "darwin",
+    "goarch": "amd64",
+    "rgTarget": "x86_64-apple-darwin",
+    "rgVersion": "v15.0.1"
+  },
+  {
+    "slug": "darwin-arm64",
+    "goos": "darwin",
+    "goarch": "arm64",
+    "rgTarget": "aarch64-apple-darwin",
+    "rgVersion": "v15.0.1"
+  },
+  {
+    "slug": "linux-x64",
+    "goos": "linux",
+    "goarch": "amd64",
+    "rgTarget": "x86_64-unknown-linux-musl",
+    "rgVersion": "v15.0.1"
+  },
+  {
+    "slug": "linux-arm64",
+    "goos": "linux",
+    "goarch": "arm64",
+    "rgTarget": "aarch64-unknown-linux-musl",
+    "rgVersion": "v15.0.1"
+  },
+  {
+    "slug": "linux-armhf",
+    "goos": "linux",
+    "goarch": "arm",
+    "goarm": "7",
+    "rgTarget": "arm-unknown-linux-gnueabihf",
+    "rgVersion": "v13.0.0-4"
+  },
+  {
+    "slug": "alpine-x64",
+    "goos": "linux",
+    "goarch": "amd64",
+    "rgTarget": "x86_64-unknown-linux-musl",
+    "rgVersion": "v15.0.1"
+  },
+  {
+    "slug": "alpine-arm64",
+    "goos": "linux",
+    "goarch": "arm64",
+    "rgTarget": "aarch64-unknown-linux-musl",
+    "rgVersion": "v15.0.1"
+  }
+]

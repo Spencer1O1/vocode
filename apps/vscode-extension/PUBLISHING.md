@@ -26,7 +26,7 @@ pnpm provision:ripgrep
 pnpm vscode:package
 ```
 
-This produces `apps/vscode-extension/vocode-0.0.1.vsix`. Install locally with **Extensions: Install from VSIX…**.
+This writes `apps/vscode-extension/release/vocode-<version>.vsix` (not the package root). Install locally with **Extensions: Install from VSIX…**.
 
 Staging does **not** copy the core binary from `apps/core` — it must already exist under `apps/vscode-extension/bin/` from the core build step in prepublish. It copies **ripgrep**, merges **voice** if present, and embeds `@vocode/protocol` under `dist/protocol-pkg` (rewrites `dist/daemon/client.js`). Run `pnpm build` again after packaging if you want an unpatched `client.js` for local dev.
 
@@ -43,9 +43,76 @@ pnpm exec vsce publish --no-dependencies --follow-symlinks
 
 `vsce publish` uses the PAT from `vsce login`.
 
-## Multi-OS binaries
+## Voice in the same VSIX
 
-A single VSIX built on Windows only contains `win32-x64` (or your arch) under `bin/` and `tools/`. Users on macOS/Linux need builds that include **their** triples, or you merge multiple platforms into one VSIX (custom pipeline: cross-compile Go, build voice per OS, copy each under `bin/<platform>-<arch>/`). The staging script only copies the **host** triple; extending it for a release matrix is a follow-up.
+You do **not** ship a separate VSIX for voice. `pnpm --filter @vocode/voice build` compiles **vocode-voiced** with **CGO + PortAudio** for the current OS/arch (see `scripts/dev/voice-build-lib.mjs`). Staging merges that binary into `apps/vscode-extension/bin/<triple>/` next to `vocode-cored`.
+
+## One fat VSIX (all Marketplace platforms)
+
+From the **repository root**:
+
+```bash
+pnpm install
+pnpm codegen
+pnpm vscode:package:fat
+```
+
+This cross-builds **vocode-cored**, runs **`node scripts/dev/build-voice-cross.mjs`** (PortAudio / CGO for every slug), downloads **ripgrep** per platform, builds the extension, then stages **all** `bin/<slug>/` and `tools/ripgrep/<slug>/` folders. Output: `apps/vscode-extension/release/vocode-<version>.vsix`.
+
+**Voice (PortAudio):** `build-voice-cross.mjs` uses **native** MSYS2/Homebrew builds on Windows/macOS for the host’s `win32-*` / `darwin-*` triple, and **Docker** (`golang:*-bookworm` / `*-alpine`) for **linux-*** and **alpine-*** with `portaudio19-dev` / `portaudio-dev`. You need [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine) for those Linux targets when not on a matching Linux host. Slugs you cannot build locally (e.g. **darwin-*** on Windows) are **skipped only if** `apps/voice/bin/<slug>/` already contains a binary—populate those from CI (see `.github/workflows/ci.yml` jobs `voice-darwin-*`, `voice-windows-arm64`) or copy from another machine, then re-run fat packaging.
+
+Native artifacts under `apps/voice/bin/`, `apps/vscode-extension/bin/`, `tools/ripgrep/`, and staged `apps/vscode-extension/tools/ripgrep/` are **gitignored** — do not commit them.
+
+## Does CI build all voice (PortAudio) binaries?
+
+Yes, **together** the voice jobs in `.github/workflows/ci.yml` produce every VSIX slug:
+
+| Job | What it builds |
+|-----|------------------|
+| `voice-linux` | `linux-*`, `alpine-*` (Docker on Ubuntu) |
+| `voice-windows` | `win32-x64` |
+| `voice-windows-arm64` | `win32-arm64` |
+| `voice-darwin-x64` | `darwin-x64` |
+| `voice-darwin-arm64` | `darwin-arm64` |
+
+Each job **uploads** an artifact named `voice-partial-*`. The **`voice-binaries-bundle`** job downloads those, merges them into one tree, and uploads **`voice-binaries-all`** (complete `apps/voice/bin/` layout).
+
+### Download merged voice binaries (for local fat VSIX)
+
+1. Install the [GitHub CLI](https://cli.github.com/) (`gh`) and run `gh auth login`.
+2. Find a successful workflow run (push/PR to `main`/`master` after your changes):
+
+   ```bash
+   gh run list --workflow ci.yml --limit 5
+   ```
+
+3. Download the **bundled** artifact (simplest):
+
+   ```bash
+   gh run download <run-id> -n voice-binaries-all -D ./voice-dl
+   ```
+
+4. Copy the merged `bin` tree into your clone (layout may be `./voice-dl/apps/voice/bin/<slug>/` or slug folders at the top of the zip—match what you see in the folder):
+
+   ```bash
+   # If you see apps/voice/bin/ inside the download:
+   mkdir -p apps/voice/bin
+   cp -a ./voice-dl/apps/voice/bin/* apps/voice/bin/
+
+   # Or merge several voice-partial-* zips without the bundle job:
+   gh run download <run-id> -p 'voice-partial-*' -D ./voice-partials
+   node scripts/dev/merge-voice-partial-artifacts.mjs ./voice-partials
+   ```
+
+5. Then run `pnpm vscode:package:fat` (or only `node scripts/dev/build-voice-cross.mjs` if you only needed missing slugs). The fat prepublish will **keep** existing `apps/voice/bin/*` binaries when it cannot rebuild a slug on your machine.
+
+**UI:** On GitHub → **Actions** → select the workflow run → scroll to **Artifacts** → download `voice-binaries-all`.
+
+## Multi-OS: platform-specific VSIXes (optional)
+
+`pnpm vscode:package` still builds a **single-triple** VSIX for the machine you run on.
+
+Alternatively, publish per-platform VSIXes with `vsce publish --target win32-x64` (and other `--target` values) so the Marketplace serves the right file per client ([docs](https://code.visualstudio.com/api/working-with-extensions/publishing-extension#platform-specific-extensions)).
 
 ## Notes
 

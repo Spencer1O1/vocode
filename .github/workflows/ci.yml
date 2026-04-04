@@ -66,21 +66,17 @@ jobs:
         run: go test $(go list ./... | grep -vE '/apps/voice($|/)' | grep -vE '/apps/daemon($|/)')
 
   voice-linux:
-    name: Build voice sidecar (Linux)
+    name: Build voice (linux + alpine, Docker / PortAudio)
     runs-on: ubuntu-latest
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: 22
-          cache: pnpm
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -88,45 +84,44 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Install native deps (PortAudio)
+      - name: Install PortAudio for Go tests (host)
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config portaudio19-dev
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Build vocode-voiced for all Linux/Alpine VSIX targets
+        run: node scripts/dev/build-voice-cross.mjs
+        env:
+          VOCODE_VOICE_BUILD_FAMILY: linux
 
-      - name: Build voice sidecar
-        run: pnpm --filter @vocode/voice build
+      - name: Upload voice binaries (linux + alpine slugs)
+        uses: actions/upload-artifact@v4
+        with:
+          name: voice-partial-linux-alpine
+          path: apps/voice/bin
+          if-no-files-found: error
 
       - name: Run voice Go tests
         run: go test ./apps/voice/...
 
   voice-windows:
-    name: Build voice sidecar (Windows)
+    name: Build voice (Windows x64, PortAudio)
     runs-on: windows-latest
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: 22
-          cache: pnpm
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
 
       - name: Set up MSYS2 (cached)
         id: msys2
@@ -140,26 +135,175 @@ jobs:
             mingw-w64-x86_64-pkg-config
           cache: true
 
-      - name: Configure MSYS2_ROOT for build scripts
+      - name: Configure MSYS2_ROOT for voice-build-lib
         shell: pwsh
         run: |
-          $msysRoot = "${{ steps.msys2.outputs.msys2-location }}"
-          $mingwBin = Join-Path $msysRoot "mingw64\bin"
-          $pkgConfigPath = Join-Path $msysRoot "mingw64\lib\pkgconfig"
-          $gcc = Join-Path $mingwBin "gcc.exe"
-          $pkgConfig = Join-Path $mingwBin "pkg-config.exe"
-          $pkgConf = Join-Path $mingwBin "pkgconf.exe"
-          $pkgTool = if (Test-Path $pkgConfig) { $pkgConfig } else { $pkgConf }
+          "MSYS2_ROOT=${{ steps.msys2.outputs.msys2-location }}" >> $env:GITHUB_ENV
 
-          "MSYS2_ROOT=$msysRoot" >> $env:GITHUB_ENV
-          "CGO_ENABLED=1" >> $env:GITHUB_ENV
-          "CC=$gcc" >> $env:GITHUB_ENV
-          "PKG_CONFIG=$pkgTool" >> $env:GITHUB_ENV
-          "PKG_CONFIG_PATH=$pkgConfigPath" >> $env:GITHUB_ENV
-          "Path=$mingwBin;$env:Path" >> $env:GITHUB_ENV
+      - name: Build vocode-voiced (win32-x64)
+        run: node scripts/dev/build-voice-cross.mjs
+        env:
+          VOCODE_VOICE_BUILD_FAMILY: windows
 
-      - name: Build voice sidecar
-        run: pnpm --filter @vocode/voice build
+      - name: Upload voice binaries (win32-x64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: voice-partial-win32-x64
+          path: apps/voice/bin
+          if-no-files-found: error
 
       - name: Run voice Go tests
         run: go test ./apps/voice/...
+
+  voice-windows-arm64:
+    name: Build voice (Windows ARM64, PortAudio)
+    runs-on: windows-11-arm
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up MSYS2 (Clang ARM64)
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANGARM64
+          update: true
+          install: >-
+            mingw-w64-clang-aarch64-clang
+            mingw-w64-clang-aarch64-portaudio
+            mingw-w64-clang-aarch64-pkg-config
+          cache: true
+
+      - name: Configure MSYS2_ROOT for voice-build-lib
+        shell: pwsh
+        run: |
+          "MSYS2_ROOT=${{ steps.msys2.outputs.msys2-location }}" >> $env:GITHUB_ENV
+
+      - name: Build vocode-voiced (win32-arm64)
+        run: node scripts/dev/build-voice-one.mjs win32-arm64
+
+      - name: Upload voice binaries (win32-arm64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: voice-partial-win32-arm64
+          path: apps/voice/bin
+          if-no-files-found: error
+
+      - name: Run voice Go tests
+        run: go test ./apps/voice/...
+
+  voice-darwin-x64:
+    name: Build voice (macOS Intel, PortAudio)
+    runs-on: macos-13
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install PortAudio (Homebrew)
+        run: brew install portaudio
+
+      - name: Build vocode-voiced (darwin-x64)
+        run: node scripts/dev/build-voice-one.mjs darwin-x64
+
+      - name: Upload voice binaries (darwin-x64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: voice-partial-darwin-x64
+          path: apps/voice/bin
+          if-no-files-found: error
+
+      - name: Run voice Go tests
+        run: go test ./apps/voice/...
+
+  voice-darwin-arm64:
+    name: Build voice (macOS Apple silicon, PortAudio)
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install PortAudio (Homebrew)
+        run: brew install portaudio
+
+      - name: Build vocode-voiced (darwin-arm64)
+        run: node scripts/dev/build-voice-one.mjs darwin-arm64
+
+      - name: Upload voice binaries (darwin-arm64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: voice-partial-darwin-arm64
+          path: apps/voice/bin
+          if-no-files-found: error
+
+      - name: Run voice Go tests
+        run: go test ./apps/voice/...
+
+  voice-binaries-bundle:
+    name: Bundle all voice binaries (fat VSIX)
+    needs:
+      - voice-linux
+      - voice-windows
+      - voice-windows-arm64
+      - voice-darwin-x64
+      - voice-darwin-arm64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download partial artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: parts
+          pattern: voice-partial-*
+
+      - name: Merge into apps/voice/bin
+        shell: bash
+        run: |
+          mkdir -p apps/voice/bin
+          for dir in parts/voice-partial-*/apps/voice/bin; do
+            if [ -d "$dir" ]; then
+              cp -a "$dir"/* apps/voice/bin/
+            fi
+          done
+          echo "Merged slugs:" && ls -1 apps/voice/bin
+
+      - name: Upload complete voice tree
+        uses: actions/upload-artifact@v4
+        with:
+          name: voice-binaries-all
+          path: apps/voice/bin
+          if-no-files-found: error

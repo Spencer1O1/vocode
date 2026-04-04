@@ -13,6 +13,12 @@ build/
 bin/
 coverage/
 
+# Native payloads for VSIX / local provision (never commit binaries)
+apps/voice/bin/
+apps/vscode-extension/bin/
+apps/vscode-extension/tools/ripgrep/
+tools/ripgrep/
+
 # Generated files
 *.generated.*
 
@@ -35,4 +41,7 @@ Thumbs.db
 *.test
 *.exe~
 .gocache/
+apps/core/.cross-build-tmp/
+apps/voice/.cross-build-tmp/
+tools/.ripgrep-fat-cache/
 tools/tree-sitter/
