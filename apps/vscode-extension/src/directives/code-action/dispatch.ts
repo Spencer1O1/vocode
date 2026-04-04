@@ -26,7 +26,22 @@ export async function dispatchCodeAction(
       preview: false,
     });
 
-    const range = toRange(directive.range) ?? editor.selection;
+    // source.organizeImports must run with a document-wide range; using the
+    // user's selection often yields no code actions after a vocode edit.
+    let range: vscode.Range;
+    if (directive.actionKind === "source.organizeImports") {
+      if (doc.lineCount === 0) {
+        range = new vscode.Range(0, 0, 0, 0);
+      } else {
+        const last = doc.lineAt(doc.lineCount - 1);
+        range = new vscode.Range(
+          new vscode.Position(0, 0),
+          new vscode.Position(last.lineNumber, last.text.length),
+        );
+      }
+    } else {
+      range = toRange(directive.range) ?? editor.selection;
+    }
     const kind = directive.actionKind;
 
     const actions = (await vscode.commands.executeCommand(

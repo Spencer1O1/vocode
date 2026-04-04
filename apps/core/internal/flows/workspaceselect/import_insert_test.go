@@ -9,8 +9,8 @@ func TestJsTsImportInsertLine_afterImports(t *testing.T) {
 		``,
 		`export function f() {}`,
 	}
-	if got := jsTsImportInsertLine(lines); got != 3 {
-		t.Fatalf("got %d want 3", got)
+	if got := jsTsImportInsertLine(lines); got != 2 {
+		t.Fatalf("got %d want 2 (insert after last import, at the blank line)", got)
 	}
 }
 
@@ -22,8 +22,43 @@ func TestJsTsImportInsertLine_useClient(t *testing.T) {
 		``,
 		`const k = 1`,
 	}
-	if got := jsTsImportInsertLine(lines); got != 4 {
-		t.Fatalf("got %d want 4", got)
+	if got := jsTsImportInsertLine(lines); got != 3 {
+		t.Fatalf("got %d want 3 (insert at blank line after import, before const)", got)
+	}
+}
+
+func TestJsTsImportInsertLine_expoAppStyle(t *testing.T) {
+	lines := []string{
+		`import { StatusBar } from 'expo-status-bar';`,
+		`import { StyleSheet, Text, View } from 'react-native';`,
+		``,
+		`export default function App() {}`,
+	}
+	if got := jsTsImportInsertLine(lines); got != 2 {
+		t.Fatalf("got %d want 2", got)
+	}
+}
+
+func TestJstsFinalizeImportBlock_insertsBlankBeforeCode(t *testing.T) {
+	src := []string{
+		`import { a } from "x"`,
+		`export default function App() {}`,
+	}
+	insertLine := 1
+	block := "import { useState } from 'react';\n"
+	got := jstsFinalizeImportBlock(src, insertLine, block)
+	want := "import { useState } from 'react';\n\n"
+	if got != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+}
+
+func TestJstsFinalizeImportBlock_skipWhenNextIsImport(t *testing.T) {
+	src := []string{`import { a } from "x"`, `import { b } from "y"`}
+	block := "import { c } from \"z\";\n"
+	got := jstsFinalizeImportBlock(src, 1, block)
+	if got != block {
+		t.Fatalf("got %q want unchanged %q", got, block)
 	}
 }
 

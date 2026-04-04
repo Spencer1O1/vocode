@@ -55,6 +55,9 @@ func HandleCreate(deps *SelectionDeps, params protocol.VoiceTranscriptParams, vs
 	filteredImports := filterNewImportLines(body, plan.ImportLines)
 	importBlock := importBlockForInsert(filteredImports)
 	insertImpLn := importInsertLine(lines, active)
+	if importBlock != "" && importLanguageForPath(active) == importLangJSTS {
+		importBlock = jstsFinalizeImportBlock(lines, insertImpLn, importBlock)
+	}
 	lineOffImp := linesAddedByImportBlock(importBlock)
 	imp := createImportContext{
 		Block:      importBlock,
