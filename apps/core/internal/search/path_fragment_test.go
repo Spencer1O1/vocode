@@ -213,7 +213,26 @@ func TestPathFragmentSearch_shortQueryAppPrefersInnerAppDirNotParentSubstring(t 
 	}
 }
 
-func TestPathFragmentSearch_bareFragmentMatchesDirNotStemExtFile(t *testing.T) {
+func TestPathFragmentSearch_bareFragmentFindsIndexTsx(t *testing.T) {
+	root := t.TempDir()
+	tabs := filepath.Join(root, "app", "(tabs)")
+	if err := os.MkdirAll(tabs, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(tabs, "index.tsx")
+	if err := os.WriteFile(want, []byte("export {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := PathFragmentMatches(root, "index", 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].IsDir || filepath.Clean(got[0].Path) != filepath.Clean(want) {
+		t.Fatalf("want %s, got %#v", want, got)
+	}
+}
+
+func TestPathFragmentSearch_bareFragmentReturnsDirAndStemExtFile(t *testing.T) {
 	root := t.TempDir()
 	appDir := filepath.Join(root, "app")
 	if err := os.MkdirAll(appDir, 0o755); err != nil {
@@ -227,8 +246,59 @@ func TestPathFragmentSearch_bareFragmentMatchesDirNotStemExtFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || !got[0].IsDir || filepath.Clean(got[0].Path) != filepath.Clean(appDir) {
-		t.Fatalf("want only app/ dir, got %#v", got)
+	if len(got) != 2 {
+		t.Fatalf("want app/ and app.ts (2 hits), got %#v", got)
+	}
+	var sawDir, sawTS bool
+	for _, m := range got {
+		switch filepath.Clean(m.Path) {
+		case filepath.Clean(appDir):
+			if m.IsDir {
+				sawDir = true
+			}
+		case filepath.Clean(appTS):
+			if !m.IsDir {
+				sawTS = true
+			}
+		}
+	}
+	if !sawDir || !sawTS {
+		t.Fatalf("want both directory and file, got %#v", got)
+	}
+}
+
+func TestPathFragmentSearch_bareFragmentReturnsIndexDirAndIndexTsx(t *testing.T) {
+	root := t.TempDir()
+	idxDir := filepath.Join(root, "pkg", "index")
+	if err := os.MkdirAll(idxDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	idxTS := filepath.Join(root, "pkg", "index.tsx")
+	if err := os.WriteFile(idxTS, []byte("// x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := PathFragmentMatches(root, "index", 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("want index/ and index.tsx (2 hits), got %#v", got)
+	}
+	var sawDir, sawTS bool
+	for _, m := range got {
+		switch filepath.Clean(m.Path) {
+		case filepath.Clean(idxDir):
+			if m.IsDir {
+				sawDir = true
+			}
+		case filepath.Clean(idxTS):
+			if !m.IsDir {
+				sawTS = true
+			}
+		}
+	}
+	if !sawDir || !sawTS {
+		t.Fatalf("want both directory and file, got %#v", got)
 	}
 }
 

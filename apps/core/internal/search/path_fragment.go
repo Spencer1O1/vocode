@@ -37,21 +37,6 @@ func fragmentLooksLikeFileOrExtQuery(fragment string) bool {
 	return strings.Contains(strings.TrimSpace(fragment), ".")
 }
 
-// fileBaseNameIsStemPlusExtensionOnly is true when baseName is exactly stem+extension and stem equals the
-// bare fragment (fragment has no "."). Avoids matching "app.ts" when the user asked for folder "app".
-func fileBaseNameIsStemPlusExtensionOnly(baseName, fragment string) bool {
-	f := strings.TrimSpace(strings.ToLower(fragment))
-	if f == "" || strings.Contains(f, ".") {
-		return false
-	}
-	ext := filepath.Ext(baseName)
-	if ext == "" {
-		return false
-	}
-	stem := strings.ToLower(strings.TrimSuffix(baseName, ext))
-	return stem == f
-}
-
 // dirBasenameMatchesSelectFileFragment is true when the directory's own name ends with the query
 // (case-insensitive), e.g. assets, my-assets, vocoded-app for "app". It does not match parent path
 // segments (assets/images for "assets") nor infix-only names (xassetsy for "assets").
@@ -66,12 +51,11 @@ func dirBasenameMatchesSelectFileFragment(dirName, fragment string) bool {
 
 // PathFragmentMatches lists paths for file_select. The fragment is trimmed with [TrimSttTrailingSentenceDot]
 // (e.g. "index.tsx." → "index.tsx"). If the fragment contains ".", it is treated as a file-style query:
-// no directory matches (and workspace-root prepend is skipped). For a bare fragment (no "."), files whose
-// basename is exactly stem+extension with stem equal to the fragment are excluded (e.g. "app" does not match
-// app.ts) so folder-style queries are not swamped by same-stem source files.
-// Otherwise directories match only when their basename ends with the fragment (case-insensitive): src/assets,
-// my-assets, vocoded-app for "app". Exact / spoken-token names rank above suffix-only names.
-// Files still match on basename or any relative path substring except that stem+extension exclusion.
+// no directory matches (and workspace-root prepend is skipped). Otherwise every matching directory and file
+// is kept: basename or relative path substring (case-insensitive), including similarly named files next to
+// folders (e.g. both app/ and app.ts for "app").
+// Directories match when their basename ends with the fragment (case-insensitive): src/assets, my-assets,
+// vocoded-app for "app". Exact / spoken-token names rank above suffix-only names.
 // Per-segment resolution uses [ResolveWorkspaceRelativePath].
 // Every matching directory is kept, including nested dirs with the same name (e.g. Res/Res).
 // Files strictly inside a matched directory
@@ -122,9 +106,6 @@ func PathFragmentMatches(root, fragment string, maxPaths int) ([]PathMatch, erro
 		rel = filepath.ToSlash(rel)
 		base := filepath.Base(path)
 		if !pathFragmentMatches(rel, base, lower) {
-			return nil
-		}
-		if !fragmentLooksLikeFileOrExtQuery(fragment) && fileBaseNameIsStemPlusExtensionOnly(base, fragment) {
 			return nil
 		}
 		matches = append(matches, PathMatch{Path: filepath.Clean(path), IsDir: false})

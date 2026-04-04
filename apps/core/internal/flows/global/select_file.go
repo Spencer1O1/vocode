@@ -11,8 +11,7 @@ import (
 )
 
 // TryHandleFileSelectSearch runs file-path search using the classifier-provided file/folder basename.
-// If path search yields noHits, it tries workspace (symbol/content) search with the same query so
-// utterances like "main" still resolve when the classifier wrongly chose file_select.
+// file_select never falls back to workspace symbol/content search: that route is for paths on disk only.
 // host is the flow that dispatched file_select (Root, SelectFile, or WorkspaceSelect) for preserve behavior.
 func TryHandleFileSelectSearch(
 	deps *RouteDeps,
@@ -34,13 +33,6 @@ func TryHandleFileSelectSearch(
 			return protocol.VoiceTranscriptCompletion{Success: false}, reason, true
 		}
 		if res.FileSelection != nil && res.FileSelection.NoHits {
-			wr, wfail, wok := TryHandleWorkspaceSelectSearch(deps, params, vs, q, strings.TrimSpace(searchSymbolKind))
-			if wok && strings.TrimSpace(wfail) != "" {
-				return protocol.VoiceTranscriptCompletion{Success: false}, wfail, true
-			}
-			if wok && wr.Search != nil && len(wr.Search.Results) > 0 {
-				return wr, "", true
-			}
 			if host == flows.SelectFile && (len(vs.FileSelectionPaths) > 0 || strings.TrimSpace(vs.FileSelectionFocus) != "") {
 				c := selectFileSearchMiss(host, vs)
 				c.Summary = fmt.Sprintf("No file path matches for %q — showing your previous selection.", q)
