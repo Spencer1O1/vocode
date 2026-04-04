@@ -33,6 +33,37 @@ function toAbsolutePath(
   return path.resolve(path.dirname(activeDocumentPath), targetPath);
 }
 
+/** UTF-16 length; matches VS Code document offsets for typical source. */
+function utf16Len(s: string): number {
+  return s.length;
+}
+
+/**
+ * Selects [startOff, endOff) in any visible editor for this URI so the user sees what changed
+ * (e.g. new lines above a function plus the updated range), instead of a stale search selection.
+ */
+function selectDocumentRangeInVisibleEditors(
+  uri: vscode.Uri,
+  doc: vscode.TextDocument,
+  startOff: number,
+  endOffExclusive: number,
+): void {
+  const max = doc.getText().length;
+  const a = Math.max(0, Math.min(startOff, max));
+  const b = Math.max(a, Math.min(endOffExclusive, max));
+  const start = doc.positionAt(a);
+  const end = doc.positionAt(b);
+  for (const ed of vscode.window.visibleTextEditors) {
+    if (ed.document.uri.toString() === uri.toString()) {
+      ed.selection = new vscode.Selection(start, end);
+      ed.revealRange(
+        new vscode.Range(start, end),
+        vscode.TextEditorRevealType.InCenterIfOutsideViewport,
+      );
+    }
+  }
+}
+
 /**
  * Applies one edit directive's actions by opening each target document and
  * submitting workspace edits. Also returns per-action edit locations for
@@ -53,6 +84,9 @@ export async function dispatchEditResultWorkspaceEdit(
     const actionPath = toAbsolutePath(action.path, activeDocumentPath);
     const wsEdit = new vscode.WorkspaceEdit();
 
+    let replaceStartOffset: number | undefined;
+    let replaceNewText = "";
+
     if (action.kind === "replace_between_anchors") {
       const targetDoc = await vscode.workspace.openTextDocument(actionPath);
       const text = targetDoc.getText();
@@ -62,6 +96,8 @@ export async function dispatchEditResultWorkspaceEdit(
       );
       const startPos = targetDoc.positionAt(startOffset);
       const endPos = targetDoc.positionAt(endOffset);
+      replaceStartOffset = startOffset;
+      replaceNewText = action.newText;
       wsEdit.replace(
         targetDoc.uri,
         new vscode.Range(startPos, endPos),
@@ -96,6 +132,8 @@ export async function dispatchEditResultWorkspaceEdit(
           };
         }
       }
+      replaceStartOffset = targetDoc.offsetAt(startPos);
+      replaceNewText = action.newText;
       wsEdit.replace(uri, new vscode.Range(startPos, endPos), action.newText);
       appliedEdits.push({
         editId: action.editId,
@@ -130,7 +168,10 @@ export async function dispatchEditResultWorkspaceEdit(
     } else if (action.kind === "append_to_file") {
       const uri = vscode.Uri.file(actionPath);
       const targetDoc = await vscode.workspace.openTextDocument(uri);
-      const end = targetDoc.positionAt(targetDoc.getText().length);
+      const endOff = targetDoc.getText().length;
+      const end = targetDoc.positionAt(endOff);
+      replaceStartOffset = endOff;
+      replaceNewText = action.text;
       wsEdit.insert(uri, end, action.text);
       appliedEdits.push({
         editId: action.editId,
@@ -161,6 +202,41 @@ export async function dispatchEditResultWorkspaceEdit(
         undoStackOrderPaths,
         message: "failed to save edited document",
       };
+    }
+
+    const lastApplied = appliedEdits[appliedEdits.length - 1];
+    if (
+      replaceStartOffset !== undefined &&
+      (action.kind === "replace_range" ||
+        action.kind === "replace_between_anchors" ||
+        action.kind === "append_to_file")
+    ) {
+      const endSel = replaceStartOffset + utf16Len(replaceNewText);
+      const selStart = savedDocument.positionAt(replaceStartOffset);
+      const selEnd = savedDocument.positionAt(endSel);
+      lastApplied.selectionStart = selStart;
+      lastApplied.selectionEnd = selEnd;
+      selectDocumentRangeInVisibleEditors(
+        savedDocument.uri,
+        savedDocument,
+        replaceStartOffset,
+        endSel,
+      );
+    } else if (
+      action.kind === "replace_file" ||
+      action.kind === "create_file"
+    ) {
+      const full = savedDocument.getText().length;
+      const selStart = savedDocument.positionAt(0);
+      const selEnd = savedDocument.positionAt(full);
+      lastApplied.selectionStart = selStart;
+      lastApplied.selectionEnd = selEnd;
+      selectDocumentRangeInVisibleEditors(
+        savedDocument.uri,
+        savedDocument,
+        0,
+        full,
+      );
     }
 
     undoStackOrderPaths.push(actionPath);
