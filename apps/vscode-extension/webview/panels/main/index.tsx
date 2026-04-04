@@ -1,6 +1,7 @@
 import type { PanelState } from "../../types";
 import { ChatSection } from "./chat-section";
 import { HistorySection } from "./history-section";
+import { PreviewSection } from "./preview-section";
 import { ProcessingSection } from "./processing-section";
 import { SkippedSection } from "./skipped-section";
 
@@ -15,6 +16,7 @@ export function MainPanel({ state }: { state: PanelState }) {
   return (
     <div id="main-root">
       <ChatSection state={state} />
+      <PreviewSection state={state} />
       <ProcessingSection pending={pending} />
       <HistorySection items={historyItems} />
       <SkippedSection items={skippedItems} />

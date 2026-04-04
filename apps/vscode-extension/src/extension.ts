@@ -103,29 +103,41 @@ async function wireVocodeBackend(
           );
         }
 
+        const previewMode =
+          vscode.workspace
+            .getConfiguration("vocode")
+            .get<boolean>("editPreview") === true;
+
         const pendingId =
           services.mainPanelStore.activeVoiceTranscriptRpcPendingId();
-        const outcomes = await applyDirectives(
+        const { outcomes, previewPaths } = await applyDirectives(
           params.directives,
           params.activeFile,
-          pendingId === undefined
-            ? undefined
-            : {
-                commandApplyUi: {
-                  pendingId,
-                  onStart: (line) =>
-                    services.mainPanelStore.setApplyingCommandLine(
-                      pendingId,
-                      line,
-                    ),
-                  onOutput: (chunk) =>
-                    services.mainPanelStore.appendApplyingCommandOutput(
-                      pendingId,
-                      chunk,
-                    ),
-                },
-              },
+          {
+            previewMode,
+            ...(pendingId !== undefined
+              ? {
+                  commandApplyUi: {
+                    pendingId,
+                    onStart: (line) =>
+                      services.mainPanelStore.setApplyingCommandLine(
+                        pendingId,
+                        line,
+                      ),
+                    onOutput: (chunk) =>
+                      services.mainPanelStore.appendApplyingCommandOutput(
+                        pendingId,
+                        chunk,
+                      ),
+                  },
+                }
+              : {}),
+          },
         );
+
+        if (previewPaths.length > 0) {
+          services.mainPanelStore.setPendingPreview(previewPaths);
+        }
 
         return {
           items: outcomes.map((o) => ({

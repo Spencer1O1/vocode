@@ -189,6 +189,15 @@ export function normalizePanelState(raw: unknown): PanelState {
       }));
   }
 
+  const pp = o.pendingPreview as Record<string, unknown> | undefined;
+  if (pp && Array.isArray(pp.paths) && pp.paths.length > 0) {
+    base.pendingPreview = {
+      paths: (pp.paths as unknown[]).filter(
+        (p): p is string => typeof p === "string",
+      ),
+    };
+  }
+
   return base;
 }
 

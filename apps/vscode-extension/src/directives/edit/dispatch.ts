@@ -17,6 +17,7 @@ export async function dispatchEdit(
     const applyOutcome = await dispatchEditResultWorkspaceEdit(
       edit,
       ctx.activeDocumentPath,
+      { skipSave: ctx.previewMode },
     );
     if (!applyOutcome.ok) {
       return {
@@ -35,7 +36,12 @@ export async function dispatchEdit(
         selectionEnd: loc.selectionEnd,
       };
     }
-    return { ok: true };
+    return {
+      ok: true,
+      ...(ctx.previewMode && applyOutcome.undoStackOrderPaths.length > 0
+        ? { editedPaths: applyOutcome.undoStackOrderPaths }
+        : {}),
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : "edit dispatch failed";
     return { ok: false, message };

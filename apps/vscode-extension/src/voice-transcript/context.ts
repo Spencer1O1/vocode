@@ -12,4 +12,6 @@ export type TranscriptApplyContext = {
   activeDocumentPath: string;
   editLocations: EditLocationMap;
   commandApplyUi?: CommandApplyUiHandlers;
+  /** When true, edits are applied to the workspace but not saved (inline preview mode). */
+  previewMode?: boolean;
 };

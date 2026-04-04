@@ -1,6 +1,10 @@
 /** Wire shape after JSON postMessage (dates are ISO strings). */
 export type PanelState = {
   pending: readonly PendingRow[];
+  /** Set when edits were applied but not saved; shows Accept/Reject banner. */
+  pendingPreview?: {
+    paths: readonly string[];
+  };
   clarifyPrompt?: {
     question: string;
     originalTranscript: string;

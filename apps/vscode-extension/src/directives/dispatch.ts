@@ -13,6 +13,8 @@ import { dispatchWorkspacePath } from "./workspace-path/dispatch";
 export type DirectiveDispatchOutcome = {
   ok: boolean;
   message?: string;
+  /** Paths modified by an edit directive when running in preview (skip-save) mode. */
+  editedPaths?: string[];
 };
 
 /**

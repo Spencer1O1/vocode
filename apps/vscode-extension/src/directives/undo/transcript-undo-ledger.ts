@@ -34,6 +34,26 @@ async function undoOnceAtPath(fsPath: string): Promise<void> {
   await vscode.commands.executeCommand("undo");
 }
 
+/**
+ * Undoes unsaved preview edits (reject path). Opens each file in reverse
+ * apply order and runs a single undo step, then removes the paths from the
+ * undo ledger so a subsequent voice "undo" does not re-fire them.
+ */
+export async function rejectPreviewPaths(paths: string[]): Promise<void> {
+  for (let i = paths.length - 1; i >= 0; i--) {
+    const p = paths[i];
+    if (p !== undefined) {
+      await undoOnceAtPath(p);
+    }
+  }
+  currentSessionUndoPaths = currentSessionUndoPaths.filter(
+    (p) => !paths.includes(p),
+  );
+  lastTranscriptUndoPaths = lastTranscriptUndoPaths.filter(
+    (p) => !paths.includes(p),
+  );
+}
+
 /** Applies an undo directive from the daemon (voice intent), not the command palette. */
 export async function applyUndoDirective(
   directive: UndoDirective | undefined,

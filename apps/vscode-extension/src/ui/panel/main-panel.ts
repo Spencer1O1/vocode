@@ -11,6 +11,7 @@ import {
   getVocodeSetupBlockReason,
   OPENAI_API_KEY_SECRET,
 } from "../../config/spawn-env";
+import { rejectPreviewPaths } from "../../directives/undo/transcript-undo-ledger";
 import { sendTranscriptControlRequest } from "../../voice-transcript/transcript-control";
 import type { MainPanelStore } from "./main-panel-store";
 
@@ -159,33 +160,11 @@ export class MainPanelViewProvider
           return;
         }
         if (m.type === "transcriptControl") {
-          const c = m.control;
-          if (
-            c !== "cancel_clarify" &&
-            c !== "cancel_selection" &&
-            c !== "cancel_file_selection"
-          ) {
-            return;
-          }
-          void (async () => {
-            const ctx =
-              c === "cancel_clarify"
-                ? this.store.clarifyPromptContextSessionId()
-                : this.store.searchContextSessionId();
-            const ok = await sendTranscriptControlRequest(
-              this.services,
-              c,
-              ctx ?? this.services.voiceSession.contextSessionId(),
-            );
-            if (!ok) {
-              return;
-            }
-            if (c === "cancel_clarify") {
-              this.store.abortClarifyAsSkipped();
-            } else {
-              this.store.dismissSearchState();
-            }
-          })();
+          this.handleTranscriptControl(m.control);
+          return;
+        }
+        if (m.type === "acceptPreview" || m.type === "rejectPreview") {
+          this.handlePreviewAction(m.type);
           return;
         }
         if (m.type === "openExtensionSettings") {
@@ -234,6 +213,60 @@ export class MainPanelViewProvider
         d.dispose();
       }
     });
+  }
+
+  private handleTranscriptControl(control: unknown): void {
+    const c = control;
+    if (
+      c !== "cancel_clarify" &&
+      c !== "cancel_selection" &&
+      c !== "cancel_file_selection"
+    ) {
+      return;
+    }
+    void (async () => {
+      const ctx =
+        c === "cancel_clarify"
+          ? this.store.clarifyPromptContextSessionId()
+          : this.store.searchContextSessionId();
+      const ok = await sendTranscriptControlRequest(
+        this.services,
+        c,
+        ctx ?? this.services.voiceSession.contextSessionId(),
+      );
+      if (!ok) {
+        return;
+      }
+      if (c === "cancel_clarify") {
+        this.store.abortClarifyAsSkipped();
+      } else {
+        this.store.dismissSearchState();
+      }
+    })();
+  }
+
+  private handlePreviewAction(type: "acceptPreview" | "rejectPreview"): void {
+    void (async () => {
+      const paths = this.store.pendingPreviewPaths();
+      if (!paths || paths.length === 0) {
+        return;
+      }
+      if (type === "acceptPreview") {
+        for (const p of paths) {
+          try {
+            const doc = await vscode.workspace.openTextDocument(
+              vscode.Uri.file(p),
+            );
+            await doc.save();
+          } catch {
+            // Best-effort save; ignore individual failures.
+          }
+        }
+      } else {
+        await rejectPreviewPaths([...paths]);
+      }
+      this.store.clearPendingPreview();
+    })();
   }
 
   private postState(): void {

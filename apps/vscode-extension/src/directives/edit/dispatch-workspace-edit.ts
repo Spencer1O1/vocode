@@ -37,10 +37,15 @@ function toAbsolutePath(
  * Applies one edit directive's actions by opening each target document and
  * submitting workspace edits. Also returns per-action edit locations for
  * follow-up navigation (e.g. reveal_edit).
+ *
+ * When `options.skipSave` is true the workspace edit is applied (making the
+ * document dirty) but the file is not saved — the caller is responsible for
+ * either saving (accept) or undoing (reject) later.
  */
 export async function dispatchEditResultWorkspaceEdit(
   editDirective: EditDirective,
   activeDocumentPath: string,
+  options?: { skipSave?: boolean },
 ): Promise<ApplyEditResultWorkspaceOutcome> {
   if (editDirective.kind !== "success" || editDirective.actions.length === 0) {
     return { ok: true, appliedEdits: [], undoStackOrderPaths: [] };
@@ -152,15 +157,17 @@ export async function dispatchEditResultWorkspaceEdit(
       };
     }
 
-    const savedDocument = await vscode.workspace.openTextDocument(actionPath);
-    const saved = await savedDocument.save();
-    if (!saved) {
-      return {
-        ok: false,
-        appliedEdits,
-        undoStackOrderPaths,
-        message: "failed to save edited document",
-      };
+    if (!options?.skipSave) {
+      const savedDocument = await vscode.workspace.openTextDocument(actionPath);
+      const saved = await savedDocument.save();
+      if (!saved) {
+        return {
+          ok: false,
+          appliedEdits,
+          undoStackOrderPaths,
+          message: "failed to save edited document",
+        };
+      }
     }
 
     undoStackOrderPaths.push(actionPath);

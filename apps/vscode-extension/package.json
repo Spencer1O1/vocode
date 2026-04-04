@@ -179,6 +179,11 @@
           "type": "number",
           "default": 1800000,
           "description": "If you go this long without a voice command, Vocode forgets in-progress conversation context (follow-ups, file-picker steps, etc.). Default 30 minutes. Does not affect the microphone. 0 = never clear from idle time alone."
+        },
+        "vocode.editPreview": {
+          "type": "boolean",
+          "default": false,
+          "description": "When enabled, edits are applied to the editor but not saved until you click Accept in the Vocode panel. Click Reject to undo the preview."
         }
       }
     }

@@ -122,6 +122,14 @@ export type PendingTranscript = {
 export type MainPanelSnapshot = {
   /** Committed lines still in flight (queued, processing, or error). */
   readonly pending: readonly PendingTranscript[];
+  /**
+   * When set, one or more edit directives were applied but not yet saved
+   * (inline preview mode). The user must Accept or Reject before the files
+   * are written to disk.
+   */
+  readonly pendingPreview?: {
+    readonly paths: readonly string[];
+  };
   /** When set, the daemon requested clarification and voice input should answer this question. */
   readonly clarifyPrompt?: {
     readonly question: string;
@@ -186,6 +194,7 @@ export class MainPanelStore {
   private nextId = 1;
 
   private readonly pending: PendingTranscript[] = [];
+  private _pendingPreview: { paths: readonly string[] } | undefined;
   private recentHandled: {
     text: string;
     receivedAt: Date;
@@ -384,6 +393,29 @@ export class MainPanelStore {
     }
     this.searchState = undefined;
     this.emit();
+  }
+
+  /** Show the preview Accept/Reject banner for the given file paths. */
+  setPendingPreview(paths: readonly string[]): void {
+    if (paths.length === 0) {
+      return;
+    }
+    this._pendingPreview = { paths };
+    this.emit();
+  }
+
+  /** Remove the preview banner (called after accept or reject completes). */
+  clearPendingPreview(): void {
+    if (!this._pendingPreview) {
+      return;
+    }
+    this._pendingPreview = undefined;
+    this.emit();
+  }
+
+  /** Paths currently staged for preview accept/reject, or undefined. */
+  pendingPreviewPaths(): readonly string[] | undefined {
+    return this._pendingPreview?.paths;
   }
 
   /** Opaque daemon `contextSessionId` for the active clarify prompt, if known. */
@@ -793,6 +825,7 @@ export class MainPanelStore {
   getSnapshot(): MainPanelSnapshot {
     return {
       pending: this.pending,
+      ...(this._pendingPreview ? { pendingPreview: this._pendingPreview } : {}),
       ...(this.clarifyPrompt
         ? {
             clarifyPrompt: {
