@@ -1,8 +1,12 @@
+import { getVsCodeApi } from "./api/vscode";
 import { AudioInputMeter } from "./audio-meter";
 import type { PanelState } from "./types";
 
+export type VoiceUiStatus = "idle" | "listening" | "processing";
+
 type Props = {
   state: PanelState;
+  voiceUiStatus: VoiceUiStatus;
   className?: string;
 };
 
@@ -10,7 +14,7 @@ type Props = {
  * Unified voice UI: input level, waveform, and streaming partial transcript in one surface.
  */
 export function VoiceVisualization(props: Props) {
-  const { state, className } = props;
+  const { state, voiceUiStatus, className } = props;
   const voiceListening = state.voiceListening === true;
   const speaking = state.audioMeter.speaking === true;
   const partialRaw =
@@ -19,11 +23,6 @@ export function VoiceVisualization(props: Props) {
 
   const showDraftChrome = voiceListening && partial !== null;
 
-  const statusMain = !voiceListening
-    ? "Idle"
-    : speaking
-      ? "Speaking"
-      : "Listening";
   const statusSub = !voiceListening
     ? "Start voice to capture speech"
     : speaking
@@ -52,9 +51,23 @@ export function VoiceVisualization(props: Props) {
                 aria-hidden
               />
               <div className="voice-viz-status-text">
-                <span className="badge voice-viz-badge">{statusMain}</span>
                 <span className="voice-viz-sub">{statusSub}</span>
               </div>
+              <button
+                type="button"
+                className="panel-status-toggle voice-viz-status-toggle"
+                title="Start or stop voice"
+                aria-label={`Voice: ${voiceUiStatus}. Click to start or stop listening.`}
+                onClick={() =>
+                  getVsCodeApi()?.postMessage({ type: "toggleVoiceUiStatus" })
+                }
+              >
+                {voiceUiStatus === "processing"
+                  ? "Processing"
+                  : voiceUiStatus === "listening"
+                    ? "Listening"
+                    : "Idle"}
+              </button>
             </div>
           </div>
         </header>

@@ -25,6 +25,9 @@ const STATE_META: Record<
 
 export class VoiceStatusIndicator implements vscode.Disposable {
   private readonly item: vscode.StatusBarItem;
+  private readonly _onDidChangeState = new vscode.EventEmitter<VoiceUiState>();
+  /** Fires when idle / listening / processing changes (e.g. sync panel button with status bar). */
+  readonly onDidChangeState = this._onDidChangeState.event;
   private state: VoiceUiState = "idle";
 
   constructor() {
@@ -45,6 +48,7 @@ export class VoiceStatusIndicator implements vscode.Disposable {
 
     this.state = next;
     this.render();
+    this._onDidChangeState.fire(this.state);
   }
 
   setIdle(): void {
@@ -59,7 +63,12 @@ export class VoiceStatusIndicator implements vscode.Disposable {
     this.setState("processing");
   }
 
+  getState(): VoiceUiState {
+    return this.state;
+  }
+
   dispose(): void {
+    this._onDidChangeState.dispose();
     this.item.dispose();
   }
 

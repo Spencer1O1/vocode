@@ -27,6 +27,7 @@ export class MainPanelViewProvider
   private view?: vscode.WebviewView;
   private pendingOpenPanelView: "settings" | "main" | null = null;
   private readonly unsubscribe: () => void;
+  private readonly voiceStatusDisposable: vscode.Disposable;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -37,6 +38,11 @@ export class MainPanelViewProvider
     this.unsubscribe = this.store.onDidChange(() => {
       this.postState();
     });
+    this.voiceStatusDisposable = this.services.voiceStatus.onDidChangeState(
+      () => {
+        this.postVoiceUiStatus();
+      },
+    );
   }
 
   /** Focuses the sidebar view and switches the webview to Settings (or Main). */
@@ -57,6 +63,131 @@ export class MainPanelViewProvider
     }
     this.pendingOpenPanelView = null;
     void this.view.webview.postMessage({ type: "openPanelView", panelView: v });
+  }
+
+  private onWebviewMessage(wv: vscode.Webview, msg: unknown): void {
+    if (!msg || typeof msg !== "object") {
+      return;
+    }
+    const m = msg as Record<string, unknown>;
+    const secretSetByType: Record<string, string> = {
+      setElevenLabsApiKey: ELEVENLABS_API_KEY_SECRET,
+      setOpenAIApiKey: OPENAI_API_KEY_SECRET,
+      setAnthropicApiKey: ANTHROPIC_API_KEY_SECRET,
+    };
+    if (m.type === "webviewReady") {
+      void (async () => {
+        const block = await getVocodeSetupBlockReason(this.extensionContext);
+        void wv.postMessage({
+          type: "initialRoute",
+          panelView: block === null ? "main" : "settings",
+        });
+        void wv.postMessage(
+          await buildVocodePanelConfigMessage(this.extensionContext),
+        );
+        void wv.postMessage({
+          type: "voiceUiStatus",
+          state: this.services.voiceStatus.getState(),
+        });
+        this.flushPendingPanelView();
+      })();
+      return;
+    }
+    if (m.type === "toggleVoiceUiStatus") {
+      void (async () => {
+        const vs = this.services.voiceStatus;
+        if (vs.getState() === "idle") {
+          await vscode.commands.executeCommand("vocode.startVoice");
+        } else {
+          await vscode.commands.executeCommand("vocode.stopVoice");
+        }
+        // Panel label updates via `voiceStatus.onDidChangeState`.
+      })();
+      return;
+    }
+    if (m.type === "requestPanelConfig") {
+      void (async () => {
+        void wv.postMessage(
+          await buildVocodePanelConfigMessage(this.extensionContext),
+        );
+      })();
+      return;
+    }
+    if (typeof m.type === "string" && m.type in secretSetByType) {
+      const v = m.value;
+      const s = typeof v === "string" ? v.trim() : "";
+      const secretKey = secretSetByType[m.type];
+      void (async () => {
+        try {
+          if (s === "") {
+            await this.extensionContext.secrets.delete(secretKey);
+          } else {
+            await this.extensionContext.secrets.store(secretKey, s);
+          }
+        } finally {
+          void wv.postMessage(
+            await buildVocodePanelConfigMessage(this.extensionContext),
+          );
+        }
+      })();
+      return;
+    }
+    if (m.type === "setPanelConfig") {
+      const patch = m.patch;
+      if (!patch || typeof patch !== "object") {
+        return;
+      }
+      void (async () => {
+        try {
+          await applyVocodePanelConfigPatch(patch as Record<string, unknown>);
+        } finally {
+          void wv.postMessage(
+            await buildVocodePanelConfigMessage(this.extensionContext),
+          );
+        }
+      })();
+      return;
+    }
+    if (m.type === "transcriptControl") {
+      const c = m.control;
+      if (
+        c !== "cancel_clarify" &&
+        c !== "cancel_selection" &&
+        c !== "cancel_file_selection"
+      ) {
+        return;
+      }
+      void (async () => {
+        const ctx =
+          c === "cancel_clarify"
+            ? this.store.clarifyPromptContextSessionId()
+            : this.store.searchContextSessionId();
+        const ok = await sendTranscriptControlRequest(
+          this.services,
+          c,
+          ctx ?? this.services.voiceSession.contextSessionId(),
+        );
+        if (!ok) {
+          return;
+        }
+        if (c === "cancel_clarify") {
+          this.store.abortClarifyAsSkipped();
+        } else {
+          this.store.dismissSearchState();
+        }
+      })();
+      return;
+    }
+    if (m.type === "openExtensionSettings") {
+      void vscode.commands.executeCommand(
+        "workbench.action.openSettings",
+        "vocode",
+      );
+      return;
+    }
+    if (m.type === "restartVocodeBackend") {
+      // No longer used (settings apply automatically).
+    }
   }
 
   resolveWebviewView(
@@ -88,116 +219,7 @@ export class MainPanelViewProvider
 
     disposables.push(
       wv.onDidReceiveMessage((msg: unknown) => {
-        if (!msg || typeof msg !== "object") {
-          return;
-        }
-        const m = msg as Record<string, unknown>;
-        const secretSetByType: Record<string, string> = {
-          setElevenLabsApiKey: ELEVENLABS_API_KEY_SECRET,
-          setOpenAIApiKey: OPENAI_API_KEY_SECRET,
-          setAnthropicApiKey: ANTHROPIC_API_KEY_SECRET,
-        };
-        if (m.type === "webviewReady") {
-          void (async () => {
-            const block = await getVocodeSetupBlockReason(
-              this.extensionContext,
-            );
-            void wv.postMessage({
-              type: "initialRoute",
-              panelView: block === null ? "main" : "settings",
-            });
-            void wv.postMessage(
-              await buildVocodePanelConfigMessage(this.extensionContext),
-            );
-            this.flushPendingPanelView();
-          })();
-          return;
-        }
-        if (m.type === "requestPanelConfig") {
-          void (async () => {
-            void wv.postMessage(
-              await buildVocodePanelConfigMessage(this.extensionContext),
-            );
-          })();
-          return;
-        }
-        if (typeof m.type === "string" && m.type in secretSetByType) {
-          const v = m.value;
-          const s = typeof v === "string" ? v.trim() : "";
-          const secretKey = secretSetByType[m.type];
-          void (async () => {
-            try {
-              if (s === "") {
-                await this.extensionContext.secrets.delete(secretKey);
-              } else {
-                await this.extensionContext.secrets.store(secretKey, s);
-              }
-            } finally {
-              void wv.postMessage(
-                await buildVocodePanelConfigMessage(this.extensionContext),
-              );
-            }
-          })();
-          return;
-        }
-        if (m.type === "setPanelConfig") {
-          const patch = m.patch;
-          if (!patch || typeof patch !== "object") {
-            return;
-          }
-          void (async () => {
-            try {
-              await applyVocodePanelConfigPatch(
-                patch as Record<string, unknown>,
-              );
-            } finally {
-              void wv.postMessage(
-                await buildVocodePanelConfigMessage(this.extensionContext),
-              );
-            }
-          })();
-          return;
-        }
-        if (m.type === "transcriptControl") {
-          const c = m.control;
-          if (
-            c !== "cancel_clarify" &&
-            c !== "cancel_selection" &&
-            c !== "cancel_file_selection"
-          ) {
-            return;
-          }
-          void (async () => {
-            const ctx =
-              c === "cancel_clarify"
-                ? this.store.clarifyPromptContextSessionId()
-                : this.store.searchContextSessionId();
-            const ok = await sendTranscriptControlRequest(
-              this.services,
-              c,
-              ctx ?? this.services.voiceSession.contextSessionId(),
-            );
-            if (!ok) {
-              return;
-            }
-            if (c === "cancel_clarify") {
-              this.store.abortClarifyAsSkipped();
-            } else {
-              this.store.dismissSearchState();
-            }
-          })();
-          return;
-        }
-        if (m.type === "openExtensionSettings") {
-          void vscode.commands.executeCommand(
-            "workbench.action.openSettings",
-            "vocode",
-          );
-          return;
-        }
-        if (m.type === "restartVocodeBackend") {
-          // No longer used (settings apply automatically).
-        }
+        this.onWebviewMessage(wv, msg);
       }),
     );
 
@@ -233,6 +255,16 @@ export class MainPanelViewProvider
       for (const d of disposables) {
         d.dispose();
       }
+    });
+  }
+
+  private postVoiceUiStatus(): void {
+    if (!this.view) {
+      return;
+    }
+    void this.view.webview.postMessage({
+      type: "voiceUiStatus",
+      state: this.services.voiceStatus.getState(),
     });
   }
 
@@ -280,6 +312,7 @@ export class MainPanelViewProvider
   }
 
   dispose(): void {
+    this.voiceStatusDisposable.dispose();
     this.unsubscribe();
   }
 }
