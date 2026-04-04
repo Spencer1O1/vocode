@@ -329,16 +329,24 @@ jobs:
           path: parts
           pattern: voice-partial-*
 
+      # upload-artifact v4 drops the uploaded parent path: each partial's zip root is
+      # the slug folders (linux-x64/, win32-x64/, …), not apps/voice/bin/<slug>/.
       - name: Merge into apps/voice/bin
         shell: bash
         run: |
           mkdir -p apps/voice/bin
-          for dir in parts/voice-partial-*/apps/voice/bin; do
-            if [ -d "$dir" ]; then
-              cp -a "$dir"/* apps/voice/bin/
+          shopt -s nullglob
+          for base in parts/voice-partial-*; do
+            if [ ! -d "$base" ]; then
+              continue
+            fi
+            if [ -d "$base/apps/voice/bin" ]; then
+              cp -a "$base/apps/voice/bin"/* apps/voice/bin/
+            else
+              cp -a "$base"/* apps/voice/bin/
             fi
           done
-          echo "Merged slugs:" && ls -1 apps/voice/bin
+          echo "Merged slugs:" && ls -la apps/voice/bin
 
       - name: Upload complete voice tree
         uses: actions/upload-artifact@v4
