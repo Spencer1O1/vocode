@@ -16,7 +16,7 @@ func TestClassifierSystem_rootContainsTieBreaksAndRoutes(t *testing.T) {
 		"Tie-breaks (ROOT):",
 		"Compound utterance",
 		"Return exactly ONE JSON object:",
-		`"control" vs "irrelevant"`,
+		`"create" / "control" / "irrelevant"`,
 	} {
 		if !strings.Contains(s, sub) {
 			t.Errorf("root ClassifierSystem missing %q\n---\n%s", sub, s)

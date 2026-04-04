@@ -62,8 +62,12 @@ func HandleEdit(deps *SelectionDeps, params protocol.VoiceTranscriptParams, vs *
 	batchID := deps.NewBatchID()
 
 	filteredImports := filterNewImportLines(body, modelOut.ImportLines)
+	fileLines := strings.Split(body, "\n")
 	importBlock := importBlockForInsert(filteredImports)
-	insertLine := importInsertLine(strings.Split(body, "\n"), active)
+	insertLine := importInsertLine(fileLines, active)
+	if importBlock != "" && importLanguageForPath(active) == importLangJSTS {
+		importBlock = jstsFinalizeImportBlock(fileLines, insertLine, importBlock)
+	}
 	lineOff := linesAddedByImportBlock(importBlock)
 
 	sl2, sc2, el2, ec2 := sl, sc, el, ec

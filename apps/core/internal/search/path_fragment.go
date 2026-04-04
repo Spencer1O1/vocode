@@ -8,6 +8,11 @@ import (
 	"unicode"
 )
 
+// pathFragmentWalkPreRankCapMul bounds how many raw matches we collect before ranking and capping.
+// A low multiplier truncates during walk (lexical order) and drops valid hits in large trees; keep
+// this comfortably above maxPaths so ranking sees most candidates.
+const pathFragmentWalkPreRankCapMul = 50
+
 var pathSearchSkipDirNames = map[string]struct{}{
 	".git":         {},
 	"node_modules": {},
@@ -180,7 +185,7 @@ func PathFragmentMatches(root, fragment string, maxPaths int, opts ...PathFragme
 				(dirBasenameMatchesSelectFileFragment(name, fragment) || fragmentRefersToBasename(name, fragment)) {
 				matches = append(matches, PathMatch{Path: filepath.Clean(path), IsDir: true})
 			}
-			if len(matches) >= maxPaths*4 {
+			if len(matches) >= maxPaths*pathFragmentWalkPreRankCapMul {
 				return filepath.SkipAll
 			}
 			return nil
@@ -195,7 +200,7 @@ func PathFragmentMatches(root, fragment string, maxPaths int, opts ...PathFragme
 			return nil
 		}
 		matches = append(matches, PathMatch{Path: filepath.Clean(path), IsDir: false})
-		if len(matches) >= maxPaths*4 {
+		if len(matches) >= maxPaths*pathFragmentWalkPreRankCapMul {
 			return filepath.SkipAll
 		}
 		return nil

@@ -27,14 +27,14 @@ func (e *TranscriptSearch) FileSearchFromQuery(params protocol.VoiceTranscriptPa
 		}, true, "search requires workspaceRoot or activeFile"
 	}
 
-	fragment := search.NormalizeSelectFileSearchQuery(root, q)
+	fragment := search.ResolveFileSelectSearchFragment(root, q, params.Text, params.ActiveFile)
 	if fragment == "" {
 		return protocol.VoiceTranscriptCompletion{}, false, ""
 	}
 
-	matches, err := search.PathFragmentMatches(root, fragment, fileSearchMaxUniquePaths, search.PathFragmentOptions{
-		PreferFiles: search.PreferFilesFromSelectQuery(q),
-	})
+	// Neutral ranking: do not pass PreferFiles from utterance ("… file" vs "… folder"). Both should
+	// surface the same path candidates; only basename match strength and depth affect order.
+	matches, err := search.PathFragmentMatches(root, fragment, fileSearchMaxUniquePaths)
 	if err != nil {
 		return protocol.VoiceTranscriptCompletion{Success: false}, true, "file search failed: " + err.Error()
 	}

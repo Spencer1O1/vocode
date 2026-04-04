@@ -62,6 +62,7 @@ func classifyWithModel(ctx context.Context, m agent.ModelClient, in Context) (Re
 		SearchQuery:      strings.TrimSpace(raw.SearchQuery),
 		SearchSymbolKind: strings.TrimSpace(strings.ToLower(raw.SearchSymbolKind)),
 	}
+	res = DisambiguateClassifierResult(in, res)
 	if err := res.Validate(); err != nil {
 		return Result{}, err
 	}

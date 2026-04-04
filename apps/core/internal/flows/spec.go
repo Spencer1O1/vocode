@@ -39,8 +39,8 @@ func (s Spec) RouteIDs() []string {
 }
 
 var globalRoutes = []Route{
-	{ID: "workspace_select", Description: `Search inside file contents: symbols, identifiers, or literal text (by name or substring). Not for "open …" (that is file_select). Ambiguous with no path-on-disk cue → prefer this over file_select. Go to main" without file/open cues → here. Output: search_query = identifier or literal substring to find, not a prose paraphrase (see global Rules for literal-text exception and search_symbol_kind).`, Execution: ExecutionSerialized},
-	{ID: "file_select", Description: "Find or open a file or folder by basename (path on disk). “Open …”, extensions, and obvious file/folder names → here. search_query = single basename segment only — no slashes, no full paths, never paste activeFile (see global Rules for STT “dot” → period). workspaceFolderOpen false is OK; host handles it.", Execution: ExecutionSerialized},
+	{ID: "workspace_select", Description: `Search symbols and text inside files (not path basenames). Default when they are not clearly browsing paths. search_query = identifier or literal substring; optional search_symbol_kind when sure (see Rules).`, Execution: ExecutionSerialized},
+	{ID: "file_select", Description: `Browse files/folders by path: they said file, folder, directory, or open <name>, or an obvious filename. search_query = one basename segment; see Rules (activeFile, no slashes).`, Execution: ExecutionSerialized},
 	{ID: "create", Description: "Add new content by inserting at a line boundary in the active editor (no text selected). Only when hasNonemptySelection is false; otherwise classify as edit (or irrelevant). The user must name or clearly imply what to add — e.g. a function, method, variable, class, interface, type, comment, import, test, or block of code. Vague \"add something\" / \"put code here\" with no identifiable what → not create.", Execution: ExecutionSerialized},
 	{ID: "command", Description: "Run terminal/shell work now: install, scaffold, git init, run tests/build, dev server, etc. Use for clear execute-now intent, including polite questions like “can you run the tests?” when they mean execution, not an explanation.", Execution: ExecutionSerialized},
 	{ID: "control", Description: "Dismiss or leave the current flow only: exit, cancel, go back, stop, quit, never mind, and short synonyms.", Execution: ExecutionImmediate},
@@ -89,7 +89,7 @@ func fileSelectSpec() Spec {
 		{ID: "delete", Description: "Delete the selected file. (Workspace root and folders are not deletable via this route.)", Execution: ExecutionSerialized},
 	}
 	return Spec{
-		Intro: `You are Vocode's classifier for the SELECT FILE flow: the user has file/folder path hits. Input is speech-to-text. Use route descriptions plus global Rules (search_query, workspace_select vs file_select, create vs create_entry).
+		Intro: `You are Vocode's classifier for the SELECT FILE flow: the user has file/folder path hits. Speech-to-text. Follow Routes and global Rules (search_query, workspace vs file, create vs create_entry).
 
 Choose exactly one route. You only classify; details are resolved later.`,
 		Routes: append(globalRoutes, fsRoutes...),

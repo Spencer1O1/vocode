@@ -22,12 +22,13 @@ func runMainPhase(
 ) (protocol.VoiceTranscriptCompletion, bool, string) {
 	if pre.has && pre.flow == flows.Root {
 		rootD := rootDeps(e)
-		fr := router.Result{
+		ctx := router.ContextForClassification(flows.Root, text, params)
+		fr := router.DisambiguateClassifierResult(ctx, router.Result{
 			Flow:             flows.Root,
 			Route:            pre.route,
 			SearchQuery:      pre.searchQuery,
 			SearchSymbolKind: pre.searchSymbolKind,
-		}
+		})
 		res, fail := rootflow.DispatchRoute(rootD, params, vs, text, fr)
 		if strings.TrimSpace(fail) != "" {
 			persist(e, key, *vs)

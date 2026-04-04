@@ -8,10 +8,8 @@ import (
 	"vocoding.net/vocode/v2/apps/core/internal/flows"
 )
 
-// ClassifierSystem builds the system prompt for flow route classification.
-// It starts from flows.Spec (intro + per-route descriptions), then appends shared JSON output Rules.
-// Flow-specific tie-break bullets are appended below (workspace select, select file); workspace select uses classifier user JSON.
-// flows.Execution policy is host metadata only; it must never appear here (or in user JSON / schema).
+// ClassifierSystem builds the system prompt for flow route classification (spec + JSON rules).
+// flows.Execution is host-only and must not appear here.
 func ClassifierSystem(flow flows.ID) string {
 	spec := flows.SpecFor(flow)
 	var b strings.Builder
@@ -25,17 +23,14 @@ Return exactly ONE JSON object:
 { "route": "<one of the route ids above>", "search_query": "<string or empty>", "search_symbol_kind": "<string or empty>" }
 
 Rules:
-- For "workspace_select", set "search_query" to the primary symbol or identifier name only (e.g. deltaTime, parseHeader, MyClass) — not a prose phrase like "delta time".
-  - Exception — literal text search: user gave an exact phrase, error line, log snippet, comment text, or quoted string to find verbatim in files → put that substring in "search_query" (strip outer quotes only) and omit "search_symbol_kind".
-  - Optional "search_symbol_kind" (workspace_select only): when you know what kind of symbol they mean, set one of: function, method, class, variable, constant, interface, enum, property, field, constructor, module, struct, type. Omit or use "" when unsure; never guess if ambiguous.
-- For "file_select", set "search_query" to a single file or folder name only (basename): e.g. game.js, README.md, Res. No slashes, no path segments, no absolute paths — never paste activeFile or any full system path. STT may say "dot" for a period in the name — rewrite to real punctuation in that one segment only. Set "search_symbol_kind" to "". Still use file_select if workspaceFolderOpen is false; the host handles missing workspace later.
-- For "workspace_select" and "file_select", "search_query" must be non-empty.
-- For all other routes, set "search_query" to "" and "search_symbol_kind" to "".
-- "question" vs "command": follow the "question" and "command" route descriptions (run-now intent → command even if phrased as a question).
-- "workspace_select" vs "file_select" vs "workspace_select_control": follow those route descriptions; strip filler (find, go, to, the) from search_query. Never use "workspace_select_control" for a newly named symbol or file — only for next/previous/pick-N on the current hit list.
-- Compound utterance (e.g. find X and then add Y): if both search and create/command apply, prefer "workspace_select" or "file_select" over "create" or "command" (search wins for this turn).
-- "create": follow the create route description in the Routes list (concrete "what to add"; vague "add something" → "irrelevant"). If hasNonemptySelection is true, never return "create" — use "edit" for the highlight.
-- "control" vs "irrelevant": "control" = dismiss/leave the flow (exit, cancel, stop, quit, go back, never mind). Casual "thanks" / "okay" / "got it" without clear exit → "irrelevant".
+- Workspace vs file (search routes): if they clearly mean a path on disk (words like file, folder, directory, or open + a name), choose "file_select"; otherwise choose "workspace_select" for symbol/text-in-files search. The host may adjust this from the raw utterance; still pick the route that matches intent.
+- "workspace_select": search_query = one identifier token or literal substring — strip trailing discourse that only names the kind of thing (component, function, class, method, symbol, hook, …); put kind in search_symbol_kind when you set it, not on the end of search_query. Example: "find the test component" → search_query "test" (not "test component"). Verbatim phrase / log line / quoted text → full substring; omit search_symbol_kind.
+- "file_select": search_query = one basename from what they said (strip filler); STT "dot" → period in that name. Never copy activeFile's basename unless they said that filename. No slashes or full paths. search_symbol_kind "".
+- "workspace_select" and "file_select" need non-empty search_query; other routes use "" for both search fields.
+- "question" vs "command": run-now execution → command even if phrased as a question.
+- workspace_select_control / file_select_control: only for next/previous/pick-N on the current list, not a new name to find.
+- Compound utterance (search + create/command): search route wins this turn.
+- "create" / "control" / "irrelevant": per route descriptions; hasNonemptySelection → not "create", use "edit" for the selection.
 - No other keys. No markdown.
 `)
 	if flow == flows.WorkspaceSelect {
@@ -71,15 +66,16 @@ func ClassifierUserJSON(in Context) ([]byte, error) {
 }
 
 func classifierSearchQueryDescription(flow flows.ID) string {
+	hint := ` Non-empty for workspace_select/file_select only: one name token (file_select) or identifier/literal (workspace_select); do not echo activeFile unless they said it.`
 	switch flow {
 	case flows.Root:
-		return "Non-empty only for workspace_select and file_select. For question, command, create, control, irrelevant: empty. Vague create (no what) → route irrelevant with empty search fields."
+		return "Empty except workspace_select and file_select (question/command/create/control/irrelevant use empty search fields; vague create → irrelevant)." + hint
 	case flows.WorkspaceSelect:
-		return "Non-empty for workspace_select and file_select only. For workspace_select_control, edit, rename, delete, command, create, control, irrelevant: empty."
+		return "Empty except workspace_select and file_select." + hint
 	case flows.SelectFile:
-		return "Non-empty for workspace_select and file_select only. For file_select_control, move, rename, create_entry (must be empty), delete, command, create, control, irrelevant: empty."
+		return "Empty except workspace_select and file_select; create_entry must use empty search fields." + hint
 	default:
-		return "Non-empty only for workspace_select and file_select; otherwise empty."
+		return "Empty except workspace_select and file_select." + hint
 	}
 }
 

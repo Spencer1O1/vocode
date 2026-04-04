@@ -43,6 +43,53 @@ func TestNormalizeSelectFileSearchQuery_basenameOnly(t *testing.T) {
 	}
 }
 
+func TestResolveFileSelectSearchFragment_prefersUtteranceWhenClassifierEchoesActiveBasename(t *testing.T) {
+	root := t.TempDir()
+	active := filepath.Join(root, "vocoded-app", "App.tsx")
+	qClassifier := "App.tsx"
+	utter := "find the app"
+	got := ResolveFileSelectSearchFragment(root, qClassifier, utter, active)
+	if got != "app" {
+		t.Fatalf("got %q want app", got)
+	}
+}
+
+func TestResolveFileSelectSearchFragment_sameTokenNoOverride(t *testing.T) {
+	root := t.TempDir()
+	active := filepath.Join(root, "App.tsx")
+	got := ResolveFileSelectSearchFragment(root, "app", "find the app", active)
+	if got != "app" {
+		t.Fatalf("got %q want app", got)
+	}
+}
+
+func TestResolveFileSelectSearchFragment_explicitFilenameMatchesUtterance(t *testing.T) {
+	root := t.TempDir()
+	active := filepath.Join(root, "App.tsx")
+	got := ResolveFileSelectSearchFragment(root, "App.tsx", "open App.tsx", active)
+	if got != "App.tsx" {
+		t.Fatalf("got %q want App.tsx", got)
+	}
+}
+
+func TestResolveFileSelectSearchFragment_preferBareUtteranceWhenPreferFileAndClassifierDotted(t *testing.T) {
+	root := t.TempDir()
+	active := filepath.Join(root, "pkg", "other.ts")
+	got := ResolveFileSelectSearchFragment(root, "App.tsx", "find the app file", active)
+	if got != "app" {
+		t.Fatalf("got %q want app", got)
+	}
+}
+
+func TestResolveFileSelectSearchFragment_openFileNamedAppStillBroadWhenPreferFile(t *testing.T) {
+	root := t.TempDir()
+	active := filepath.Join(root, "pkg", "app")
+	got := ResolveFileSelectSearchFragment(root, "app", "find the app file", active)
+	if got != "app" {
+		t.Fatalf("got %q want app", got)
+	}
+}
+
 func TestNormalizeSelectFileSearchQuery_stripsSpokenGoTo(t *testing.T) {
 	root := t.TempDir()
 	if g := NormalizeSelectFileSearchQuery(root, "go to the explore file"); g != "explore" {
