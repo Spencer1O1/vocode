@@ -76,18 +76,25 @@ func jsTsImportInsertLine(lines []string) int {
 
 // jstsFinalizeImportBlock appends a newline so one blank line separates the new import block from
 // following top-level code when that line is not another import/re-export-from.
+// If insertLine already sits on a blank line before that code, the file already has the gap — do not
+// append another newline or organize/edit flows end up with two blank lines before export/default.
 func jstsFinalizeImportBlock(src []string, insertLine int, block string) string {
 	if block == "" {
 		return block
 	}
 	j := insertLine
+	hadBlankAfterInsertSlot := false
 	for j < len(src) && strings.TrimSpace(src[j]) == "" {
+		hadBlankAfterInsertSlot = true
 		j++
 	}
 	if j >= len(src) {
 		return block
 	}
 	if isJsTsImportOrReexportFromLine(src[j]) {
+		return block
+	}
+	if hadBlankAfterInsertSlot {
 		return block
 	}
 	if strings.HasSuffix(block, "\n\n") {

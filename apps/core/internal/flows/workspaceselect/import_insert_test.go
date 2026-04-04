@@ -62,6 +62,21 @@ func TestJstsFinalizeImportBlock_skipWhenNextIsImport(t *testing.T) {
 	}
 }
 
+func TestJstsFinalizeImportBlock_existingBlankBeforeExport(t *testing.T) {
+	src := []string{
+		`import { a } from "x"`,
+		`import React from 'react';`,
+		``,
+		`export default function Test() {}`,
+	}
+	insertLine := 2
+	block := "import { Button } from 'react-native';\n"
+	got := jstsFinalizeImportBlock(src, insertLine, block)
+	if got != block {
+		t.Fatalf("got %q want %q (single file blank already separates imports from export)", got, block)
+	}
+}
+
 func TestImportInsertLine_goGroupedBeforeCloseParen(t *testing.T) {
 	lines := []string{
 		"package main",
