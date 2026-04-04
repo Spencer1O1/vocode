@@ -21,6 +21,9 @@ func TestStackPromptAddenda_reactNativeExpoSkill(t *testing.T) {
 	if !strings.Contains(s, "React Native") || !strings.Contains(s, "Expo") {
 		t.Fatalf("expected RN/Expo block, got %q", s)
 	}
+	if !strings.Contains(s, "StyleSheet") || !strings.Contains(s, "Pressable") || !strings.Contains(s, "style={{") {
+		t.Fatalf("expected styling (style={{}}) / Button guidance in skill, got %q", s)
+	}
 }
 
 func TestStackPromptAddenda_promptAddendumOnly(t *testing.T) {
