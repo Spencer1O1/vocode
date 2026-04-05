@@ -2,7 +2,7 @@
   "name": "vocode",
   "displayName": "Vocode",
   "description": "Voice-driven coding assistant for VS Code",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": false,
   "publisher": "SpencerLS",
   "license": "AGPL-3.0",

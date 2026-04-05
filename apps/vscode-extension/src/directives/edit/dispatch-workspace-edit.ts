@@ -92,7 +92,10 @@ export async function dispatchEditResultWorkspaceEdit(
     const wsEdit = new vscode.WorkspaceEdit();
 
     let replaceStartOffset: number | undefined;
-    let replaceNewText = "";
+    /** Document UTF-16 length before this action's apply (for post-apply selection span). */
+    let beforeDocUtf16Len: number | undefined;
+    /** UTF-16 length of the range removed by replace (0 for pure insert / append). */
+    let replacedRangeUtf16Len: number | undefined;
 
     if (action.kind === "replace_between_anchors") {
       const targetDoc = await vscode.workspace.openTextDocument(actionPath);
@@ -104,7 +107,8 @@ export async function dispatchEditResultWorkspaceEdit(
       const startPos = targetDoc.positionAt(startOffset);
       const endPos = targetDoc.positionAt(endOffset);
       replaceStartOffset = startOffset;
-      replaceNewText = action.newText;
+      beforeDocUtf16Len = utf16Len(text);
+      replacedRangeUtf16Len = endOffset - startOffset;
       wsEdit.replace(
         targetDoc.uri,
         new vscode.Range(startPos, endPos),
@@ -140,7 +144,9 @@ export async function dispatchEditResultWorkspaceEdit(
         }
       }
       replaceStartOffset = targetDoc.offsetAt(startPos);
-      replaceNewText = action.newText;
+      beforeDocUtf16Len = utf16Len(targetDoc.getText());
+      replacedRangeUtf16Len =
+        targetDoc.offsetAt(endPos) - targetDoc.offsetAt(startPos);
       wsEdit.replace(uri, new vscode.Range(startPos, endPos), action.newText);
       appliedEdits.push({
         editId: action.editId,
@@ -178,7 +184,8 @@ export async function dispatchEditResultWorkspaceEdit(
       const endOff = targetDoc.getText().length;
       const end = targetDoc.positionAt(endOff);
       replaceStartOffset = endOff;
-      replaceNewText = action.text;
+      beforeDocUtf16Len = utf16Len(targetDoc.getText());
+      replacedRangeUtf16Len = 0;
       wsEdit.insert(uri, end, action.text);
       appliedEdits.push({
         editId: action.editId,
@@ -212,35 +219,46 @@ export async function dispatchEditResultWorkspaceEdit(
     }
 
     const lastApplied = appliedEdits[appliedEdits.length - 1];
+    const docAfterSave = await vscode.workspace.openTextDocument(actionPath);
     if (
       replaceStartOffset !== undefined &&
+      beforeDocUtf16Len !== undefined &&
+      replacedRangeUtf16Len !== undefined &&
       (action.kind === "replace_range" ||
         action.kind === "replace_between_anchors" ||
         action.kind === "append_to_file")
     ) {
-      const endSel = replaceStartOffset + utf16Len(replaceNewText);
-      const selStart = savedDocument.positionAt(replaceStartOffset);
-      const selEnd = savedDocument.positionAt(endSel);
+      // Use measured length after apply/save so selection matches the real buffer (e.g. LF→CRLF).
+      const LAfter = utf16Len(docAfterSave.getText());
+      const insertedLen = Math.max(
+        0,
+        LAfter - beforeDocUtf16Len + replacedRangeUtf16Len,
+      );
+      let endSel = replaceStartOffset + insertedLen;
+      const startOff = Math.max(0, Math.min(replaceStartOffset, LAfter));
+      endSel = Math.max(startOff, Math.min(endSel, LAfter));
+      const selStart = docAfterSave.positionAt(startOff);
+      const selEnd = docAfterSave.positionAt(endSel);
       lastApplied.selectionStart = selStart;
       lastApplied.selectionEnd = selEnd;
       selectDocumentRangeInVisibleEditors(
-        savedDocument.uri,
-        savedDocument,
-        replaceStartOffset,
+        docAfterSave.uri,
+        docAfterSave,
+        startOff,
         endSel,
       );
     } else if (
       action.kind === "replace_file" ||
       action.kind === "create_file"
     ) {
-      const full = savedDocument.getText().length;
-      const selStart = savedDocument.positionAt(0);
-      const selEnd = savedDocument.positionAt(full);
+      const full = utf16Len(docAfterSave.getText());
+      const selStart = docAfterSave.positionAt(0);
+      const selEnd = docAfterSave.positionAt(full);
       lastApplied.selectionStart = selStart;
       lastApplied.selectionEnd = selEnd;
       selectDocumentRangeInVisibleEditors(
-        savedDocument.uri,
-        savedDocument,
+        docAfterSave.uri,
+        docAfterSave,
         0,
         full,
       );
